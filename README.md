@@ -55,13 +55,13 @@ A Python client for accessing ESA MAAP satellite data. Provides both a CLI (`maa
 ## Installation
 
 ```bash
-pip install git+https://github.com/bernat-earthfocus/maap_client.git
+pip install git+https://github.com/earthfocus/maap_client.git
 ```
 
 Or for development:
 
 ```bash
-git clone https://github.com/bernat-earthfocus/maap_client.git
+git clone https://github.com/earthfocus/maap_client.git
 cd maap_client
 pip install -e .
 ```
