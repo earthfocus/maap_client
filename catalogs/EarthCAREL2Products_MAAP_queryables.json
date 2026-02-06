@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Queryable names for the STAC API Item Search filter.",
+  "type": "object",
+  "title": "Queryables for EarthCAREL2Products_MAAP collection",
+  "$id": "https://catalog.maap.eo.esa.int/catalogue/collections/EarthCAREL2Products_MAAP/queryables",
+  "collection": "EarthCAREL2Products_MAAP",
+  "properties": {
+    "acquisitionType": {
+      "description": "Used to distinguish at a high level the appropriateness of the acquisition for \"general\" use, whether the product is a nominal acquisition, special calibration product or other",
+      "title": "Acquisition type",
+      "type": "string",
+      "enum": [
+        "NOMINAL",
+        "OTHER"
+      ]
+    },
+    "missionPhase": {
+      "description": "Mission phase, each one has a specific objective for the mission. Values are mission-specific.",
+      "title": "Mission phase",
+      "type": "string",
+      "enum": [
+        "Routine"
+      ]
+    },
+    "processingDate": {
+      "format": "date-time",
+      "description": "A date interval requesting entries processed within a given time interval",
+      "title": "Processing date",
+      "type": "string"
+    },
+    "instrument": {
+      "description": "The instrument (e.g. MERIS, AATSR, ASAR, HRVIR. SAR)",
+      "title": "Instrument",
+      "type": "string",
+      "enum": [
+        "ATLID",
+        "AUX",
+        "CPR",
+        "MSI",
+        "SYNERGETIC"
+      ]
+    },
+    "creationDate": {
+      "format": "date-time",
+      "description": "The date when the metadata item was ingested for the first time (i.e. inserted) in the catalogue",
+      "title": "Creation date",
+      "type": "string"
+    },
+    "platform": {
+      "description": "The platform short name",
+      "title": "Platform",
+      "type": "string",
+      "enum": [
+        "EarthCARE"
+      ]
+    },
+    "orbitNumber": {
+      "description": "The acquisition orbit number",
+      "title": "Orbit number",
+      "type": "integer"
+    },
+    "processingCenter": {
+      "description": "The processing center (e.g. PDHS-E, PDHS-K, DPA, F-ACRI)",
+      "title": "Processing center",
+      "type": "string",
+      "enum": [
+        "ECCCxxxxxx",
+        "JAXA_SAOC",
+        "PDGS-CPFxx"
+      ]
+    },
+    "uid": {
+      "description": "Item identifier",
+      "title": "Item ID",
+      "type": "string"
+    },
+    "modificationDate": {
+      "format": "date-time",
+      "description": "The date when the metadata item was last modified (i.e. updated) in the catalogue",
+      "title": "Modification date",
+      "type": "string"
+    },
+    "productVersion": {
+      "description": "The version of the product",
+      "title": "Product version",
+      "type": "string",
+      "enum": [
+        "ab",
+        "ac",
+        "ad",
+        "ae",
+        "ag",
+        "ba",
+        "bb",
+        "bc"
+      ]
+    },
+    "processingLevel": {
+      "description": "The processing level applied to the entry",
+      "title": "Processing level",
+      "type": "string",
+      "enum": [
+        "L2A",
+        "L2B"
+      ]
+    },
+    "sensorType": {
+      "description": "The sensor type",
+      "title": "Sensor type",
+      "type": "string",
+      "enum": [
+        "OPTICAL"
+      ]
+    },
+    "productionStatus": {
+      "description": "The status of the entry",
+      "title": "Production status",
+      "type": "string",
+      "enum": [
+        "ARCHIVED"
+      ]
+    },
+    "processorName": {
+      "description": "The processor software name",
+      "title": "Processor name",
+      "type": "string",
+      "enum": [
+        "A-FM",
+        "A-LAY",
+        "A-PRO",
+        "AC-TC",
+        "ACM-3D",
+        "ACM-CAP",
+        "ACM-COM",
+        "ACM-RT",
+        "ACM-RT-2B",
+        "ACMB-3D",
+        "ACMB-DF",
+        "ACMB-DF-2B",
+        "AM-COL",
+        "BM-RAD",
+        "BMA-FLX",
+        "BMA_FLX",
+        "C-CLD",
+        "C-PRO",
+        "JAXA EarthCARE Processor",
+        "M-AOT",
+        "M-CLD"
+      ]
+    },
+    "track": {
+      "description": "The orbit track",
+      "title": "Track",
+      "type": "string"
+    },
+    "sensorMode": {
+      "description": "The sensor mode",
+      "title": "Sensor mode",
+      "type": "string",
+      "enum": [
+        "AUX",
+        "DEFAULT"
+      ]
+    },
+    "productType": {
+      "description": "A string identifying the entry type",
+      "title": "Product type",
+      "type": "string",
+      "enum": [
+        "ACM_CAP_2B",
+        "ACM_COM_2B",
+        "ACM_RT__2B",
+        "AC__CLP_2B",
+        "AC__TC__2B",
+        "ALL_3D__2B",
+        "ALL_DF__2B",
+        "AM__ACD_2B",
+        "AM__CTH_2B",
+        "ATL_AER_2A",
+        "ATL_ALD_2A",
+        "ATL_CLA_2A",
+        "ATL_CTH_2A",
+        "ATL_EBD_2A",
+        "ATL_FM__2A",
+        "ATL_ICE_2A",
+        "ATL_TC__2A",
+        "BMA_FLX_2B",
+        "BM__RAD_2B",
+        "CPR_APC_2A",
+        "CPR_CD__2A",
+        "CPR_CLD_2A",
+        "CPR_FMR_2A",
+        "CPR_TC__2A",
+        "MSI_AOT_2A",
+        "MSI_CM__2A",
+        "MSI_COP_2A"
+      ]
+    },
+    "orbitDirection": {
+      "description": "The acquisition orbit direction",
+      "title": "Orbit direction",
+      "type": "string",
+      "enum": [
+        "ASCENDING",
+        "DESCENDING"
+      ]
+    },
+    "doi": {
+      "description": "Digital Object Identifier identifying the product (see http://www.doi.org)",
+      "title": "Doi",
+      "type": "string"
+    },
+    "frame": {
+      "description": "The orbit frame",
+      "title": "Frame",
+      "type": "string"
+    }
+  }
+}

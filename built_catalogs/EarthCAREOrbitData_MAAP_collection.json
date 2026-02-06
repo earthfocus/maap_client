@@ -1,0 +1,31 @@
+{
+  "schema": "1.0",
+  "generated_at": "2026-02-06T21:14:42Z",
+  "collection": "EarthCAREOrbitData_MAAP",
+  "client": {
+    "name": "maap_client",
+    "version": "0.1.0"
+  },
+  "products": {
+    "AUX_ORBPRE": {
+      "baselines": {
+        "AA": {
+          "time_start": "2024-06-01T09:20:30Z",
+          "time_end": "2026-02-06T00:00:00Z",
+          "count": 619,
+          "updated_at": "2026-02-06T21:14:42Z"
+        }
+      }
+    },
+    "MPL_ORBSCT": {
+      "baselines": {
+        "AA": {
+          "time_start": "2024-05-28T21:49:17Z",
+          "time_end": "2024-05-28T21:49:17Z",
+          "count": 22,
+          "updated_at": "2026-02-06T21:14:42Z"
+        }
+      }
+    }
+  }
+}

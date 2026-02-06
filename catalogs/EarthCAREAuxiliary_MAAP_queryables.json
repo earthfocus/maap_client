@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Queryable names for the STAC API Item Search filter.",
+  "type": "object",
+  "title": "Queryables for EarthCAREAuxiliary_MAAP collection",
+  "$id": "https://catalog.maap.eo.esa.int/catalogue/collections/EarthCAREAuxiliary_MAAP/queryables",
+  "collection": "EarthCAREAuxiliary_MAAP",
+  "properties": {
+    "acquisitionType": {
+      "description": "Used to distinguish at a high level the appropriateness of the acquisition for \"general\" use, whether the product is a nominal acquisition, special calibration product or other",
+      "title": "Acquisition type",
+      "type": "string",
+      "enum": [
+        "NOMINAL"
+      ]
+    },
+    "missionPhase": {
+      "description": "Mission phase, each one has a specific objective for the mission. Values are mission-specific.",
+      "title": "Mission phase",
+      "type": "string",
+      "enum": [
+        "Routine"
+      ]
+    },
+    "processingDate": {
+      "format": "date-time",
+      "description": "A date interval requesting entries processed within a given time interval",
+      "title": "Processing date",
+      "type": "string"
+    },
+    "instrument": {
+      "description": "The instrument (e.g. MERIS, AATSR, ASAR, HRVIR. SAR)",
+      "title": "Instrument",
+      "type": "string",
+      "enum": [
+        "AUX"
+      ]
+    },
+    "creationDate": {
+      "format": "date-time",
+      "description": "The date when the metadata item was ingested for the first time (i.e. inserted) in the catalogue",
+      "title": "Creation date",
+      "type": "string"
+    },
+    "platform": {
+      "description": "The platform short name",
+      "title": "Platform",
+      "type": "string",
+      "enum": [
+        "EarthCARE"
+      ]
+    },
+    "uid": {
+      "description": "Item identifier",
+      "title": "Item ID",
+      "type": "string"
+    },
+    "modificationDate": {
+      "format": "date-time",
+      "description": "The date when the metadata item was last modified (i.e. updated) in the catalogue",
+      "title": "Modification date",
+      "type": "string"
+    },
+    "productVersion": {
+      "description": "The version of the product",
+      "title": "Product version",
+      "type": "string",
+      "enum": [
+        "aa",
+        "ba"
+      ]
+    },
+    "sensorType": {
+      "description": "The sensor type",
+      "title": "Sensor type",
+      "type": "string"
+    },
+    "productionStatus": {
+      "description": "The status of the entry",
+      "title": "Production status",
+      "type": "string",
+      "enum": [
+        "ARCHIVED"
+      ]
+    },
+    "track": {
+      "description": "The orbit track",
+      "title": "Track",
+      "type": "string"
+    },
+    "sensorMode": {
+      "description": "The sensor mode",
+      "title": "Sensor mode",
+      "type": "string",
+      "enum": [
+        "AUX"
+      ]
+    },
+    "productType": {
+      "description": "A string identifying the entry type",
+      "title": "Product type",
+      "type": "string",
+      "enum": [
+        "AUX_ORBPRE",
+        "AUX_ORBRES",
+        "BBR_SOL_1B",
+        "GEO_ATTOBS",
+        "GEO_ORBOBS"
+      ]
+    },
+    "frame": {
+      "description": "The orbit frame",
+      "title": "Frame",
+      "type": "string"
+    }
+  }
+}

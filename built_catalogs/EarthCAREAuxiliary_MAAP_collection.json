@@ -1,0 +1,67 @@
+{
+  "schema": "1.0",
+  "generated_at": "2026-02-06T21:14:42Z",
+  "collection": "EarthCAREAuxiliary_MAAP",
+  "client": {
+    "name": "maap_client",
+    "version": "0.1.0"
+  },
+  "products": {
+    "AUX_ORBPRE": {
+      "baselines": {
+        "AA": {
+          "time_start": "2024-06-01T09:20:30Z",
+          "time_end": "2026-02-06T00:00:00Z",
+          "count": 619,
+          "updated_at": "2026-02-06T21:14:42Z"
+        }
+      }
+    },
+    "AUX_ORBRES": {
+      "baselines": {
+        "AA": {
+          "time_start": "2024-05-29T00:00:00Z",
+          "time_end": "2026-02-03T00:00:00Z",
+          "count": 619,
+          "updated_at": "2026-02-06T21:14:42Z"
+        }
+      }
+    },
+    "BBR_SOL_1B": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-06-26T17:21:41Z",
+          "time_end": "2025-11-16T23:00:27Z",
+          "frame_start": "00448F",
+          "frame_end": "08355H",
+          "count": 447,
+          "updated_at": "2026-02-06T21:14:42Z"
+        }
+      }
+    },
+    "GEO_ATTOBS": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-06-05T14:27:59Z",
+          "time_end": "2026-02-06T17:21:22Z",
+          "frame_start": "00120F",
+          "frame_end": "09628B",
+          "count": 75902,
+          "updated_at": "2026-02-06T21:14:42Z"
+        }
+      }
+    },
+    "GEO_ORBOBS": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-06-05T14:27:59Z",
+          "time_end": "2026-02-06T17:21:22Z",
+          "frame_start": "00120F",
+          "frame_end": "09628B",
+          "count": 75902,
+          "updated_at": "2026-02-06T21:14:42Z"
+        }
+      }
+    }
+  }
+}

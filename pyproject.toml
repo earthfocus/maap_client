@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maap_client"
+version = "0.1.0"
+description = "Python client for ESA MAAP EarthCARE satellite data access"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Bernat Ferragut"}
+]
+dependencies = [
+    "requests>=2.28",
+    "pystac-client>=0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff",
+    "black",
+]
+
+[project.scripts]
+maap = "maap_client.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["maap_client*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]

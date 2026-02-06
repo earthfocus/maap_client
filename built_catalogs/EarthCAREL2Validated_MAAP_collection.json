@@ -1,0 +1,747 @@
+{
+  "schema": "1.0",
+  "generated_at": "2026-02-06T22:35:33Z",
+  "collection": "EarthCAREL2Validated_MAAP",
+  "client": {
+    "name": "maap_client",
+    "version": "0.1.0"
+  },
+  "products": {
+    "ACM_CAP_2B": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-07-25T10:38:51Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "00894H",
+          "frame_end": "08373H",
+          "count": 52555,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9885,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ACM_COM_2B": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-07-25T10:38:51Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "00894H",
+          "frame_end": "08373H",
+          "count": 52542,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9875,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ACM_RT__2B": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-08-01T02:26:57Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "00998D",
+          "frame_end": "08373H",
+          "count": 51717,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9875,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "AC__CLP_2B": {
+      "baselines": {
+        "BB": {
+          "time_start": "2024-08-10T07:23:21Z",
+          "time_end": "2025-11-27T00:01:07Z",
+          "frame_start": "01141E",
+          "frame_end": "08512B",
+          "count": 56131,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "AC__TC__2B": {
+      "baselines": {
+        "AD": {
+          "time_start": "2025-06-11T09:29:50Z",
+          "time_end": "2025-07-08T06:36:02Z",
+          "frame_start": "05888F",
+          "frame_end": "06306H",
+          "count": 2568,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "00894G",
+          "frame_end": "08373H",
+          "count": 52886,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9932,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ALL_3D__2B": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-07-25T23:35:13Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "00903C",
+          "frame_end": "08373H",
+          "count": 52384,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9875,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ALL_DF__2B": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-08-01T02:26:57Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "00998D",
+          "frame_end": "08373H",
+          "count": 51715,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9875,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "AM__ACD_2B": {
+      "baselines": {
+        "AC": {
+          "time_start": "2025-02-13T15:14:42Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "04056C",
+          "frame_end": "06307B",
+          "count": 17566,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00894G",
+          "frame_end": "07642H",
+          "count": 52565,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "01224E",
+          "frame_end": "08375H",
+          "count": 5820,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 9936,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "AM__CTH_2B": {
+      "baselines": {
+        "AC": {
+          "time_start": "2025-02-13T15:14:42Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "04056C",
+          "frame_end": "06307B",
+          "count": 17563,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00894G",
+          "frame_end": "07642H",
+          "count": 52565,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "01224E",
+          "frame_end": "08375H",
+          "count": 5820,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 9936,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ATL_AER_2A": {
+      "baselines": {
+        "AG": {
+          "time_start": "2025-06-11T09:52:46Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "05888H",
+          "frame_end": "06307B",
+          "count": 3004,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00894G",
+          "frame_end": "07642H",
+          "count": 52645,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "01224E",
+          "frame_end": "08375H",
+          "count": 5832,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 10410,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ATL_ALD_2A": {
+      "baselines": {
+        "AE": {
+          "time_start": "2025-03-11T11:05:16Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "04458B",
+          "frame_end": "06307B",
+          "count": 14410,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00894G",
+          "frame_end": "07642H",
+          "count": 52631,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "01224E",
+          "frame_end": "08375H",
+          "count": 5820,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 10400,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ATL_CLA_2A": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-08-10T07:23:21Z",
+          "time_end": "2025-11-27T00:01:07Z",
+          "frame_start": "01141E",
+          "frame_end": "08512B",
+          "count": 58070,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ATL_CTH_2A": {
+      "baselines": {
+        "AE": {
+          "time_start": "2025-03-11T11:05:16Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "04458B",
+          "frame_end": "06307B",
+          "count": 14410,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00894G",
+          "frame_end": "07642H",
+          "count": 52631,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "01224E",
+          "frame_end": "08375H",
+          "count": 5820,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 10400,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ATL_EBD_2A": {
+      "baselines": {
+        "AG": {
+          "time_start": "2025-06-11T09:52:46Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "05888H",
+          "frame_end": "06307B",
+          "count": 3004,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00894G",
+          "frame_end": "07642H",
+          "count": 52644,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "01224E",
+          "frame_end": "08375H",
+          "count": 5832,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 10410,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ATL_FM__2A": {
+      "baselines": {
+        "AD": {
+          "time_start": "2024-11-14T13:39:47Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "02639C",
+          "frame_end": "06307B",
+          "count": 14750,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00894G",
+          "frame_end": "07642H",
+          "count": 52810,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "01224E",
+          "frame_end": "08375H",
+          "count": 5837,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 9951,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ATL_ICE_2A": {
+      "baselines": {
+        "AG": {
+          "time_start": "2025-06-11T09:52:46Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "05888H",
+          "frame_end": "06307B",
+          "count": 3004,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00894G",
+          "frame_end": "07642H",
+          "count": 52645,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "01224E",
+          "frame_end": "08375H",
+          "count": 5832,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 10410,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "ATL_TC__2A": {
+      "baselines": {
+        "AG": {
+          "time_start": "2025-06-11T09:52:46Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "05888H",
+          "frame_end": "06307B",
+          "count": 3004,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T10:27:43Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00894G",
+          "frame_end": "07642H",
+          "count": 52644,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "01224E",
+          "frame_end": "08375H",
+          "count": 5832,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 10410,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "BMA_FLX_2B": {
+      "baselines": {
+        "BA": {
+          "time_start": "2024-07-25T23:35:13Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00903C",
+          "frame_end": "07642H",
+          "count": 52390,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2025-11-14T14:42:36Z",
+          "time_end": "2025-11-14T14:54:23Z",
+          "frame_start": "08319D",
+          "frame_end": "08319E",
+          "count": 2,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-02T12:54:05Z",
+          "frame_start": "08374A",
+          "frame_end": "09563A",
+          "count": 3243,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "BM__RAD_2B": {
+      "baselines": {
+        "AC": {
+          "time_start": "2025-05-27T03:22:19Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "05651C",
+          "frame_end": "06307B",
+          "count": 4990,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-25T23:35:13Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "00903C",
+          "frame_end": "08375H",
+          "count": 58763,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-02T12:54:05Z",
+          "frame_start": "08374A",
+          "frame_end": "09563A",
+          "count": 3260,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "CPR_CD__2A": {
+      "baselines": {
+        "AC": {
+          "time_start": "2025-03-14T07:09:10Z",
+          "time_end": "2025-06-23T07:13:26Z",
+          "frame_start": "04502C",
+          "frame_end": "06073H",
+          "count": 11935,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-06-12T11:50:42Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "00227F",
+          "frame_end": "08373H",
+          "count": 55618,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9984,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "CPR_CLD_2A": {
+      "baselines": {
+        "AB": {
+          "time_start": "2024-11-04T19:24:11Z",
+          "time_end": "2025-07-08T06:36:02Z",
+          "frame_start": "02487D",
+          "frame_end": "06306H",
+          "count": 16906,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-06-12T11:50:42Z",
+          "time_end": "2025-10-02T03:15:48Z",
+          "frame_start": "00227F",
+          "frame_end": "07642H",
+          "count": 50536,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BB": {
+          "time_start": "2024-08-15T15:28:44Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "01224E",
+          "frame_end": "08373H",
+          "count": 5081,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9984,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "CPR_FMR_2A": {
+      "baselines": {
+        "AC": {
+          "time_start": "2025-03-14T07:09:10Z",
+          "time_end": "2025-06-23T07:13:26Z",
+          "frame_start": "04502C",
+          "frame_end": "06073H",
+          "count": 11934,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-06-12T11:50:42Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "00227F",
+          "frame_end": "08373H",
+          "count": 55618,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9984,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "CPR_TC__2A": {
+      "baselines": {
+        "AC": {
+          "time_start": "2025-03-14T07:09:10Z",
+          "time_end": "2025-06-23T07:13:26Z",
+          "frame_start": "04502C",
+          "frame_end": "06073H",
+          "count": 11934,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-06-12T11:50:42Z",
+          "time_end": "2025-11-18T02:46:09Z",
+          "frame_start": "00227F",
+          "frame_end": "08373H",
+          "count": 55617,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:03:03Z",
+          "frame_start": "08374A",
+          "frame_end": "09629H",
+          "count": 9984,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "MSI_AOT_2A": {
+      "baselines": {
+        "AC": {
+          "time_start": "2024-11-14T13:39:47Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "02639C",
+          "frame_end": "06307B",
+          "count": 14522,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-16T12:34:49Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "00756C",
+          "frame_end": "08375H",
+          "count": 60339,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 10001,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "MSI_CM__2A": {
+      "baselines": {
+        "AB": {
+          "time_start": "2024-11-04T19:24:11Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "02487D",
+          "frame_end": "06307B",
+          "count": 24672,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-16T12:34:49Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "00756C",
+          "frame_end": "08375H",
+          "count": 60342,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 10001,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    },
+    "MSI_COP_2A": {
+      "baselines": {
+        "AB": {
+          "time_start": "2024-11-04T19:24:11Z",
+          "time_end": "2025-07-08T06:59:26Z",
+          "frame_start": "02487D",
+          "frame_end": "06307B",
+          "count": 24674,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BA": {
+          "time_start": "2024-07-16T12:34:49Z",
+          "time_end": "2025-11-18T05:51:13Z",
+          "frame_start": "00756C",
+          "frame_end": "08375H",
+          "count": 60342,
+          "updated_at": "2026-02-06T22:35:33Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:57:58Z",
+          "time_end": "2026-02-06T20:26:28Z",
+          "frame_start": "08374A",
+          "frame_end": "09630B",
+          "count": 10001,
+          "updated_at": "2026-02-06T22:35:33Z"
+        }
+      }
+    }
+  }
+}

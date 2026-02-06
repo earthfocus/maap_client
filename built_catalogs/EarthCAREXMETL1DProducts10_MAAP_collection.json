@@ -1,0 +1,31 @@
+{
+  "schema": "1.0",
+  "generated_at": "2026-02-06T21:15:24Z",
+  "collection": "EarthCAREXMETL1DProducts10_MAAP",
+  "client": {
+    "name": "maap_client",
+    "version": "0.1.0"
+  },
+  "products": {
+    "AUX_MET_1D": {
+      "baselines": {
+        "AA": {
+          "time_start": "2024-05-30T11:56:44Z",
+          "time_end": "2025-11-18T19:44:24Z",
+          "frame_start": "00025G",
+          "frame_end": "08384H",
+          "count": 217361,
+          "updated_at": "2026-02-06T21:15:24Z"
+        },
+        "BC": {
+          "time_start": "2025-11-18T02:58:13Z",
+          "time_end": "2026-01-26T07:46:23Z",
+          "frame_start": "08374A",
+          "frame_end": "09450G",
+          "count": 28472,
+          "updated_at": "2026-02-06T21:15:24Z"
+        }
+      }
+    }
+  }
+}
