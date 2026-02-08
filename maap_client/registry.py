@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from maap_client.paths import (
+    filter_by_sensing_time,
     generate_registry_path,
     extract_sensing_time,
     url_to_local_path,
@@ -397,4 +398,4 @@ class Registry:
                     seen.add(url)
                     urls.append(url)
 
-        return urls
+        return filter_by_sensing_time(urls, start, end)
