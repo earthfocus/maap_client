@@ -5,6 +5,7 @@ from typing import Callable, Optional
 from urllib.parse import urlparse
 import logging
 import os
+import time
 import requests
 
 from maap_client.auth import TokenManager, get_auth_headers
@@ -82,6 +83,7 @@ class DownloadManager:
         logger.debug(f"  -> {output_path}")
 
         try:
+            t0 = time.monotonic()
             with requests.get(url, headers=headers, stream=True, timeout=60) as r:
                 r.raise_for_status()
 
@@ -97,12 +99,20 @@ class DownloadManager:
                         if progress_callback and total_size:
                             progress_callback(downloaded, total_size)
 
+            elapsed = time.monotonic() - t0
+
         except requests.HTTPError as e:
             raise DownloadError(url, str(e), e.response.status_code if e.response else None)
         except requests.RequestException as e:
             raise DownloadError(url, str(e))
 
-        logger.info(f"Download complete: {output_path}")
+        # Log transfer rate
+        if elapsed > 0 and downloaded > 0:
+            rate_mbps = (downloaded / (1024 * 1024)) / elapsed
+            size_mb = downloaded / (1024 * 1024)
+            logger.info(f"Download complete: {output_path} ({size_mb:.1f} MB, {rate_mbps:.1f} MB/s)")
+        else:
+            logger.info(f"Download complete: {output_path}")
         return output_path
 
     def download_url_auto(
