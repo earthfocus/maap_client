@@ -238,55 +238,27 @@ class StateTracker:
         pairs = self._registry.read_pairs(self.errors_file)
         return {url for url, _ in pairs}
 
-    def get_downloaded_urls(
+    def load_downloads_with_paths(
         self, start: Optional[datetime] = None, end: Optional[datetime] = None
-    ) -> set[str]:
+    ) -> list[tuple[str, str]]:
         """
-        Get URLs that have been successfully downloaded.
+        Load all downloaded URL|PATH pairs, optionally filtered by date/time range.
 
         Args:
             start: Optional start datetime filter
             end: Optional end datetime filter
 
         Returns:
-            Set of downloaded URLs
+            List of (url, path) tuples
         """
         start_date, end_date = _to_date_range(start, end)
         pairs = self._registry.read_daily_pairs(
             self._registry.list_dwl_files(), "dwl_", start_date, end_date
         )
-        urls = [url for url, _, _ in pairs]
-        return set(filter_by_sensing_time(urls, start, end))
-
-    def get_downloaded_paths(
-        self, start: Optional[datetime] = None, end: Optional[datetime] = None
-    ) -> set[str]:
-        """
-        Get local paths of downloaded files.
-
-        Args:
-            start: Optional start datetime filter
-            end: Optional end datetime filter
-
-        Returns:
-            Set of local file paths
-        """
-        start_date, end_date = _to_date_range(start, end)
-        pairs = self._registry.read_daily_pairs(
-            self._registry.list_dwl_files(), "dwl_", start_date, end_date
-        )
-
-        paths = []
-        for url, stored_path, _ in pairs:
-            local_path = stored_path
-            if not local_path and self._data_dir:
-                derived = url_to_local_path(url, self._data_dir, self._mission, self._collection)
-                if derived:
-                    local_path = str(derived)
-            if local_path:
-                paths.append(local_path)
-
-        return set(filter_by_sensing_time(paths, start, end))
+        results = [(url, path) for url, path, _ in pairs]
+        url_to_pair = {url: (url, path) for url, path in results}
+        filtered_urls = filter_by_sensing_time(list(url_to_pair.keys()), start, end)
+        return [url_to_pair[url] for url in filtered_urls]
 
     def get_marked_paths(
         self, start: Optional[datetime] = None, end: Optional[datetime] = None
@@ -322,7 +294,7 @@ class StateTracker:
             Set of URLs that need to be downloaded
         """
         all_urls = {url for url, _ in self.load_urls_with_paths(start, end)}
-        downloaded = self.get_downloaded_urls(start, end)
+        downloaded = {url for url, _ in self.load_downloads_with_paths(start, end)}
         return all_urls - downloaded
 
     def get_pending_mark_paths(
@@ -338,7 +310,7 @@ class StateTracker:
         Returns:
             Set of local file paths that need to be processed
         """
-        downloaded_paths = self.get_downloaded_paths(start, end)
+        downloaded_paths = {path for _, path in self.load_downloads_with_paths(start, end) if path}
         marked = self.get_marked_paths(start, end)
         return downloaded_paths - marked
 
@@ -394,24 +366,20 @@ class StateTracker:
         Returns:
             Dictionary with counts for each state
         """
-        # Read data once to minimize file I/O
-        all_url_pairs = self.load_urls_with_paths(start, end)
-        all_urls = {url for url, _ in all_url_pairs}
-        downloaded = self.get_downloaded_urls(start, end)
-        downloaded_paths = self.get_downloaded_paths(start, end)
+        all_urls = {url for url, _ in self.load_urls_with_paths(start, end)}
+        dwl_pairs = self.load_downloads_with_paths(start, end)
+        downloaded = {url for url, _ in dwl_pairs}
+        downloaded_paths = {path for _, path in dwl_pairs if path}
         marked = self.get_marked_paths(start, end)
-        errors = self.get_error_urls()  # errors.txt is not date-partitioned
-
-        pending_downloads = all_urls - downloaded
-        pending_marks = downloaded_paths - marked
+        errors = self.get_error_urls()
 
         return {
             "total_urls": len(all_urls),
             "downloaded": len(downloaded),
             "marked": len(marked),
             "errors": len(errors),
-            "pending_downloads": len(pending_downloads),
-            "pending_marks": len(pending_marks),
+            "pending_downloads": len(all_urls - downloaded),
+            "pending_marks": len(downloaded_paths - marked),
         }
 
     def list_dates(self, state_type: str = "urls") -> list[date]:
