@@ -12,7 +12,6 @@ from maap_client.auth import TokenManager, get_auth_headers
 from maap_client.constants import DEFAULT_CHUNK_SIZE, DEFAULT_MISSION
 from maap_client.exceptions import DownloadError
 from maap_client.paths import (
-    url_to_local_path,
     extract_sensing_time,
     generate_data_path,
 )
@@ -114,34 +113,6 @@ class DownloadManager:
         else:
             logger.info(f"Download complete: {output_path}")
         return output_path
-
-    def download_url_auto(
-        self,
-        url: str,
-        collection: Optional[str] = None,
-        progress_callback: Optional[ProgressCallback] = None,
-    ) -> Optional[Path]:
-        """
-        Download file, automatically determining path from URL.
-
-        Args:
-            url: Product URL
-            collection: Optional collection name (attempts to parse from URL if not provided)
-            progress_callback: Optional callback for progress updates
-
-        Returns:
-            Path to downloaded file, or None if path cannot be determined
-
-        Raises:
-            DownloadError: If download fails
-        """
-        output_path = url_to_local_path(url, self._data_dir, self._mission, collection)
-
-        if output_path is None:
-            logger.warning(f"Cannot determine local path for URL: {url}")
-            return None
-
-        return self.download_file(url, output_path, progress_callback)
 
     def batch_download(
         self,
