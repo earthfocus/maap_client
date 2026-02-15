@@ -109,7 +109,7 @@ class DownloadManager:
         if elapsed > 0 and downloaded > 0:
             rate_mbps = (downloaded / (1024 * 1024)) / elapsed
             size_mb = downloaded / (1024 * 1024)
-            logger.info(f"Download complete: {output_path} ({size_mb:.1f} MB, {rate_mbps:.1f} MB/s)")
+            logger.info(f"Download complete: {output_path} ({size_mb:.1f} MB, {rate_mbps:.1f} MB/s, {elapsed:.1f} s)")
         else:
             logger.info(f"Download complete: {output_path}")
         return output_path
