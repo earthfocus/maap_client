@@ -33,18 +33,18 @@ class CatalogQueryables(Catalog):
 
     def list_products(self) -> list[str]:
         """List product types from queryables."""
-        prop = self.properties.get("productType", {})
+        prop = self.properties.get("product:type", {})
         return prop.get("enum", []) if isinstance(prop, dict) else prop
 
     def list_baselines(self) -> list[str]:
         """List baseline versions from queryables (uppercase)."""
-        prop = self.properties.get("productVersion", {})
+        prop = self.properties.get("version", {})
         baselines = prop.get("enum", []) if isinstance(prop, dict) else prop
         return sorted([b.upper() for b in baselines])
 
     def supports_orbit(self) -> bool:
         """Check if collection supports orbit-based search."""
-        return "orbitNumber" in self.properties
+        return "sat:absolute_orbit" in self.properties
 
 
 class CatalogQueryablesManager(CatalogManager):
