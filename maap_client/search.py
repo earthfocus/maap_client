@@ -148,12 +148,22 @@ class MaapSearcher:
         return normalize_time_range(start, end, mission_start, mission_end)
 
     @staticmethod
-    def _extract_enclosures(search) -> list[str]:
-        """Extract enclosure URLs from STAC search results."""
+    def _extract_enclosures(search, format: Optional[str] = None) -> list[str]:
+        """Extract enclosure URLs from STAC search results.
+
+        Args:
+            search: STAC search results
+            format: Preferred file format ('h5' or 'hdr'). Defaults to 'h5'.
+        """
+        if format == "hdr":
+            priority = ("enclosure_hdr",)
+        else:
+            priority = ("enclosure_h5",)
+
         urls = []
         for item in search.items():
             url = None
-            for key in ("enclosure_h5", "enclosure_zip"):
+            for key in priority:
                 if key in item.assets:
                     url = item.assets[key].href
                     break
@@ -194,6 +204,7 @@ class MaapSearcher:
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         dedup: bool = True,
+        format: Optional[str] = None,
     ) -> list[str]:
         """Process STAC search results into sorted, deduplicated URLs.
 
@@ -201,7 +212,7 @@ class MaapSearcher:
             List of sorted, deduplicated product URLs
         """
         # Extract enclosure URLs
-        urls = self._extract_enclosures(search)
+        urls = self._extract_enclosures(search, format=format)
         # Filter by sensing_time
         urls = filter_by_sensing_time(urls, start, end)
         # Sort by sensing_time
@@ -441,6 +452,7 @@ class MaapSearcher:
         end: Optional[datetime] = None,
         max_items: int = 50000,
         verbose: bool = False,
+        format: Optional[str] = None,
     ) -> list[str]:
         """
         Search for download URLs for matching products.
@@ -473,7 +485,7 @@ class MaapSearcher:
                 method="GET",
                 max_items=max_items,
             )
-            urls = self._clean_search_results(search, product_type, start, end)
+            urls = self._clean_search_results(search, product_type, start, end, format=format)
             if verbose:
                 logger.info(f"  found {len(urls)}")
 
@@ -488,6 +500,7 @@ class MaapSearcher:
                 baseline=baseline,
                 max_items=max_items,
                 verbose=verbose,
+                format=format,
             ):
                 urls.extend(day_urls)
             if verbose:
@@ -503,6 +516,7 @@ class MaapSearcher:
         baseline: Optional[str] = None,
         max_items: int = 100,
         verbose: bool = False,
+        format: Optional[str] = None,
     ) -> list[str]:
         """
         Search for product URLs by orbit number and frame.
@@ -545,7 +559,7 @@ class MaapSearcher:
             max_items=max_items,
         )
 
-        urls = self._clean_search_results(search, product_type)
+        urls = self._clean_search_results(search, product_type, format=format)
         if verbose:
             logger.info(f"  found {len(urls)}")
         return urls
@@ -559,6 +573,7 @@ class MaapSearcher:
         baseline: Optional[str] = None,
         max_items: int = 50000,
         verbose: bool = False,
+        format: Optional[str] = None,
     ) -> Iterator[list[str]]:
         """
         Generator that searches day-by-day over a time range.
@@ -588,7 +603,7 @@ class MaapSearcher:
                 method="GET",
                 max_items=max_items,
             )
-            urls = self._clean_search_results(search, product_type, day_start, day_end)
+            urls = self._clean_search_results(search, product_type, day_start, day_end, format=format)
 
             if verbose:
                 # Show baselines found by extracting from results

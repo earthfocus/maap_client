@@ -181,6 +181,7 @@ def cmd_search(args: argparse.Namespace) -> int:
             use_catalog=use_catalog,
             max_items=args.max_items,
             verbose=getattr(args, 'verbose', 0) >= 1,
+            format=getattr(args, 'format', None),
         )
         urls = result.urls
 
@@ -314,6 +315,7 @@ def cmd_get(args: argparse.Namespace) -> int:
             max_items=args.max_items,
             dry_run=getattr(args, 'dry_run', False),
             verbose=getattr(args, 'verbose', 0) >= 1,
+            format=getattr(args, 'format', None),
         )
 
         # Report results
@@ -360,6 +362,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
             end=end,
             max_items=args.max_items,
             verbose=getattr(args, 'verbose', 0) >= 1,
+            format=getattr(args, 'format', None),
         )
 
         # Report results

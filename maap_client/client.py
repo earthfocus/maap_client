@@ -489,6 +489,7 @@ class MaapClient:
         use_catalog: bool = False,
         max_items: int = 50000,
         verbose: bool = False,
+        format: Optional[str] = None,
     ) -> SearchResult:
         """
         Search for product URLs.
@@ -507,6 +508,7 @@ class MaapClient:
             use_catalog: Use cached catalog bounds for optimization
             max_items: Maximum items to return
             verbose: Show progress during search
+            format: File format to search for ('h5' or 'hdr', default: 'h5')
 
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end,
@@ -532,6 +534,7 @@ class MaapClient:
                 orbit_frame=orbit,
                 baseline=baseline,
                 verbose=verbose,
+                format=format,
             )
             # Extract baselines from results
             baselines_found = list(set(
@@ -568,6 +571,7 @@ class MaapClient:
             end=search_end,
             max_items=max_items,
             verbose=verbose,
+            format=format,
         )
 
         # Extract baselines from results
@@ -758,6 +762,7 @@ class MaapClient:
         max_items: int = 50000,
         dry_run: bool = False,
         verbose: bool = False,
+        format: Optional[str] = None,
     ) -> DownloadResult:
         """
         Search + download in one step.
@@ -775,6 +780,7 @@ class MaapClient:
             max_items: Maximum items to get
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
+            format: File format to search for ('h5' or 'hdr', default: 'h5')
 
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end
@@ -792,6 +798,7 @@ class MaapClient:
             orbit=orbit,
             max_items=max_items,
             verbose=verbose,
+            format=format,
         )
 
         # Download
@@ -813,6 +820,7 @@ class MaapClient:
         end: Optional[datetime] = None,
         max_items: int = 50000,
         verbose: bool = False,
+        format: Optional[str] = None,
     ) -> SyncResult:
         """
         Incremental sync: search + download + state tracking.
@@ -831,6 +839,7 @@ class MaapClient:
             end: Optional end datetime (defaults to now)
             max_items: Maximum items to sync
             verbose: Print progress messages
+            format: File format to search for ('h5' or 'hdr', default: 'h5')
 
         Raises:
             InvalidRequestError: If start > end or datetimes not timezone-aware
@@ -883,6 +892,7 @@ class MaapClient:
                 start=start,
                 end=end,
                 verbose=verbose,
+                format=format,
             ):
                 urls.extend(day_urls)
 

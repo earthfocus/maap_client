@@ -252,6 +252,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use built catalog for time bounds (faster, may be stale)"
     )
+    other_group.add_argument(
+        "--format",
+        choices=["h5", "hdr"],
+        default=None,
+        help="File format to search for (default: h5)",
+    )
     search_parser.set_defaults(func=cmd_search)
 
     # --- download subcommand ---
@@ -375,6 +381,12 @@ Notes:
         "--max-items", "-n", type=int, default=50000,
         help="Maximum items to get"
     )
+    other_group.add_argument(
+        "--format",
+        choices=["h5", "hdr"],
+        default=None,
+        help="File format to search for (default: h5)",
+    )
     get_parser.set_defaults(func=cmd_get)
 
     # --- sync subcommand ---
@@ -409,6 +421,12 @@ Notes:
     )
     sync_parser.add_argument(
         "--out-dir", "-o", type=Path, help="Output directory"
+    )
+    sync_parser.add_argument(
+        "--format",
+        choices=["h5", "hdr"],
+        default=None,
+        help="File format to search for (default: h5)",
     )
     sync_parser.set_defaults(func=cmd_sync)
 

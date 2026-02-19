@@ -174,6 +174,9 @@ maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA \
 
 # Search last 7 days
 maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --days-back 7
+
+# Search for HDR files instead of H5
+maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01 --format hdr
 ```
 
 Output shows URLs found:
@@ -537,6 +540,15 @@ result = client.search(
     product_type="CPR_CLD_2A",
     orbit="08962F",
 )
+
+# Search for HDR files instead of H5
+result = client.search(
+    collection="EarthCAREL2Validated_MAAP",
+    product_type="CPR_CLD_2A",
+    baseline="BC",
+    start=datetime(2024, 12, 1, tzinfo=timezone.utc),
+    format="hdr",
+)
 ```
 
 ### Download with Result Types
@@ -688,7 +700,10 @@ Output:
 Other:
   --max-items, -n N        Maximum items to return (default: 50000)
   --use-catalog            Use built catalog (faster, may be stale)
+  --format {h5,hdr}        File format to search for (default: h5)
 ```
+
+> **Note on `--format` and registry/sync:** The registry does not separate files by format. If you use `--registry-save` or `sync` with different `--format` values for the same collection/product/baseline, URLs of both formats will be mixed in the same registry files. To avoid this, use a consistent `--format` value per collection/product/baseline, or use separate `--data-dir` directories for each format.
 
 ### Download Options
 
@@ -732,6 +747,7 @@ Output:
 
 Other:
   --max-items, -n N        Maximum items to get (default: 50000)
+  --format {h5,hdr}        File format to search for (default: h5)
 ```
 
 ### Sync Options
@@ -748,6 +764,7 @@ Time selection (mutually exclusive):
 Other:
   --max-items, -n N        Max items per run (default: 50000)
   --out-dir, -o DIR        Custom output directory
+  --format {h5,hdr}        File format to search for (default: h5)
 ```
 
 ---
