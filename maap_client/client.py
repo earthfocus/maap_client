@@ -667,7 +667,7 @@ class MaapClient:
         for url in urls:
             filename = os.path.basename(url)
             product = extract_product(filename)
-            baseline = extract_baseline(filename)
+            baseline = extract_baseline(url) # need to pass url to allow baseline extraction for Aeolus
             if not product or not baseline:
                 result.errors.append(f"Cannot extract product/baseline from {filename}")
                 continue
