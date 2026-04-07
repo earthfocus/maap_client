@@ -130,6 +130,11 @@ def extract_creation_time(filename: str) -> Optional[datetime]:
         Creation datetime or None if not found
     """
     filename = os.path.basename(filename)
+
+    # Aeolus products do not have a creation time encoded in their filename
+    if filename.startswith("AE_"):
+        return None
+
     # Pattern: _YYYYMMDDTHHMMSSZ_YYYYMMDDTHHMMSSZ_
     pattern = r"_\d{8}T\d{6}Z_(\d{8}T\d{6}Z)_"
     match = re.search(pattern, filename)
@@ -223,6 +228,7 @@ def extract_file_class(filename: str) -> Optional[str]:
     File classes:
         - OPER: routine operations
         - OSVA: operational data acquired at Svalbard
+        - OTRO: operational data acquired at Antarctiva Troll station (used for Aeolus)
         - RPRO: reprocessing
         - OFFL: backlog
         - TEST: internal tests
@@ -326,6 +332,12 @@ def extract_baseline(uri: str) -> Optional[str]:
     if filename.startswith("AE_"):
         # Look for baseline in path: /PRODUCT_TYPE/BASELINE/YYYY/
         # Case-insensitive to handle both uppercase (1B16) and lowercase (2b16) baselines
+        #
+        # note: there is a (for now empty) AeolusAuxProducts collection in the MAAP database
+        #       this next regular expression will not work for these files, which typically
+        #       have a names like: AE_OPER_AUX_DCMZ1B_20230430T222914_20230430T223214_0001.EEF
+        #       or:                AE_OPER_AUX_RBC_L2_20230220T025338_20230220T171326_0001.DBL
+        #
         match = re.search(r"/ALD_[UC]_N_\d[AB]/([A-Za-z0-9]{4})/\d{4}/", uri, re.IGNORECASE)
         if match:
             return match.group(1)
@@ -362,7 +374,16 @@ def extract_product(filename: str) -> Optional[str]:
 
     # Aeolus: AE_CCCC_ followed by product type (ALD_X_N_XX), then _timestamp
     # AE_OPER_ALD_U_N_1B_20230422T165721033_...
+    #
+    # note: see the remark for Aeolus AUX file types in extract_baseline() above
+    #
     match = re.match(r"^AE_[A-Z]{4}_(ALD_[UC]_N_\d[AB])_\d{8}T\d{9}_", filename)
+    if match:
+        return match.group(1)
+
+    # this is needed for products without milliseconds in their sensing start datetime group
+    # AE_OPER_ALD_U_N_2B_20230401T235022_20230402T012120_0002.DBL
+    match = re.match(r"^AE_[A-Z]{4}_(ALD_[UC]_N_\d[AB])_\d{8}T\d{6}_", filename)
     if match:
         return match.group(1)
 
@@ -423,7 +444,7 @@ def extract_info(uri: str) -> dict[str, Any]:
         "filename": filename,
         "mission": extract_mission(filename),
         "agency": extract_agency(filename),
-        "baseline": extract_baseline(filename),
+        "baseline": extract_baseline(uri), # need to pass uri to extract baseline for Aeolus
         "product_type": extract_product(filename),
         "sensing_time": extract_sensing_time(filename),
         "creation_time": extract_creation_time(filename),
