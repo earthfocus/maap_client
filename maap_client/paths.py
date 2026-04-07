@@ -23,11 +23,13 @@ def generate_data_path(
     baseline: str,
     dt: datetime,
     filename: str,
+    product_dir: bool = False,
 ) -> Path:
     """
     Generate structured path for downloaded data files.
 
     Structure: data_dir/mission/collection/product_type/baseline/yyyy/mm/dd/filename
+    With product_dir: .../yyyy/mm/dd/{stem}/filename
 
     Args:
         data_dir: Base data directory
@@ -37,11 +39,15 @@ def generate_data_path(
         baseline: Baseline version
         dt: Datetime for the file
         filename: Filename
+        product_dir: If True, wrap file in a subdirectory named after the file stem
 
     Returns:
         Full path for the file
     """
     base = data_dir / mission / collection / product_type / baseline / f"{dt.year:04d}" / f"{dt.month:02d}" / f"{dt.day:02d}"
+    if product_dir:
+        stem = Path(filename).stem
+        return base / stem / filename
     return base / filename
 
 
@@ -487,6 +493,7 @@ def url_to_local_path(
     data_dir: Path,
     mission: str,
     collection: str,
+    product_dir: bool = False,
 ) -> Optional[Path]:
     """
     Convert a product URL to the expected local file path.
@@ -496,6 +503,7 @@ def url_to_local_path(
         data_dir: Base data directory
         mission: Mission name
         collection: Collection name
+        product_dir: If True, wrap file in a subdirectory named after the file stem
 
     Returns:
         Local path or None if URL cannot be parsed
@@ -513,4 +521,5 @@ def url_to_local_path(
         baseline=info["baseline"],
         dt=info["sensing_time"],
         filename=info["filename"],
+        product_dir=product_dir,
     )

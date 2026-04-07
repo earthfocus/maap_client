@@ -313,6 +313,10 @@ Notes:
     output_group.add_argument(
         "--dry-run", action="store_true", help="Show what would be downloaded"
     )
+    output_group.add_argument(
+        "--product-dir", action="store_true",
+        help="Save each file in a subdirectory named after the file stem"
+    )
 
     # Other options group
     other_group = download_parser.add_argument_group("other options")
@@ -374,6 +378,10 @@ Notes:
     output_group.add_argument(
         "--dry-run", action="store_true", help="Show what would be downloaded"
     )
+    output_group.add_argument(
+        "--product-dir", action="store_true",
+        help="Save each file in a subdirectory named after the file stem"
+    )
 
     # Other options group
     other_group = get_parser.add_argument_group("other options")
@@ -427,6 +435,10 @@ Notes:
         choices=["h5", "hdr"],
         default=None,
         help="File format to search for (default: h5)",
+    )
+    sync_parser.add_argument(
+        "--product-dir", action="store_true",
+        help="Save each file in a subdirectory named after the file stem"
     )
     sync_parser.set_defaults(func=cmd_sync)
 

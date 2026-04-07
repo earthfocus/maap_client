@@ -50,7 +50,6 @@ class MaapClient:
         self._catalog: Optional[CatalogQueryablesManager] = None
         self._searcher: Optional[MaapSearcher] = None
         self._token_manager: Optional[TokenManager] = None
-        self._downloader: Optional[DownloadManager] = None
         self._state: Optional[GlobalStateTracker] = None
 
     @property
@@ -100,15 +99,14 @@ class MaapClient:
             )
         return self._token_manager
 
-    def _get_downloader(self) -> DownloadManager:
-        """Get download manager (lazy initialization)."""
-        if self._downloader is None:
-            self._downloader = DownloadManager(
-                token_manager=self._get_token_manager(),
-                data_dir=self._config.data_dir,
-                mission=self._config.mission,
-            )
-        return self._downloader
+    def _get_downloader(self, product_dir: bool = False) -> DownloadManager:
+        """Get download manager."""
+        return DownloadManager(
+            token_manager=self._get_token_manager(),
+            data_dir=self._config.data_dir,
+            mission=self._config.mission,
+            product_dir=product_dir,
+        )
 
     # === VALIDATION ===
 
@@ -597,6 +595,7 @@ class MaapClient:
         skip_existing: bool = True,
         dry_run: bool = False,
         verbose: bool = False,
+        product_dir: bool = False,
     ) -> DownloadResult:
         """
         Download files from URLs.
@@ -612,6 +611,7 @@ class MaapClient:
             skip_existing: Skip files that already exist
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
+            product_dir: If True, wrap each file in a subdirectory named after the file stem
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
@@ -638,13 +638,17 @@ class MaapClient:
         # Download to flat directory (--out-dir)
         if out_dir:
             out_dir.mkdir(parents=True, exist_ok=True)
-            downloader = self._get_downloader()
+            downloader = self._get_downloader(product_dir=product_dir)
             total_urls = len(urls)
 
             for i, url in enumerate(urls, 1):
                 parsed_url = urlparse(url)
                 filename = os.path.basename(parsed_url.path)
-                output_path = out_dir / filename
+                if product_dir:
+                    stem = Path(filename).stem
+                    output_path = out_dir / stem / filename
+                else:
+                    output_path = out_dir / filename
 
                 if skip_existing and output_path.exists():
                     logger.info(f"[{i:>{len(str(total_urls))}}/{total_urls}] Already exists: {filename}")
@@ -673,7 +677,7 @@ class MaapClient:
                 continue
             urls_by_key.setdefault((product, baseline), []).append(url)
 
-        downloader = self._get_downloader()
+        downloader = self._get_downloader(product_dir=product_dir)
         for (product, baseline), group_urls in urls_by_key.items():
             try:
                 tracker = None
@@ -709,6 +713,7 @@ class MaapClient:
         skip_existing: bool = True,
         dry_run: bool = False,
         verbose: bool = False,
+        product_dir: bool = False,
     ) -> DownloadResult:
         """
         Download files from registry.
@@ -748,6 +753,7 @@ class MaapClient:
             skip_existing=skip_existing,
             dry_run=dry_run,
             verbose=verbose,
+            product_dir=product_dir,
         )
 
     def get(
@@ -763,6 +769,7 @@ class MaapClient:
         dry_run: bool = False,
         verbose: bool = False,
         format: Optional[str] = None,
+        product_dir: bool = False,
     ) -> DownloadResult:
         """
         Search + download in one step.
@@ -809,6 +816,7 @@ class MaapClient:
             track_state=False,  # get() doesn't track state by default
             dry_run=dry_run,
             verbose=verbose,
+            product_dir=product_dir,
         )
 
     def sync(
@@ -821,6 +829,7 @@ class MaapClient:
         max_items: int = 50000,
         verbose: bool = False,
         format: Optional[str] = None,
+        product_dir: bool = False,
     ) -> SyncResult:
         """
         Incremental sync: search + download + state tracking.
@@ -915,7 +924,7 @@ class MaapClient:
             # Download with state tracking
             try:
                 self._config.ensure_directories()
-                downloader = self._get_downloader()
+                downloader = self._get_downloader(product_dir=product_dir)
                 downloaded = downloader.batch_download(
                     urls=to_download,
                     collection=collection,

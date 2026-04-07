@@ -292,6 +292,15 @@ data/EarthCARE/EarthCAREL2Validated_MAAP/CPR_CLD_2A/BC/2024/12/01/
   ECA_EXBC_CPR_CLD_2A_20241201T123456Z_20241201T135958Z_07282E.h5
 ```
 
+With `--product-dir`, each file is wrapped in a subdirectory named after the file stem:
+```
+data/.../BC/2024/12/01/ECA_EXBC_CPR_CLD_2A_20241201T123456Z_20241201T135958Z_07282E/
+  ECA_EXBC_CPR_CLD_2A_20241201T123456Z_20241201T135958Z_07282E.h5
+  ECA_EXBC_CPR_CLD_2A_20241201T123456Z_20241201T135958Z_07282E.hdr
+```
+
+This is useful for grouping related files (e.g., H5 and HDR) for the same product together.
+
 **Benefits:**
 - Matches ESA's archive organization - intuitive navigation
 - Different baselines are always separate (no overwrites)
@@ -729,6 +738,7 @@ Filtering (with --registry):
 Output:
   --out-dir, -o DIR        Custom output directory
   --dry-run                Show what would be downloaded
+  --product-dir            Save each file in a subdirectory named after the file stem
 
 Other:
   --max-items, -n N        Maximum items to download
@@ -749,6 +759,7 @@ Filtering (mutually exclusive):
 Output:
   --out-dir, -o DIR        Custom output directory
   --dry-run                Show what would be downloaded
+  --product-dir            Save each file in a subdirectory named after the file stem
 
 Other:
   --max-items, -n N        Maximum items to get (default: 50000)
@@ -770,6 +781,7 @@ Other:
   --max-items, -n N        Max items per run (default: 50000)
   --out-dir, -o DIR        Custom output directory
   --format {h5,hdr}        File format to search for (default: h5)
+  --product-dir            Save each file in a subdirectory named after the file stem
 ```
 
 ---

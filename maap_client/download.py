@@ -31,6 +31,7 @@ class DownloadManager:
         data_dir: Path,
         mission: str = DEFAULT_MISSION,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
+        product_dir: bool = False,
     ):
         """
         Initialize download manager.
@@ -40,11 +41,13 @@ class DownloadManager:
             data_dir: Base directory for downloads
             mission: Mission name for path generation
             chunk_size: Download chunk size in bytes
+            product_dir: If True, wrap each file in a subdirectory named after the file stem
         """
         self._token_manager = token_manager
         self._data_dir = data_dir
         self._mission = mission
         self._chunk_size = chunk_size
+        self._product_dir = product_dir
 
     def download_file(
         self,
@@ -164,6 +167,7 @@ class DownloadManager:
                 baseline=baseline,
                 dt=dt,
                 filename=filename,
+                product_dir=self._product_dir,
             )
 
             # Skip if exists

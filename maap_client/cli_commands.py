@@ -246,6 +246,7 @@ def cmd_download(args: argparse.Namespace) -> int:
                 out_dir=args.out_dir,
                 dry_run=args.dry_run,
                 verbose=getattr(args, 'verbose', 0) >= 1,
+                product_dir=getattr(args, 'product_dir', False),
             )
 
         # Download from single URL
@@ -256,6 +257,7 @@ def cmd_download(args: argparse.Namespace) -> int:
                 out_dir=args.out_dir,
                 dry_run=args.dry_run,
                 verbose=getattr(args, 'verbose', 0) >= 1,
+                product_dir=getattr(args, 'product_dir', False),
             )
 
         # Download from URL file
@@ -269,6 +271,7 @@ def cmd_download(args: argparse.Namespace) -> int:
                 out_dir=args.out_dir,
                 dry_run=args.dry_run,
                 verbose=getattr(args, 'verbose', 0) >= 1,
+                product_dir=getattr(args, 'product_dir', False),
             )
 
         else:
@@ -316,6 +319,7 @@ def cmd_get(args: argparse.Namespace) -> int:
             dry_run=getattr(args, 'dry_run', False),
             verbose=getattr(args, 'verbose', 0) >= 1,
             format=getattr(args, 'format', None),
+            product_dir=getattr(args, 'product_dir', False),
         )
 
         # Report results
@@ -363,6 +367,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
             max_items=args.max_items,
             verbose=getattr(args, 'verbose', 0) >= 1,
             format=getattr(args, 'format', None),
+            product_dir=getattr(args, 'product_dir', False),
         )
 
         # Report results
