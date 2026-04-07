@@ -72,7 +72,7 @@ pip install -e .
 
 ### Get Credentials
 
-1. Go to https://portal.maap.eo.esa.int/ini/services/auth/token/90dToken.php
+1. Go to  https://portal.maap.eo.esa.int/ini/services/auth/token/
 2. Login with your ESA credentials
 3. Request a 90-day offline token
 4. Create `~/.maap/credentials.txt`:
@@ -517,32 +517,32 @@ from datetime import datetime, timezone
 client = MaapClient()
 
 # Time-based search (returns SearchResult)
-result: SearchResult = client.search(
+search_result: SearchResult = client.search(
     collection="EarthCAREL2Validated_MAAP",
     product_type="CPR_CLD_2A",
     baseline="BC",
     start=datetime(2024, 12, 1, tzinfo=timezone.utc),
     end=datetime(2024, 12, 31, tzinfo=timezone.utc),
 )
-print(f"Found {result.total_count} URLs")
-print(f"Baselines: {result.baselines_found}")
+print(f"Found {search_result.total_count} URLs")
+print(f"Baselines: {search_result.baselines_found}")
 
 # Search all baselines (omit baseline parameter)
-result = client.search(
+search_result = client.search(
     collection="EarthCAREL2Validated_MAAP",
     product_type="CPR_CLD_2A",
     start=datetime(2024, 12, 1, tzinfo=timezone.utc),
 )
 
 # Orbit-based search
-result = client.search(
+search_result = client.search(
     collection="EarthCAREL2Validated_MAAP",
     product_type="CPR_CLD_2A",
     orbit="08962F",
 )
 
 # Search for HDR files instead of H5
-result = client.search(
+search_result = client.search(
     collection="EarthCAREL2Validated_MAAP",
     product_type="CPR_CLD_2A",
     baseline="BC",
@@ -554,9 +554,14 @@ result = client.search(
 ### Download with Result Types
 
 ```python
+from pathlib import Path
+from datetime import datetime, timezone
 from maap_client import MaapClient, DownloadResult
 
 client = MaapClient()
+
+# search_result from previous example
+search_result = client.search(...)
 
 # Download from search results
 result: DownloadResult = client.download(
