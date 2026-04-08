@@ -28,7 +28,7 @@ Performance:
 
 Product-specific:
 - AUX_MET_1D: Not searchable by orbit/frame (fields not indexed)
-- AUX_MET_1D: Has multiple versions per granule, requires deduplication
+- AUX_MET_1D: Has multiple versions per granule; deduplication is handled at download time
 
 Assumptions:
 - All MAAP STAC items have enclosure URLs, so matched() reflects downloadable count
@@ -41,10 +41,9 @@ from typing import Any, Iterator, Literal, Optional
 
 from pystac_client import Client
 
-from maap_client.constants import DEFAULT_CATALOG_URL, DEFAULT_MISSION_START, DEFAULT_MISSION_END
+from maap_client.constants import DEFAULT_CATALOG_URL, DEFAULT_MISSION_START, DEFAULT_MISSION_END, NO_ORBIT_PRODUCTS
 from maap_client.paths import (
     extract_sensing_time,
-    extract_creation_time,
     extract_baseline,
     extract_info,
     filter_by_sensing_time,
@@ -53,12 +52,6 @@ from maap_client.types import GranuleInfo
 from maap_client.utils import format_time_range, normalize_time_range, parse_datetime, to_stac_datetime
 
 logger = logging.getLogger(__name__)
-
-# Products that require deduplication by (baseline, sensing_time)
-DEDUP_PRODUCTS = {"AUX_MET_1D"}
-
-# Products that don't have orbit/frame indexed in STAC metadata
-NO_ORBIT_PRODUCTS = {"AUX_MET_1D"}
 
 
 class MaapSearcher:
@@ -181,35 +174,17 @@ class MaapSearcher:
         """Sort URLs by sensing time."""
         return sorted(urls, key=lambda u: extract_sensing_time(u) or datetime.min)
 
-    @staticmethod
-    def _dedup_urls(urls: list[str]) -> list[str]:
-        """Deduplicate URLs by (baseline, sensing_time), keeping earliest creation_time."""
-        urls_by_key: dict[tuple, tuple[str, datetime]] = {}
-        for url in urls:
-            baseline = extract_baseline(url)
-            sensing_time = extract_sensing_time(url)
-            creation_time = extract_creation_time(url)
-            if not baseline or not sensing_time or not creation_time:
-                logger.warning(f"Skipping URL with missing metadata (baseline={baseline}, sensing_time={sensing_time}, creation_time={creation_time}): {url}")
-                continue
-            key = (baseline, sensing_time)
-            if key not in urls_by_key or creation_time < urls_by_key[key][1]:
-                urls_by_key[key] = (url, creation_time)
-        return [url for url, _ in urls_by_key.values()]
-
     def _clean_search_results(
         self,
         search,
-        product_type: str,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        dedup: bool = True,
         format: Optional[str] = None,
     ) -> list[str]:
-        """Process STAC search results into sorted, deduplicated URLs.
+        """Process STAC search results into sorted URLs.
 
         Returns:
-            List of sorted, deduplicated product URLs
+            List of sorted product URLs
         """
         # Extract enclosure URLs
         urls = self._extract_enclosures(search, format=format)
@@ -217,10 +192,6 @@ class MaapSearcher:
         urls = filter_by_sensing_time(urls, start, end)
         # Sort by sensing_time
         urls = self._sort_urls(urls)
-
-        # Deduplicate (for DEDUP_PRODUCTS only, if dedup=True)
-        if dedup and product_type in DEDUP_PRODUCTS:
-            urls = self._dedup_urls(urls)
 
         return urls
 
@@ -262,7 +233,7 @@ class MaapSearcher:
                 logger.info("  EXISTS")
             return True
 
-        urls = self._clean_search_results(search, product_type, start, end, dedup=False)
+        urls = self._clean_search_results(search, start, end)
         result = len(urls) >= 1
         if verbose:
             logger.info("  EXISTS" if result else "  not found")
@@ -485,7 +456,7 @@ class MaapSearcher:
                 method="GET",
                 max_items=max_items,
             )
-            urls = self._clean_search_results(search, product_type, start, end, format=format)
+            urls = self._clean_search_results(search, start, end, format=format)
             if verbose:
                 logger.info(f"  found {len(urls)}")
 
@@ -559,7 +530,7 @@ class MaapSearcher:
             max_items=max_items,
         )
 
-        urls = self._clean_search_results(search, product_type, format=format)
+        urls = self._clean_search_results(search, format=format)
         if verbose:
             logger.info(f"  found {len(urls)}")
         return urls
@@ -603,7 +574,7 @@ class MaapSearcher:
                 method="GET",
                 max_items=max_items,
             )
-            urls = self._clean_search_results(search, product_type, day_start, day_end, format=format)
+            urls = self._clean_search_results(search, day_start, day_end, format=format)
 
             if verbose:
                 # Show baselines found by extracting from results

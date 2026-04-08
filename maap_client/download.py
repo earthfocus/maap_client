@@ -9,9 +9,10 @@ import time
 import requests
 
 from maap_client.auth import TokenManager, get_auth_headers
-from maap_client.constants import DEFAULT_CHUNK_SIZE, DEFAULT_MISSION
+from maap_client.constants import DEFAULT_CHUNK_SIZE, DEFAULT_MISSION, DEDUP_PRODUCTS
 from maap_client.exceptions import DownloadError
 from maap_client.paths import (
+    extract_orbit_frame,
     extract_sensing_time,
     generate_data_path,
 )
@@ -170,7 +171,7 @@ class DownloadManager:
                 product_dir=self._product_dir,
             )
 
-            # Skip if exists
+            # Skip if exact file exists
             if skip_existing and output_path.exists():
                 logger.info(f"  Skipping - already exists: {output_path}")
                 if verbose:
@@ -180,6 +181,25 @@ class DownloadManager:
                 if on_download:
                     on_download(url, output_path)
                 continue
+
+            # For DEDUP_PRODUCTS, skip if a different version of this granule
+            # already exists (same sensing_time + orbit_frame, different stem).
+            # Checks any extension so h5 and hdr stay on the same version.
+            if skip_existing and product_type in DEDUP_PRODUCTS:
+                orbit_frame = extract_orbit_frame(filename)
+                sensing_str = dt.strftime("%Y%m%dT%H%M%SZ")
+                pattern = f"*_{sensing_str}_*_{orbit_frame}.*" if orbit_frame else f"*_{sensing_str}_*.*"
+                date_dir = output_path.parent.parent if self._product_dir else output_path.parent
+                our_stem = Path(filename).stem
+                other_version = [f for f in date_dir.rglob(pattern) if f.stem != our_stem]
+                if other_version:
+                    logger.info(f"  Skipping - duplicate granule exists: {other_version[0].stem}")
+                    if verbose:
+                        logger.info(f"[{i:>{width}}/{total}] Duplicate exists: {other_version[0].stem}")
+                    results[url] = other_version[0]
+                    if on_download:
+                        on_download(url, other_version[0])
+                    continue
 
             if verbose:
                 logger.info(f"[{i:>{width}}/{total}] Downloading: {filename}")
