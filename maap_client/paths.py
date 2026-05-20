@@ -122,6 +122,23 @@ def extract_sensing_time(filename: str) -> Optional[datetime]:
     return None
 
 
+def sort_by_sensing_time(items: list[str], reverse: bool = False) -> list[str]:
+    """
+    Sort URLs/paths by their sensing time. Items with no extractable
+    sensing time are appended at the end regardless of order.
+    """
+    with_dt: list[tuple[datetime, str]] = []
+    without_dt: list[str] = []
+    for item in items:
+        dt = extract_sensing_time(item)
+        if dt is None:
+            without_dt.append(item)
+        else:
+            with_dt.append((dt, item))
+    with_dt.sort(key=lambda x: x[0], reverse=reverse)
+    return [item for _, item in with_dt] + without_dt
+
+
 def extract_creation_time(filename: str) -> Optional[datetime]:
     """
     Extract creation time (second timestamp) from EarthCARE filename.

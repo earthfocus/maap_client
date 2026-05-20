@@ -16,7 +16,7 @@ from maap_client.download import DownloadManager
 from maap_client.exceptions import InvalidRequestError
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
-from maap_client.paths import extract_baseline, extract_product
+from maap_client.paths import extract_baseline, extract_product, sort_by_sensing_time
 from maap_client.registry import Registry
 from maap_client.types import DownloadResult, SearchResult, SyncResult
 from maap_client.utils import normalize_time_range as _normalize_time_range
@@ -488,6 +488,7 @@ class MaapClient:
         max_items: int = 50000,
         verbose: bool = False,
         format: Optional[str] = None,
+        reverse: bool = False,
     ) -> SearchResult:
         """
         Search for product URLs.
@@ -534,6 +535,8 @@ class MaapClient:
                 verbose=verbose,
                 format=format,
             )
+            if reverse:
+                urls = sort_by_sensing_time(urls, reverse=True)
             # Extract baselines from results
             baselines_found = list(set(
                 extract_baseline(os.path.basename(url)) or "UNKNOWN"
@@ -570,6 +573,7 @@ class MaapClient:
             max_items=max_items,
             verbose=verbose,
             format=format,
+            reverse=reverse,
         )
 
         # Extract baselines from results
@@ -596,6 +600,7 @@ class MaapClient:
         dry_run: bool = False,
         verbose: bool = False,
         product_dir: bool = False,
+        reverse: bool = False,
     ) -> DownloadResult:
         """
         Download files from URLs.
@@ -622,6 +627,9 @@ class MaapClient:
         if not urls:
             logger.info("No URLs to download")
             return result
+
+        if reverse:
+            urls = sort_by_sensing_time(urls, reverse=True)
 
         # Dry run
         if dry_run:
@@ -714,6 +722,7 @@ class MaapClient:
         dry_run: bool = False,
         verbose: bool = False,
         product_dir: bool = False,
+        reverse: bool = False,
     ) -> DownloadResult:
         """
         Download files from registry.
@@ -754,6 +763,7 @@ class MaapClient:
             dry_run=dry_run,
             verbose=verbose,
             product_dir=product_dir,
+            reverse=reverse,
         )
 
     def get(
@@ -770,6 +780,7 @@ class MaapClient:
         verbose: bool = False,
         format: Optional[str] = None,
         product_dir: bool = False,
+        reverse: bool = False,
     ) -> DownloadResult:
         """
         Search + download in one step.
@@ -806,9 +817,10 @@ class MaapClient:
             max_items=max_items,
             verbose=verbose,
             format=format,
+            reverse=reverse,
         )
 
-        # Download
+        # Download (URLs are already ordered by search; no need to sort again)
         return self.download(
             urls=search_result.urls,
             collection=collection,
@@ -830,6 +842,7 @@ class MaapClient:
         verbose: bool = False,
         format: Optional[str] = None,
         product_dir: bool = False,
+        reverse: bool = False,
     ) -> SyncResult:
         """
         Incremental sync: search + download + state tracking.
@@ -902,6 +915,7 @@ class MaapClient:
                 end=end,
                 verbose=verbose,
                 format=format,
+                reverse=reverse,
             ):
                 urls.extend(day_urls)
 

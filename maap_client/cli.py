@@ -258,6 +258,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="File format to search for (default: h5)",
     )
+    other_group.add_argument(
+        "--newest-first", action="store_true",
+        help="Return URLs sorted newest-first by sensing time",
+    )
     search_parser.set_defaults(func=cmd_search)
 
     # --- download subcommand ---
@@ -328,6 +332,10 @@ Notes:
         "--use-catalog", action="store_true",
         help="Use built catalog for time bounds (faster, may be stale)"
     )
+    other_group.add_argument(
+        "--newest-first", action="store_true",
+        help="Download newest sensing times first",
+    )
     download_parser.set_defaults(func=cmd_download)
 
     # --- get subcommand ---
@@ -395,6 +403,10 @@ Notes:
         default=None,
         help="File format to search for (default: h5)",
     )
+    other_group.add_argument(
+        "--newest-first", action="store_true",
+        help="Search and download newest sensing times first",
+    )
     get_parser.set_defaults(func=cmd_get)
 
     # --- sync subcommand ---
@@ -439,6 +451,10 @@ Notes:
     sync_parser.add_argument(
         "--product-dir", action="store_true",
         help="Save each file in a subdirectory named after the file stem"
+    )
+    sync_parser.add_argument(
+        "--newest-first", action="store_true",
+        help="Search and download newest sensing times first",
     )
     sync_parser.set_defaults(func=cmd_sync)
 

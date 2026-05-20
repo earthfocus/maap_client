@@ -47,6 +47,7 @@ from maap_client.paths import (
     extract_baseline,
     extract_info,
     filter_by_sensing_time,
+    sort_by_sensing_time,
 )
 from maap_client.types import GranuleInfo
 from maap_client.utils import format_time_range, normalize_time_range, parse_datetime, to_stac_datetime
@@ -424,12 +425,16 @@ class MaapSearcher:
         max_items: int = 50000,
         verbose: bool = False,
         format: Optional[str] = None,
+        reverse: bool = False,
     ) -> list[str]:
         """
         Search for download URLs for matching products.
 
         Uses day-by-day searching internally for reliability with time-bounded queries.
         For incremental processing or progress display, use search_urls_iter_day() instead.
+
+        Args:
+            reverse: If True, return URLs sorted newest-first by sensing time.
 
         Returns:
             List of product URLs
@@ -472,10 +477,14 @@ class MaapSearcher:
                 max_items=max_items,
                 verbose=verbose,
                 format=format,
+                reverse=reverse,
             ):
                 urls.extend(day_urls)
             if verbose:
                 logger.info(f"Total: {len(urls)} URLs")
+
+        if reverse:
+            urls = sort_by_sensing_time(urls, reverse=True)
 
         return urls
 
@@ -545,6 +554,7 @@ class MaapSearcher:
         max_items: int = 50000,
         verbose: bool = False,
         format: Optional[str] = None,
+        reverse: bool = False,
     ) -> Iterator[list[str]]:
         """
         Generator that searches day-by-day over a time range.
@@ -554,13 +564,19 @@ class MaapSearcher:
 
         Start/end are clamped to mission bounds using _resolve_time_range.
 
+        Args:
+            reverse: If True, iterate days from end to start (newest first).
+
         Yields:
             List of URLs for each day in the range
         """
         start, end = self._resolve_time_range(start, end)
         total_days = (end.date() - start.date()).days + 1
 
-        for i, (day_start, day_end) in enumerate(self._iter_day_ranges(start, end)):
+        day_ranges = list(self._iter_day_ranges(start, end))
+        if reverse:
+            day_ranges.reverse()
+        for i, (day_start, day_end) in enumerate(day_ranges):
             datetime_arg = to_stac_datetime(day_start, day_end)
             filter_parts = [f"productType = '{product_type}'"]
             if baseline:
