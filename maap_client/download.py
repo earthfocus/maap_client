@@ -80,45 +80,54 @@ class DownloadManager:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         part_path = output_path.with_name(output_path.name + ".part")
 
-        # Get auth headers
-        headers = get_auth_headers(self._token_manager)
-
         logger.info(f"Downloading: {url}")
         logger.debug(f"  -> {output_path}")
 
-        try:
+        for attempt in (1, 2):
+            headers = get_auth_headers(self._token_manager)
             try:
-                t0 = time.monotonic()
-                with requests.get(url, headers=headers, stream=True, timeout=60) as r:
-                    r.raise_for_status()
+                try:
+                    t0 = time.monotonic()
+                    with requests.get(url, headers=headers, stream=True, timeout=60) as r:
+                        r.raise_for_status()
 
-                    # Get total size if available
-                    total_size = int(r.headers.get("content-length", 0))
-                    downloaded = 0
+                        # Get total size if available
+                        total_size = int(r.headers.get("content-length", 0))
+                        downloaded = 0
 
-                    # "wb" truncates any stale .part left by a previous crash
-                    with open(part_path, "wb") as f:
-                        for chunk in r.iter_content(chunk_size=self._chunk_size):
-                            f.write(chunk)
-                            downloaded += len(chunk)
+                        # "wb" truncates any stale .part left by a previous crash
+                        with open(part_path, "wb") as f:
+                            for chunk in r.iter_content(chunk_size=self._chunk_size):
+                                f.write(chunk)
+                                downloaded += len(chunk)
 
-                            if progress_callback and total_size:
-                                progress_callback(downloaded, total_size)
+                                if progress_callback and total_size:
+                                    progress_callback(downloaded, total_size)
 
-                elapsed = time.monotonic() - t0
+                    elapsed = time.monotonic() - t0
 
-                if total_size and downloaded != total_size:
-                    raise DownloadError(
-                        url, f"incomplete: {downloaded}/{total_size} bytes"
+                    if total_size and downloaded != total_size:
+                        raise DownloadError(
+                            url, f"incomplete: {downloaded}/{total_size} bytes"
+                        )
+
+                except requests.HTTPError as e:
+                    raise DownloadError(url, str(e), e.response.status_code if e.response is not None else None)
+                except requests.RequestException as e:
+                    raise DownloadError(url, str(e))
+            except DownloadError as e:
+                part_path.unlink(missing_ok=True)
+                if e.status_code in (401, 403) and attempt == 1:
+                    logger.warning(
+                        f"HTTP {e.status_code}, refreshing token and retrying once: {url}"
                     )
-
-            except requests.HTTPError as e:
-                raise DownloadError(url, str(e), e.response.status_code if e.response else None)
-            except requests.RequestException as e:
-                raise DownloadError(url, str(e))
-        except BaseException:
-            part_path.unlink(missing_ok=True)
-            raise
+                    self._token_manager.invalidate()
+                    continue
+                raise
+            except BaseException:
+                part_path.unlink(missing_ok=True)
+                raise
+            break
 
         # Complete and verified: move into place atomically
         try:

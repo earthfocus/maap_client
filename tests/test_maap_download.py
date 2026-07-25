@@ -140,3 +140,28 @@ def test_stale_part_overwritten(server, tmp_path):
     out = dm.download_file(base + "/f2.h5", tmp_path / "f2.h5")
     assert out.read_bytes() == b"new-content"
     assert not list(tmp_path.glob("*.part"))
+
+
+def test_403_then_success_refreshes_once(server, tmp_path):
+    base, handler = server
+    handler.behaviors["/auth.h5"] = {"body": b"ok", "status_once": 403, "fail_hits": 1}
+    tm = FakeTokenManager()
+    dm = DownloadManager(tm, tmp_path)
+    out = dm.download_file(base + "/auth.h5", tmp_path / "auth.h5")
+    assert out.read_bytes() == b"ok"
+    assert tm.invalidations == 1
+    assert handler.hits["/auth.h5"] == 2
+
+
+def test_persistent_403_raises_after_one_retry(server, tmp_path):
+    base, handler = server
+    handler.behaviors["/deny.h5"] = {"body": b"no", "status_once": 403, "fail_hits": 99}
+    tm = FakeTokenManager()
+    dm = DownloadManager(tm, tmp_path)
+    with pytest.raises(DownloadError) as exc_info:
+        dm.download_file(base + "/deny.h5", tmp_path / "deny.h5")
+    assert exc_info.value.status_code == 403
+    assert tm.invalidations == 1          # exactly one refresh attempt
+    assert handler.hits["/deny.h5"] == 2  # exactly one retry
+    assert not (tmp_path / "deny.h5").exists()
+    assert not list(tmp_path.glob("*.part"))
