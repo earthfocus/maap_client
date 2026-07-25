@@ -68,6 +68,19 @@ class TestValidateTimeArgs:
         error = validate_time_args(ns(orbit="1525", start="2024-12-01"))
         assert "--orbit cannot be used with --start" in error
 
+    def test_orbit_is_filter_allows_time_combination(self):
+        assert validate_time_args(ns(orbit="1525", start="2024-12-01"), orbit_is_filter=True) is None
+
+    def test_orbit_is_filter_still_validates_orbit_format(self):
+        error = validate_time_args(ns(orbit="bad"), orbit_is_filter=True)
+        assert "invalid orbit" in error
+
+    def test_orbit_is_filter_parser_integration(self):
+        args = build_parser().parse_args(
+            ["download", "Coll", "PROD", "--registry", "--days-back", "7", "--orbit", "01524E"]
+        )
+        assert validate_time_args(args, orbit_is_filter=True) is None
+
 
 class TestValidateDownloadFilterArgs:
     def test_frame_without_registry_rejected(self):

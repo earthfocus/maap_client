@@ -30,3 +30,20 @@ def test_orbit_with_letter_plus_frames_conflicts():
 def test_invalid_orbit_raises_invalid_request():
     with pytest.raises(InvalidRequestError, match="invalid orbit"):
         MaapClient._resolve_orbit_frames("bad", None)
+
+
+def test_resolve_orbit_frames_normalizes_lowercase_frames():
+    assert MaapClient._resolve_orbit_frames("1525", ["c", "d"]) == (1525, ["C", "D"])
+
+
+def test_resolve_orbit_frames_rejects_invalid_frame():
+    with pytest.raises(InvalidRequestError):
+        MaapClient._resolve_orbit_frames(None, ["X"])
+
+
+def test_normalize_frames_none_returns_none():
+    assert MaapClient._normalize_frames(None) is None
+
+
+def test_normalize_frames_empty_list_returns_none():
+    assert MaapClient._normalize_frames([]) is None

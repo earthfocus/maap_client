@@ -242,7 +242,7 @@ def cmd_download(args: argparse.Namespace) -> int:
 
     # Validate time arguments (only when using --registry with time filters)
     if args.registry:
-        validation_error = validate_time_args(args)
+        validation_error = validate_time_args(args, orbit_is_filter=True)
         if validation_error:
             print(f"Error: {validation_error}", file=sys.stderr)
             return 1

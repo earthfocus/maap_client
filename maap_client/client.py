@@ -25,7 +25,7 @@ from maap_client.paths import (
 from maap_client.registry import Registry
 from maap_client.types import DownloadResult, SearchResult, SyncResult
 from maap_client.utils import normalize_time_range as _normalize_time_range
-from maap_client.utils import parse_datetime, parse_orbit, timezone_is_aware, to_zulu
+from maap_client.utils import parse_datetime, parse_frames, parse_orbit, timezone_is_aware, to_zulu
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +156,27 @@ class MaapClient:
             )
 
     @staticmethod
+    def _normalize_frames(frames: Optional[list[str]]) -> Optional[list[str]]:
+        """
+        Validate and canonicalize a frames list (Python API entry point).
+
+        CLI callers already get canonical uppercase letters from `frames_arg`;
+        this normalizes frames passed directly via the Python API.
+
+        Returns:
+            None if frames is None/empty, otherwise the uppercased, validated list.
+
+        Raises:
+            InvalidRequestError: If any entry is not a single letter A-H.
+        """
+        if not frames:
+            return None
+        try:
+            return parse_frames(",".join(frames))
+        except ValueError as e:
+            raise InvalidRequestError(str(e)) from e
+
+    @staticmethod
     def _resolve_orbit_frames(
         orbit: Optional[str],
         frames: Optional[list[str]],
@@ -169,6 +190,7 @@ class MaapClient:
             InvalidRequestError: If the orbit is malformed, or it includes a
                                  frame letter while frames is also given.
         """
+        frames = MaapClient._normalize_frames(frames)
         if not orbit:
             return None, frames
         try:
@@ -573,6 +595,7 @@ class MaapClient:
                 orbit=orbit_num,
                 frames=resolved_frames,
                 baseline=baseline,
+                max_items=max_items,
                 verbose=verbose,
                 format=format,
             )
@@ -936,6 +959,7 @@ class MaapClient:
         """
         # Validate time range
         self._validate_time_range(start, end)
+        frames = self._normalize_frames(frames)
 
         # Default time range: last 3 days
         now = datetime.now(timezone.utc).replace(microsecond=0)
