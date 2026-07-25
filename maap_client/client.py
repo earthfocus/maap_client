@@ -16,11 +16,16 @@ from maap_client.download import DownloadManager
 from maap_client.exceptions import InvalidRequestError
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
-from maap_client.paths import extract_baseline, extract_product, sort_by_sensing_time
+from maap_client.paths import (
+    extract_baseline,
+    extract_product,
+    filter_by_orbit_frame,
+    sort_by_sensing_time,
+)
 from maap_client.registry import Registry
 from maap_client.types import DownloadResult, SearchResult, SyncResult
 from maap_client.utils import normalize_time_range as _normalize_time_range
-from maap_client.utils import parse_datetime, timezone_is_aware, to_zulu
+from maap_client.utils import parse_datetime, parse_orbit, timezone_is_aware, to_zulu
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +154,33 @@ class MaapClient:
             raise InvalidRequestError(
                 f"'start' must be before 'end' (got {start} > {end})."
             )
+
+    @staticmethod
+    def _resolve_orbit_frames(
+        orbit: Optional[str],
+        frames: Optional[list[str]],
+    ) -> tuple[Optional[int], Optional[list[str]]]:
+        """
+        Parse a dual-form orbit spec and merge with a frames list.
+
+        '01525E' -> (1525, ['E']); '1525' -> (1525, frames).
+
+        Raises:
+            InvalidRequestError: If the orbit is malformed, or it includes a
+                                 frame letter while frames is also given.
+        """
+        if not orbit:
+            return None, frames
+        try:
+            orbit_num, orbit_letter = parse_orbit(orbit)
+        except ValueError as e:
+            raise InvalidRequestError(str(e)) from e
+        if orbit_letter and frames:
+            raise InvalidRequestError(
+                f"orbit '{orbit.strip()}' already includes a frame letter; "
+                f"use orbit '{orbit_num}' together with the frames list instead"
+            )
+        return orbit_num, [orbit_letter] if orbit_letter else frames
 
     # === CATALOG OPERATIONS ===
 
@@ -489,6 +521,7 @@ class MaapClient:
         verbose: bool = False,
         format: Optional[str] = None,
         reverse: bool = False,
+        frames: Optional[list[str]] = None,
     ) -> SearchResult:
         """
         Search for product URLs.
@@ -503,15 +536,21 @@ class MaapClient:
             baseline: Optional baseline filter (if omitted, searches all baselines)
             start: Start datetime (for time-based search)
             end: End datetime (for time-based search)
-            orbit: Orbit+frame string (for orbit-based search, mutually exclusive with start/end)
+            orbit: Orbit+frame string (for orbit-based search, mutually exclusive with start/end).
+                  Accepts either '1525' (orbit only, combine with frames) or '01525E'
+                  (orbit+frame combined; frames must not also be given).
             use_catalog: Use cached catalog bounds for optimization
             max_items: Maximum items to return
             verbose: Show progress during search
             format: File format to search for ('h5' or 'hdr', default: 'h5')
+            frames: Optional frame letters to restrict results to (works for both
+                   time-based and orbit-based search); if orbit already includes
+                   a frame letter, frames must be omitted
 
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end,
-                                or datetimes are not timezone-aware
+                                or datetimes are not timezone-aware, or orbit already
+                                includes a frame letter while frames is also given
 
         Returns:
             SearchResult with urls and metadata
@@ -520,7 +559,8 @@ class MaapClient:
         self._validate_time_range(start, end, orbit)
 
         # Orbit-based search
-        if orbit:
+        orbit_num, resolved_frames = self._resolve_orbit_frames(orbit, frames)
+        if orbit_num is not None:
             queryables = self.catalog.load(collection)
             if queryables and not queryables.supports_orbit():
                 raise InvalidRequestError(
@@ -530,7 +570,8 @@ class MaapClient:
             urls = self.searcher.search_urls_by_orbit(
                 collection=collection,
                 product_type=product_type,
-                orbit_frame=orbit,
+                orbit=orbit_num,
+                frames=resolved_frames,
                 baseline=baseline,
                 verbose=verbose,
                 format=format,
@@ -574,6 +615,7 @@ class MaapClient:
             verbose=verbose,
             format=format,
             reverse=reverse,
+            frames=resolved_frames,
         )
 
         # Extract baselines from results
@@ -723,6 +765,8 @@ class MaapClient:
         verbose: bool = False,
         product_dir: bool = False,
         reverse: bool = False,
+        orbit: Optional[str] = None,
+        frames: Optional[list[str]] = None,
     ) -> DownloadResult:
         """
         Download files from registry.
@@ -739,9 +783,15 @@ class MaapClient:
             skip_existing: Skip files that already exist
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
+            orbit: Optional orbit spec to filter registry URLs by ('1525' or
+                  '01525E'); if it already includes a frame letter, frames must
+                  be omitted
+            frames: Optional frame letters to filter registry URLs by
 
         Raises:
-            InvalidRequestError: If start > end or datetimes not timezone-aware
+            InvalidRequestError: If start > end, datetimes not timezone-aware, or
+                                orbit already includes a frame letter while frames
+                                is also given
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
@@ -754,6 +804,11 @@ class MaapClient:
             start=start,
             end=end,
         )
+        orbit_num, resolved_frames = self._resolve_orbit_frames(orbit, frames)
+        if orbit_num is not None or resolved_frames:
+            total = len(urls)
+            urls = filter_by_orbit_frame(urls, orbit=orbit_num, frames=resolved_frames)
+            logger.info(f"{len(urls)} of {total} registry URLs match the orbit/frame filter")
         return self.download(
             urls=urls,
             collection=collection,
@@ -781,6 +836,7 @@ class MaapClient:
         format: Optional[str] = None,
         product_dir: bool = False,
         reverse: bool = False,
+        frames: Optional[list[str]] = None,
     ) -> DownloadResult:
         """
         Search + download in one step.
@@ -793,15 +849,20 @@ class MaapClient:
             baseline: Optional baseline filter
             start: Start datetime (for time-based search)
             end: End datetime (for time-based search)
-            orbit: Orbit+frame string (for orbit-based search)
+            orbit: Orbit+frame string (for orbit-based search). Accepts either
+                  '1525' (combine with frames) or '01525E' (frame included;
+                  frames must not also be given).
             out_dir: If provided, download to flat directory; otherwise structured paths
             max_items: Maximum items to get
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
             format: File format to search for ('h5' or 'hdr', default: 'h5')
+            frames: Optional frame letters to restrict the search to
 
         Raises:
-            InvalidRequestError: If orbit is used with start/end, or start > end
+            InvalidRequestError: If orbit is used with start/end, or start > end,
+                                or orbit already includes a frame letter while
+                                frames is also given
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
@@ -818,6 +879,7 @@ class MaapClient:
             verbose=verbose,
             format=format,
             reverse=reverse,
+            frames=frames,
         )
 
         # Download (URLs are already ordered by search; no need to sort again)
@@ -843,6 +905,7 @@ class MaapClient:
         format: Optional[str] = None,
         product_dir: bool = False,
         reverse: bool = False,
+        frames: Optional[list[str]] = None,
     ) -> SyncResult:
         """
         Incremental sync: search + download + state tracking.
@@ -862,6 +925,8 @@ class MaapClient:
             max_items: Maximum items to sync
             verbose: Print progress messages
             format: File format to search for ('h5' or 'hdr', default: 'h5')
+            frames: Optional frame letters to restrict the sync to (state is
+                   per-URL, so filtered syncs are safe)
 
         Raises:
             InvalidRequestError: If start > end or datetimes not timezone-aware
@@ -916,6 +981,7 @@ class MaapClient:
                 verbose=verbose,
                 format=format,
                 reverse=reverse,
+                frames=frames,
             ):
                 urls.extend(day_urls)
 
