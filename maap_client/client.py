@@ -973,6 +973,7 @@ class MaapClient:
         force: bool = False,
         out_dir: Optional[Path] = None,
         verbose: bool = False,
+        failures_out: Optional[list[tuple[str, str, str, str]]] = None,
     ) -> dict[str, Path]:
         """
         Build catalog from API queries.
@@ -987,6 +988,10 @@ class MaapClient:
             force: Delete existing catalog and rebuild from scratch
             out_dir: Output directory (uses config default if None)
             verbose: Print progress messages
+            failures_out: Optional caller-provided list; appended with
+                (collection, product, baseline, error) for every baseline
+                that failed after retries. A whole-collection error appends
+                (collection, "*", "*", error).
 
         Raises:
             InvalidRequestError: If start > end or datetimes not timezone-aware
@@ -1045,7 +1050,14 @@ class MaapClient:
                 total_baselines = sum(len(p.baselines) for p in products.values())
                 logger.info(f"Summary: {total_products} products, {total_baselines} baselines")
 
+                if failures_out is not None:
+                    failures_out.extend(
+                        (coll, prod, bl, err) for prod, bl, err in manager.last_failures
+                    )
+
             except Exception as e:
                 logger.error(f"Error building {coll}: {e}")
+                if failures_out is not None:
+                    failures_out.append((coll, "*", "*", str(e)))
 
         return results

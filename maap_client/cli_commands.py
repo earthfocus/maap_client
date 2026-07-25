@@ -49,6 +49,7 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
     out_dir = args.out_dir if args.out_dir else None
 
     try:
+        failures: list[tuple[str, str, str, str]] = []
         results = client.build_catalog(
             collection=args.collection,
             product_type=args.product,
@@ -59,10 +60,18 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
             force=getattr(args, 'force', False),
             out_dir=out_dir,
             verbose=getattr(args, 'verbose', 0) >= 1,
+            failures_out=failures,
         )
 
         for collection, path in results.items():
             print(f"Wrote catalog to {path}")
+
+        if failures:
+            print(f"{len(failures)} baseline(s) failed after retries:", file=sys.stderr)
+            for coll, prod, baseline, err in failures:
+                print(f"  {coll}/{prod}/{baseline}: {err}", file=sys.stderr)
+            print("Re-run the same command to fill only the gaps.", file=sys.stderr)
+            return 1
 
         return 0
 
