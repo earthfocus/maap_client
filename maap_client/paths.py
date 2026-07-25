@@ -505,6 +505,46 @@ def filter_by_sensing_time(
     return result
 
 
+def filter_by_orbit_frame(
+    items: list[str],
+    orbit: Optional[int] = None,
+    frames: Optional[list[str]] = None,
+) -> list[str]:
+    """
+    Filter URLs/paths by orbit number and/or frame letters (from filename).
+
+    Items where orbit/frame cannot be extracted are dropped, mirroring
+    filter_by_sensing_time. Frame letters must be uppercase (canonical
+    form from parse_frames).
+
+    Args:
+        items: List of URLs or paths to filter
+        orbit: Optional orbit number to match. None means no orbit constraint.
+        frames: Optional list of frame letters to match. None/empty means
+                no frame constraint.
+
+    Returns:
+        Filtered list of items
+    """
+    if orbit is None and not frames:
+        return items
+    result = []
+    for item in items:
+        orbit_frame = extract_orbit_frame(item)
+        if orbit_frame is None:
+            continue
+        if orbit_frame[-1].isalpha():
+            item_orbit, item_frame = int(orbit_frame[:-1]), orbit_frame[-1]
+        else:
+            item_orbit, item_frame = int(orbit_frame), None
+        if orbit is not None and item_orbit != orbit:
+            continue
+        if frames and item_frame not in frames:
+            continue
+        result.append(item)
+    return result
+
+
 def url_to_local_path(
     url: str,
     data_dir: Path,

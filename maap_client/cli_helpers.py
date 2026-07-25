@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from maap_client import MaapClient, MaapConfig
-from maap_client.utils import parse_datetime
+from maap_client.utils import parse_datetime, parse_frames, parse_orbit
 
 
 def get_client(args: argparse.Namespace) -> MaapClient:
@@ -65,12 +65,19 @@ def resolve_date_args(args: argparse.Namespace) -> tuple[Optional[datetime], Opt
     return start, end
 
 
-def validate_time_args(args: argparse.Namespace) -> Optional[str]:
+def validate_time_args(args: argparse.Namespace, orbit_is_filter: bool = False) -> Optional[str]:
     """
     Validate time-based arguments and return error message if invalid.
 
     Validates mutual exclusivity and logical constraints for:
     --date, --start, --end, --days-back, --orbit
+
+    Args:
+        args: Parsed argparse namespace
+        orbit_is_filter: If True, --orbit is a client-side filename filter
+            (as in `download --registry`) rather than a query mode, so it may
+            be combined with time-based options. Orbit format validation and
+            the orbit-with-letter + --frame conflict check still apply.
 
     Returns:
         Error message string if validation fails, None if valid
@@ -95,15 +102,17 @@ def validate_time_args(args: argparse.Namespace) -> Optional[str]:
     if has_days_back and has_end:
         return "--days-back cannot be used with --end"
 
-    # --orbit cannot be used with any time-based options
-    if has_orbit and has_date:
-        return "--orbit cannot be used with --date"
-    if has_orbit and has_start:
-        return "--orbit cannot be used with --start"
-    if has_orbit and has_end:
-        return "--orbit cannot be used with --end"
-    if has_orbit and has_days_back:
-        return "--orbit cannot be used with --days-back"
+    # --orbit cannot be used with any time-based options (unless orbit is a
+    # client-side filter, e.g. download --registry, where it's combinable)
+    if not orbit_is_filter:
+        if has_orbit and has_date:
+            return "--orbit cannot be used with --date"
+        if has_orbit and has_start:
+            return "--orbit cannot be used with --start"
+        if has_orbit and has_end:
+            return "--orbit cannot be used with --end"
+        if has_orbit and has_days_back:
+            return "--orbit cannot be used with --days-back"
 
     # Validate start <= end if both provided
     if has_start and has_end:
@@ -112,4 +121,35 @@ def validate_time_args(args: argparse.Namespace) -> Optional[str]:
         if start > end:
             return f"--start ({args.start}) must be before --end ({args.end})"
 
+    # Validate --orbit format and --frame conflict
+    has_frame = bool(getattr(args, 'frame', None))
+    if has_orbit:
+        try:
+            orbit_num, orbit_letter = parse_orbit(args.orbit)
+        except ValueError as e:
+            return str(e)
+        if orbit_letter and has_frame:
+            return (
+                f"--frame cannot be used when --orbit already includes a frame letter; "
+                f"use --orbit {orbit_num} --frame {','.join(args.frame)}"
+            )
+
+    return None
+
+
+def frames_arg(value: str) -> list[str]:
+    """Argparse type for --frame: comma-separated letters A-H."""
+    try:
+        return parse_frames(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e))
+
+
+def validate_download_filter_args(args: argparse.Namespace) -> Optional[str]:
+    """Registry-only filters (--frame/--orbit) must not be used with --url/--url-file."""
+    if not getattr(args, 'registry', False):
+        if getattr(args, 'frame', None):
+            return "--frame requires --registry"
+        if getattr(args, 'orbit', None):
+            return "--orbit requires --registry"
     return None

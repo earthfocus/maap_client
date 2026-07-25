@@ -8,6 +8,7 @@ from maap_client import MaapClient, MaapConfig, InvalidRequestError
 from maap_client.cli_helpers import (
     get_client,
     resolve_date_args,
+    validate_download_filter_args,
     validate_time_args,
 )
 from maap_client.utils import to_zulu
@@ -187,6 +188,7 @@ def cmd_search(args: argparse.Namespace) -> int:
             start=start,
             end=end,
             orbit=orbit,
+            frames=getattr(args, 'frame', None),
             use_catalog=use_catalog,
             max_items=args.max_items,
             verbose=getattr(args, 'verbose', 0) >= 1,
@@ -233,9 +235,14 @@ def cmd_download(args: argparse.Namespace) -> int:
     """Handle 'download' command."""
     client = get_client(args)
 
+    filter_error = validate_download_filter_args(args)
+    if filter_error:
+        print(f"Error: {filter_error}", file=sys.stderr)
+        return 1
+
     # Validate time arguments (only when using --registry with time filters)
     if args.registry:
-        validation_error = validate_time_args(args)
+        validation_error = validate_time_args(args, orbit_is_filter=True)
         if validation_error:
             print(f"Error: {validation_error}", file=sys.stderr)
             return 1
@@ -253,6 +260,8 @@ def cmd_download(args: argparse.Namespace) -> int:
                 baseline=args.baseline,
                 start=start,
                 end=end,
+                orbit=getattr(args, 'orbit', None),
+                frames=getattr(args, 'frame', None),
                 out_dir=args.out_dir,
                 dry_run=args.dry_run,
                 verbose=getattr(args, 'verbose', 0) >= 1,
@@ -327,6 +336,7 @@ def cmd_get(args: argparse.Namespace) -> int:
             start=start,
             end=end,
             orbit=orbit,
+            frames=getattr(args, 'frame', None),
             out_dir=getattr(args, 'out_dir', None),
             max_items=args.max_items,
             dry_run=getattr(args, 'dry_run', False),
@@ -378,6 +388,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
             baseline=args.baseline,
             start=start,
             end=end,
+            frames=getattr(args, 'frame', None),
             max_items=args.max_items,
             verbose=getattr(args, 'verbose', 0) >= 1,
             format=getattr(args, 'format', None),

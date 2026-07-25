@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from maap_client.constants import __version__
+from maap_client.cli_helpers import frames_arg
 from maap_client.cli_commands import (
     cmd_catalog_update,
     cmd_catalog_build,
@@ -201,7 +202,8 @@ def build_parser() -> argparse.ArgumentParser:
         "search",
         help="Search for products (by date, time range or orbit)",
         description="Search for product URLs using time-based or orbit-based queries.",
-        epilog="Note: --date, --start/--end, and --orbit are mutually exclusive filtering options.",
+        epilog="Note: --date, --start/--end, --days-back and --orbit are mutually exclusive.\n"
+               "--frame combines with any time option or with a frame-less --orbit.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     search_parser.add_argument("collection", type=non_empty_string, help="Collection name")
@@ -226,10 +228,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--days-back", "-d", type=int, help="Days to look back from now"
     )
     filter_exclusive.add_argument(
-        "--orbit", help="Orbit+frame for orbit-based search (e.g., '01525F')"
+        "--orbit",
+        help="Orbit-based search: orbit number with optional frame letter "
+             "(e.g., '1525' for all frames, '01525F' for one)"
     )
     filter_group.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
+    )
+    filter_group.add_argument(
+        "--frame", type=frames_arg,
+        help="Frame letter(s) A-H, comma-separated (e.g., 'A' or 'C,D,E'); "
+             "combines with time options or a frame-less --orbit"
     )
 
     # Output options group
@@ -271,8 +280,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="Download products from MAAP, a URL, URL file, or saved registry files.",
         epilog="""
 Notes:
-  --date and --start/--end are mutually exclusive filtering options (only with --registry).
-  --url, --url-file, and --registry are mutually exclusive download source modes.
+  --url, --url-file, and --registry are mutually exclusive download source modes;
+  one of them is required.
+  --date, --start/--end, --frame and --orbit filter registry entries and only
+  apply with --registry. --frame/--orbit match against filenames (no MAAP query).
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -283,7 +294,7 @@ Notes:
 
     # Download source group (mutually exclusive, optional)
     source_group = download_parser.add_argument_group(
-        "download source (if not specified, searches MAAP)"
+        "download source (required: --url, --url-file, or --registry)"
     )
     source_exclusive = source_group.add_mutually_exclusive_group()
     source_exclusive.add_argument("--url", "-u", help="Download a single URL")
@@ -307,6 +318,15 @@ Notes:
     )
     filter_group.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
+    )
+    filter_group.add_argument(
+        "--frame", type=frames_arg,
+        help="Filter registry entries by frame letter(s), matched against filenames"
+    )
+    filter_group.add_argument(
+        "--orbit",
+        help="Filter registry entries by orbit (e.g., '1525' or '01525E'), matched "
+             "against filenames; works even for products MAAP does not index by orbit"
     )
 
     # Output options group
@@ -345,7 +365,8 @@ Notes:
         description="Search for products from MAAP API and download them immediately.",
         epilog="""
 Notes:
-  --date, --start/--end, and --orbit are mutually exclusive filtering options.
+  --date, --start/--end, --days-back and --orbit are mutually exclusive.
+  --frame combines with any time option or with a frame-less --orbit.
   For advanced options (--use-catalog, --registry), use 'search' and 'download' separately.
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -372,10 +393,17 @@ Notes:
         "--days-back", "-d", type=int, help="Days to look back from now"
     )
     filter_exclusive.add_argument(
-        "--orbit", help="Orbit+frame for orbit-based search (e.g., '01525F')"
+        "--orbit",
+        help="Orbit-based search: orbit number with optional frame letter "
+             "(e.g., '1525' for all frames, '01525F' for one)"
     )
     filter_group.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
+    )
+    filter_group.add_argument(
+        "--frame", type=frames_arg,
+        help="Frame letter(s) A-H, comma-separated (e.g., 'A' or 'C,D,E'); "
+             "combines with time options or a frame-less --orbit"
     )
 
     # Output options group
@@ -431,6 +459,10 @@ Notes:
     )
     sync_parser.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
+    )
+    sync_parser.add_argument(
+        "--frame", type=frames_arg,
+        help="Frame letter(s) A-H, comma-separated; sync only these frames"
     )
     sync_parser.add_argument(
         "--max-items",
