@@ -1,7 +1,7 @@
 """CatalogCollectionManager.build(): checkpoint saves + continue-and-report."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -66,3 +66,41 @@ def test_checkpoint_survives_hard_abort(tmp_path):
         manager.build(collection="COLL")
 
     assert saved_baselines(tmp_path) == {"AA"}
+
+
+def test_failed_baseline_is_skipped_and_reported(tmp_path):
+    fake = FakeMaapClient(baselines=["AA", "AB", "AC"], fail="AB")
+    manager = CatalogCollectionManager(client=fake, catalog_dir=tmp_path)
+
+    manager.build(collection="COLL")  # must NOT raise
+
+    assert [(p, b) for p, b, _ in manager.last_failures] == [("PROD_A", "AB")]
+    assert "502" in manager.last_failures[0][2]
+    assert saved_baselines(tmp_path) == {"AA", "AC"}
+
+
+def test_last_failures_resets_between_builds(tmp_path):
+    fake = FakeMaapClient(baselines=["AA", "AB"], fail="AB")
+    manager = CatalogCollectionManager(client=fake, catalog_dir=tmp_path)
+    manager.build(collection="COLL")
+    assert len(manager.last_failures) == 1
+
+    fake._fail = None  # server recovered
+    manager.build(collection="COLL")
+    assert manager.last_failures == []
+
+
+def test_rerun_fetches_only_gaps(tmp_path):
+    # First pass: AA lands (mission start -> DEFAULT_NOW), AB fails.
+    fake1 = FakeMaapClient(baselines=["AA", "AB"], fail="AB")
+    CatalogCollectionManager(client=fake1, catalog_dir=tmp_path).build(collection="COLL")
+
+    # Second pass, one day later: AA fetches only the tail, AB the full range.
+    later = DEFAULT_NOW + timedelta(days=1)
+    fake2 = FakeMaapClient(baselines=["AA", "AB"], now_end=later)
+    CatalogCollectionManager(client=fake2, catalog_dir=tmp_path).build(collection="COLL")
+
+    aa_calls = [c for c in fake2.info_calls if c[0] == "AA"]
+    ab_calls = [c for c in fake2.info_calls if c[0] == "AB"]
+    assert aa_calls == [("AA", DEFAULT_NOW + timedelta(seconds=1), later)]
+    assert ab_calls == [("AB", MISSION_START, later)]

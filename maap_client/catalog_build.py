@@ -153,6 +153,7 @@ class CatalogCollectionManager(CatalogManager):
         """
         super().__init__(catalog_dir)
         self._client = client
+        self.last_failures: list[tuple[str, str, str]] = []
 
     def build(
         self,
@@ -188,6 +189,7 @@ class CatalogCollectionManager(CatalogManager):
               filling gaps and merging counts. Skips if range already covered.
         """
         now = to_zulu(datetime.now(timezone.utc))
+        self.last_failures = []
 
         # Delete existing catalog if force rebuild
         if force:
@@ -267,58 +269,65 @@ class CatalogCollectionManager(CatalogManager):
                 if verbose:
                     logger.info(f"  Checking {baseline}...")
 
-                existing = product_info.get_baseline(baseline)
-                ex_range = existing.time_range() if existing else None
+                try:
+                    existing = product_info.get_baseline(baseline)
+                    ex_range = existing.time_range() if existing else None
 
-                # Use mission boundaries for None values
-                effective_start, effective_end = self._client.normalize_time_range(start, end)
+                    # Use mission boundaries for None values
+                    effective_start, effective_end = self._client.normalize_time_range(start, end)
 
-                # Build list of (start, end, updates_start) ranges to fetch
-                # updates_start: True=before, False=after, None=full (update both)
-                to_fetch: list[tuple[Optional[datetime], Optional[datetime], Optional[bool]]] = []
-                if ex_range:
-                    t0, t1 = ex_range
-                    if effective_start and effective_start < t0:
-                        to_fetch.append((effective_start, t0 - timedelta(seconds=1), True))
-                    if effective_end and effective_end > t1:
-                        to_fetch.append((t1 + timedelta(seconds=1), effective_end, False))
-                    if not to_fetch:
-                        if verbose:
-                            logger.info("    SKIP (already in catalog)")
-                        continue
-                else:
-                    to_fetch.append((effective_start, effective_end, None))  # Full fetch
+                    # Build list of (start, end, updates_start) ranges to fetch
+                    # updates_start: True=before, False=after, None=full (update both)
+                    to_fetch: list[tuple[Optional[datetime], Optional[datetime], Optional[bool]]] = []
+                    if ex_range:
+                        t0, t1 = ex_range
+                        if effective_start and effective_start < t0:
+                            to_fetch.append((effective_start, t0 - timedelta(seconds=1), True))
+                        if effective_end and effective_end > t1:
+                            to_fetch.append((t1 + timedelta(seconds=1), effective_end, False))
+                        if not to_fetch:
+                            if verbose:
+                                logger.info("    SKIP (already in catalog)")
+                            continue
+                    else:
+                        to_fetch.append((effective_start, effective_end, None))  # Full fetch
 
-                # Fetch ranges and merge results
-                new_count = 0
-                result = dict(
-                    time_start=existing.time_start if existing else None,
-                    time_end=existing.time_end if existing else None,
-                    frame_start=existing.frame_start if existing else None,
-                    frame_end=existing.frame_end if existing else None,
-                )
-                for f_start, f_end, updates_start in to_fetch:
-                    # Log the time range being fetched
-                    if verbose:
-                        start_str = to_zulu(f_start) if f_start else "..."
-                        end_str = to_zulu(f_end) if f_end else "..."
-                        logger.info(f"    Fetching : {start_str} - {end_str}")
-
-                    if not self._client.searcher.search_has_any_product(
-                        collection, product, baseline, f_start, f_end
-                    ):
-                        continue
-                    info = self._client.get_baseline_info(
-                        collection, product, baseline, f_start, f_end, from_built=False
+                    # Fetch ranges and merge results
+                    new_count = 0
+                    result = dict(
+                        time_start=existing.time_start if existing else None,
+                        time_end=existing.time_end if existing else None,
+                        frame_start=existing.frame_start if existing else None,
+                        frame_end=existing.frame_end if existing else None,
                     )
-                    if info:
-                        new_count += info.count
-                        if updates_start is None or updates_start:  # full or before
-                            result["time_start"] = info.time_start
-                            result["frame_start"] = info.frame_start
-                        if updates_start is None or not updates_start:  # full or after
-                            result["time_end"] = info.time_end
-                            result["frame_end"] = info.frame_end
+                    for f_start, f_end, updates_start in to_fetch:
+                        # Log the time range being fetched
+                        if verbose:
+                            start_str = to_zulu(f_start) if f_start else "..."
+                            end_str = to_zulu(f_end) if f_end else "..."
+                            logger.info(f"    Fetching : {start_str} - {end_str}")
+
+                        if not self._client.searcher.search_has_any_product(
+                            collection, product, baseline, f_start, f_end
+                        ):
+                            continue
+                        info = self._client.get_baseline_info(
+                            collection, product, baseline, f_start, f_end, from_built=False
+                        )
+                        if info:
+                            new_count += info.count
+                            if updates_start is None or updates_start:  # full or before
+                                result["time_start"] = info.time_start
+                                result["frame_start"] = info.frame_start
+                            if updates_start is None or not updates_start:  # full or after
+                                result["time_end"] = info.time_end
+                                result["frame_end"] = info.frame_end
+                except Exception as e:
+                    # Transport retries are exhausted by now: record and move on
+                    # so one bad baseline doesn't discard the rest of the pass.
+                    logger.warning(f"    FAILED ({product}/{baseline}): {e}")
+                    self.last_failures.append((product, baseline, str(e)))
+                    continue
 
                 if new_count > 0:
                     total = (existing.count if existing else 0) + new_count
