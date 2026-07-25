@@ -54,3 +54,11 @@ NO_ORBIT_PRODUCTS = {"AUX_MET_1D"}
 # Download settings
 DEFAULT_CHUNK_SIZE = 8192
 DEFAULT_TIMEOUT = 30
+
+# STAC transport retries (transient gateway errors: nginx 502/503/504).
+# Backoff factor 2 -> sleeps of ~2, 4, 8, 16, 32 s across 5 retries.
+# POST is safe to retry: STAC searches are read-only queries.
+STAC_RETRY_TOTAL = 5
+STAC_RETRY_BACKOFF_FACTOR = 2
+STAC_RETRY_STATUS_FORCELIST = (502, 503, 504)
+STAC_RETRY_ALLOWED_METHODS = ("GET", "POST")

@@ -40,8 +40,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator, Literal, Optional
 
 from pystac_client import Client
+from pystac_client.stac_api_io import StacApiIO
+from urllib3.util.retry import Retry
 
-from maap_client.constants import DEFAULT_CATALOG_URL, DEFAULT_MISSION_START, DEFAULT_MISSION_END, NO_ORBIT_PRODUCTS
+from maap_client.constants import (
+    DEFAULT_CATALOG_URL,
+    DEFAULT_MISSION_START,
+    DEFAULT_MISSION_END,
+    NO_ORBIT_PRODUCTS,
+    STAC_RETRY_ALLOWED_METHODS,
+    STAC_RETRY_BACKOFF_FACTOR,
+    STAC_RETRY_STATUS_FORCELIST,
+    STAC_RETRY_TOTAL,
+)
 from maap_client.paths import (
     extract_sensing_time,
     extract_baseline,
@@ -80,9 +91,17 @@ class MaapSearcher:
 
     @property
     def client(self) -> Client:
-        """Lazy-load STAC client."""
+        """Lazy-load STAC client with transport-level retries for transient errors."""
         if self._client is None:
-            self._client = Client.open(self._catalog_url)
+            retry = Retry(
+                total=STAC_RETRY_TOTAL,
+                backoff_factor=STAC_RETRY_BACKOFF_FACTOR,
+                status_forcelist=list(STAC_RETRY_STATUS_FORCELIST),
+                allowed_methods=list(STAC_RETRY_ALLOWED_METHODS),
+            )
+            self._client = Client.open(
+                self._catalog_url, stac_io=StacApiIO(max_retries=retry)
+            )
         return self._client
     
     @staticmethod
