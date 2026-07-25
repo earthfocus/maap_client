@@ -194,6 +194,27 @@ class MaapSearcher:
         """Sort URLs by sensing time."""
         return sorted(urls, key=lambda u: extract_sensing_time(u) or datetime.min)
 
+    @staticmethod
+    def _build_filter(
+        product_type: str,
+        baseline: Optional[str] = None,
+        orbit: Optional[int] = None,
+        frames: Optional[list[str]] = None,
+    ) -> str:
+        """Build a CQL2-text filter string for MAAP STAC searches."""
+        parts = [f"productType = '{product_type}'"]
+        if baseline:
+            parts.append(f"productVersion = '{baseline}'")
+        if orbit is not None:
+            parts.append(f"orbitNumber = {orbit}")
+        if frames:
+            if len(frames) == 1:
+                parts.append(f"frame = '{frames[0]}'")
+            else:
+                frame_list = ", ".join(f"'{f}'" for f in frames)
+                parts.append(f"frame IN ({frame_list})")
+        return " AND ".join(parts)
+
     def _clean_search_results(
         self,
         search,
@@ -445,6 +466,7 @@ class MaapSearcher:
         verbose: bool = False,
         format: Optional[str] = None,
         reverse: bool = False,
+        frames: Optional[list[str]] = None,
     ) -> list[str]:
         """
         Search for download URLs for matching products.
@@ -454,6 +476,7 @@ class MaapSearcher:
 
         Args:
             reverse: If True, return URLs sorted newest-first by sensing time.
+            frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
 
         Returns:
             List of product URLs
@@ -467,10 +490,7 @@ class MaapSearcher:
             if verbose:
                 bl_str = f"/{baseline}" if baseline else ""
                 logger.info(f"Searching {collection} {product_type}{bl_str}{format_time_range(start, end)}...")
-            filter_parts = [f"productType = '{product_type}'"]
-            if baseline:
-                filter_parts.append(f"productVersion = '{baseline}'")
-            filter_str = " AND ".join(filter_parts)
+            filter_str = self._build_filter(product_type, baseline=baseline, frames=frames)
             datetime_arg = (start, end)
             search = self.client.search(
                 collections=[collection],
@@ -497,6 +517,7 @@ class MaapSearcher:
                 verbose=verbose,
                 format=format,
                 reverse=reverse,
+                frames=frames,
             ):
                 urls.extend(day_urls)
             if verbose:
@@ -511,17 +532,23 @@ class MaapSearcher:
         self,
         collection: str,
         product_type: str,
-        orbit_frame: str,
+        orbit: int,
+        frames: Optional[list[str]] = None,
         baseline: Optional[str] = None,
         max_items: int = 100,
         verbose: bool = False,
         format: Optional[str] = None,
     ) -> list[str]:
         """
-        Search for product URLs by orbit number and frame.
+        Search for product URLs by orbit number, optionally restricted to frames.
+
+        Args:
+            orbit: Absolute orbit number (e.g. 1525)
+            frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
+                    None searches all frames of the orbit.
 
         Returns:
-            List of product URLs matching the orbit+frame
+            List of product URLs matching the orbit (and frames, if given)
         """
         # Check if product supports orbit/frame search
         if product_type in NO_ORBIT_PRODUCTS:
@@ -531,23 +558,12 @@ class MaapSearcher:
             )
             return []
 
-        orbit_frame = orbit_frame.strip().upper()
-        frame = orbit_frame[-1]
-        orbit_str = orbit_frame[:-1]
-
         if verbose:
             bl_str = f"/{baseline}" if baseline else ""
-            logger.info(f"Searching {collection} {product_type}{bl_str} orbit {orbit_frame}...")
+            frames_str = f" frames {','.join(frames)}" if frames else ""
+            logger.info(f"Searching {collection} {product_type}{bl_str} orbit {orbit}{frames_str}...")
 
-        filter_parts = [
-            f"productType = '{product_type}'",
-            f"orbitNumber = {int(orbit_str)}",
-            f"frame = '{frame}'",
-        ]
-        if baseline:
-            filter_parts.append(f"productVersion = '{baseline}'")
-
-        filter_str = " AND ".join(filter_parts)
+        filter_str = self._build_filter(product_type, baseline=baseline, orbit=orbit, frames=frames)
         logger.debug(f"Searching with filter: {filter_str}")
 
         search = self.client.search(
@@ -574,6 +590,7 @@ class MaapSearcher:
         verbose: bool = False,
         format: Optional[str] = None,
         reverse: bool = False,
+        frames: Optional[list[str]] = None,
     ) -> Iterator[list[str]]:
         """
         Generator that searches day-by-day over a time range.
@@ -585,6 +602,7 @@ class MaapSearcher:
 
         Args:
             reverse: If True, iterate days from end to start (newest first).
+            frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
 
         Yields:
             List of URLs for each day in the range
@@ -597,10 +615,7 @@ class MaapSearcher:
             day_ranges.reverse()
         for i, (day_start, day_end) in enumerate(day_ranges):
             datetime_arg = to_stac_datetime(day_start, day_end)
-            filter_parts = [f"productType = '{product_type}'"]
-            if baseline:
-                filter_parts.append(f"productVersion = '{baseline}'")
-            filter_str = " AND ".join(filter_parts)
+            filter_str = self._build_filter(product_type, baseline=baseline, frames=frames)
             search = self.client.search(
                 collections=[collection],
                 filter=filter_str,
