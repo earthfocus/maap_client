@@ -240,6 +240,11 @@ maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --use-catalog --date 2024-12
 
 > Rebuild periodically to keep catalogs current with new data.
 
+Building is **resumable and failure-tolerant**:
+- Transient gateway errors (502/503/504) are retried automatically with exponential backoff.
+- Progress is saved to disk after every baseline, so an interrupted build never loses fetched work.
+- A baseline that keeps failing is skipped and reported at the end (exit code 1); re-running the same command fills only the gaps — already-built baselines just fetch the tail since their last update.
+
 ### Registry
 
 The registry is a **text-file based tracking system** for managing download workflows. It maintains state using daily files organized by the **sensing date** extracted from each file's name.
