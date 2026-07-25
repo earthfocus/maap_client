@@ -245,6 +245,13 @@ Building is **resumable and failure-tolerant**:
 - Progress is saved to disk after every baseline, so an interrupted build never loses fetched work.
 - A baseline that keeps failing is skipped and reported at the end (exit code 1); re-running the same command fills only the gaps — already-built baselines just fetch the tail since their last update.
 
+> **Known limitation:** incremental updates only extend the covered time range at
+> its edges — a time window that overlaps an already-covered range is skipped, not
+> re-checked. Files published late by the server (with sensing times *inside* an
+> already-covered range) are therefore never picked up, and the per-baseline file
+> **count slowly drifts** from the server's truth. Run `maap catalog build --force`
+> periodically to rebuild from scratch and correct the drift.
+
 ### Registry
 
 The registry is a **text-file based tracking system** for managing download workflows. It maintains state using daily files organized by the **sensing date** extracted from each file's name.
