@@ -9,7 +9,8 @@ from collections import Counter
 import pytest
 
 from maap_client.download import DownloadManager
-from maap_client.exceptions import DownloadError
+from maap_client.exceptions import BatchDownloadAborted, DownloadError
+from maap_client.paths import extract_sensing_time, generate_data_path
 
 
 class FakeTokenManager:
@@ -165,3 +166,90 @@ def test_persistent_403_raises_after_one_retry(server, tmp_path):
     assert handler.hits["/deny.h5"] == 2  # exactly one retry
     assert not (tmp_path / "deny.h5").exists()
     assert not list(tmp_path.glob("*.part"))
+
+
+def _batch_urls(base, handler, n_failing, behavior):
+    """Register n_failing failing granule URLs (distinct sensing days)."""
+    urls = []
+    for i in range(1, n_failing + 1):
+        path = f"/ECA_TEST_2025010{i}T000000Z_A.h5"
+        handler.behaviors[path] = dict(behavior)
+        urls.append(base + path)
+    return urls
+
+
+def test_batch_aborts_after_consecutive_failures(server, tmp_path):
+    base, handler = server
+    ok_path = "/ECA_TEST_20250109T000000Z_A.h5"
+    handler.behaviors[ok_path] = {"body": b"ok"}
+    fail_urls = _batch_urls(
+        base, handler, 4, {"body": b"no", "status_once": 500, "fail_hits": 99}
+    )
+    urls = [base + ok_path] + fail_urls
+    marked = []
+    dm = DownloadManager(FakeTokenManager(), tmp_path)
+    with pytest.raises(BatchDownloadAborted) as exc_info:
+        dm.batch_download(
+            urls, "COLL", "TEST_PROD", "AA",
+            on_download=lambda url, p: marked.append((url, p)),
+            max_consecutive_failures=3,
+        )
+    assert exc_info.value.downloaded == 1
+    assert exc_info.value.failed == 3
+    assert isinstance(exc_info.value.last_error, DownloadError)
+    assert len(marked) == 1                      # earlier success still marked
+    assert marked[0][1].exists()
+    fourth = fail_urls[3].replace(base, "")
+    assert handler.hits[fourth] == 0             # abort stopped the churn
+
+
+def test_batch_default_none_keeps_current_behavior(server, tmp_path):
+    base, handler = server
+    fail_urls = _batch_urls(
+        base, handler, 4, {"body": b"no", "status_once": 500, "fail_hits": 99}
+    )
+    dm = DownloadManager(FakeTokenManager(), tmp_path)
+    results = dm.batch_download(fail_urls, "COLL", "TEST_PROD", "AA")
+    assert results == {}                         # no raise, all attempted
+    for url in fail_urls:
+        assert handler.hits[url.replace(base, "")] == 1
+
+
+def test_on_download_only_fires_for_complete_files(server, tmp_path):
+    base, handler = server
+    ok = "/ECA_TEST_20250101T000000Z_A.h5"
+    cut = "/ECA_TEST_20250102T000000Z_A.h5"
+    handler.behaviors[ok] = {"body": b"data"}
+    handler.behaviors[cut] = {"body": b"d", "content_length": 999}
+    seen = []
+
+    def record(url, path):
+        # Registry invariant: only final, complete files are ever marked
+        assert path.exists()
+        assert path.suffix != ".part"
+        seen.append(url)
+
+    dm = DownloadManager(FakeTokenManager(), tmp_path)
+    dm.batch_download([base + ok, base + cut], "COLL", "TEST_PROD", "AA",
+                      on_download=record)
+    assert seen == [base + ok]
+
+
+def test_dedup_glob_ignores_part_files(server, tmp_path):
+    filename = "ECA_EXAA_AUX_MET_1D_20250101T000000Z_20250101T000000Z_00123A.h5"
+    base, handler = server
+    handler.behaviors["/" + filename] = {"body": b"met-data"}
+    dt = extract_sensing_time(filename)
+    final = generate_data_path(
+        data_dir=tmp_path, mission="EarthCARE", collection="COLL",
+        product_type="AUX_MET_1D", baseline="AA", dt=dt, filename=filename,
+    )
+    final.parent.mkdir(parents=True, exist_ok=True)
+    (final.parent / (filename + ".part")).write_bytes(b"stale")
+    dm = DownloadManager(FakeTokenManager(), tmp_path)
+    results = dm.batch_download([base + "/" + filename], "COLL", "AUX_MET_1D", "AA")
+    # Without the fix the stale .part matches the dedup glob and the granule
+    # is "skipped" with the .part path marked as downloaded.
+    assert results[base + "/" + filename] == final
+    assert final.read_bytes() == b"met-data"
+    assert not list(final.parent.glob("*.part"))

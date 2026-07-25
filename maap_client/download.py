@@ -10,7 +10,7 @@ import requests
 
 from maap_client.auth import TokenManager, get_auth_headers
 from maap_client.constants import DEFAULT_CHUNK_SIZE, DEFAULT_MISSION, DEDUP_PRODUCTS
-from maap_client.exceptions import DownloadError
+from maap_client.exceptions import BatchDownloadAborted, DownloadError
 from maap_client.paths import (
     extract_orbit_frame,
     extract_sensing_time,
@@ -154,6 +154,7 @@ class DownloadManager:
         skip_existing: bool = True,
         on_download: Optional[Callable[[str, Path], None]] = None,
         verbose: bool = False,
+        max_consecutive_failures: Optional[int] = None,
     ) -> dict[str, Path]:
         """
         Download multiple files.
@@ -167,11 +168,13 @@ class DownloadManager:
             on_download: Optional callback called after each successful download
                          with (url, local_path). Used for incremental state updates.
             verbose: Print progress messages
+            max_consecutive_failures: Abort with BatchDownloadAborted after this many consecutive DownloadErrors (None = never abort, current behavior).
 
         Returns:
             Dictionary mapping URL to local path (only successful downloads)
         """
         results = {}
+        consecutive_failures = 0
         total = len(urls)
         width = len(str(total))
 
@@ -218,7 +221,10 @@ class DownloadManager:
                 pattern = f"*_{sensing_str}_*_{orbit_frame}.*" if orbit_frame else f"*_{sensing_str}_*.*"
                 date_dir = output_path.parent.parent if self._product_dir else output_path.parent
                 our_stem = Path(filename).stem
-                other_version = [f for f in date_dir.rglob(pattern) if f.stem != our_stem]
+                other_version = [
+                    f for f in date_dir.rglob(pattern)
+                    if f.stem != our_stem and f.suffix != ".part"
+                ]
                 if other_version:
                     logger.info(f"  Skipping - duplicate granule exists: {other_version[0].stem}")
                     if verbose:
@@ -237,10 +243,17 @@ class DownloadManager:
                 # Call callback after successful download
                 if on_download:
                     on_download(url, path)
+                consecutive_failures = 0
             except DownloadError as e:
+                consecutive_failures += 1
                 logger.error(f"  Download failed: {e}")
                 if verbose:
                     logger.error(f"[{i:>{width}}/{total}] Error: {e}")
+                if (
+                    max_consecutive_failures is not None
+                    and consecutive_failures >= max_consecutive_failures
+                ):
+                    raise BatchDownloadAborted(len(results), consecutive_failures, e)
                 continue
 
         return results
