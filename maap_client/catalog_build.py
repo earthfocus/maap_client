@@ -187,6 +187,11 @@ class CatalogCollectionManager(CatalogManager):
             - New catalog: fetches metadata only for the specified range
             - Existing catalog: extends range if start < time_start or end > time_end,
               filling gaps and merging counts. Skips if range already covered.
+            The catalog is checkpointed to disk after every baseline that
+            adds data, so previously fetched work survives crashes. A
+            baseline whose fetch fails (after transport retries) is skipped
+            and recorded in ``self.last_failures`` as a
+            (product, baseline, error) tuple, and the build continues.
         """
         now = to_zulu(datetime.now(timezone.utc))
         self.last_failures = []

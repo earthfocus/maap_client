@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import types
 from datetime import datetime
 from pathlib import Path
@@ -254,10 +255,12 @@ class CatalogManager:
         return catalog
 
     def save(self, catalog: Catalog) -> Path:
-        """Save catalog to disk and update cache."""
+        """Save catalog to disk atomically and update cache."""
         path = self.get_path(catalog.collection)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w") as f:
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp_path, "w") as f:
             json.dump(catalog.to_dict(), f, indent=2)
+        os.replace(tmp_path, path)
         self._cache[catalog.collection] = catalog
         return path

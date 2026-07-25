@@ -66,6 +66,7 @@ def test_checkpoint_survives_hard_abort(tmp_path):
         manager.build(collection="COLL")
 
     assert saved_baselines(tmp_path) == {"AA"}
+    assert not list(tmp_path.glob("*.tmp")), "atomic save must not leave temp files"
 
 
 def test_failed_baseline_is_skipped_and_reported(tmp_path):
