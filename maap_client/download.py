@@ -68,7 +68,7 @@ class DownloadManager:
             Path to downloaded file
 
         Raises:
-            DownloadError: If download fails
+            DownloadError: If download fails or size verification fails
         """
         if output_path is None:
             # Extract filename from URL
@@ -78,6 +78,7 @@ class DownloadManager:
 
         # Ensure parent directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        part_path = output_path.with_name(output_path.name + ".part")
 
         # Get auth headers
         headers = get_auth_headers(self._token_manager)
@@ -86,28 +87,41 @@ class DownloadManager:
         logger.debug(f"  -> {output_path}")
 
         try:
-            t0 = time.monotonic()
-            with requests.get(url, headers=headers, stream=True, timeout=60) as r:
-                r.raise_for_status()
+            try:
+                t0 = time.monotonic()
+                with requests.get(url, headers=headers, stream=True, timeout=60) as r:
+                    r.raise_for_status()
 
-                # Get total size if available
-                total_size = int(r.headers.get("content-length", 0))
-                downloaded = 0
+                    # Get total size if available
+                    total_size = int(r.headers.get("content-length", 0))
+                    downloaded = 0
 
-                with open(output_path, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=self._chunk_size):
-                        f.write(chunk)
-                        downloaded += len(chunk)
+                    # "wb" truncates any stale .part left by a previous crash
+                    with open(part_path, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=self._chunk_size):
+                            f.write(chunk)
+                            downloaded += len(chunk)
 
-                        if progress_callback and total_size:
-                            progress_callback(downloaded, total_size)
+                            if progress_callback and total_size:
+                                progress_callback(downloaded, total_size)
 
-            elapsed = time.monotonic() - t0
+                elapsed = time.monotonic() - t0
 
-        except requests.HTTPError as e:
-            raise DownloadError(url, str(e), e.response.status_code if e.response else None)
-        except requests.RequestException as e:
-            raise DownloadError(url, str(e))
+                if total_size and downloaded != total_size:
+                    raise DownloadError(
+                        url, f"incomplete: {downloaded}/{total_size} bytes"
+                    )
+
+            except requests.HTTPError as e:
+                raise DownloadError(url, str(e), e.response.status_code if e.response else None)
+            except requests.RequestException as e:
+                raise DownloadError(url, str(e))
+        except BaseException:
+            part_path.unlink(missing_ok=True)
+            raise
+
+        # Complete and verified: move into place atomically
+        os.replace(part_path, output_path)
 
         # Log transfer rate
         if elapsed > 0 and downloaded > 0:
