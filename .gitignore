@@ -39,5 +39,8 @@ tmp
 # Claude worktrees
 .worktrees/
 
-# Skills
+# Other docs
 docs/.*
+
+# Tests
+tests/
