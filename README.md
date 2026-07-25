@@ -168,6 +168,16 @@ maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01
 # Search by specific orbit+frame
 maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --orbit 08962F
 
+# Search a whole orbit (all frames A-H)
+maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --orbit 08962
+
+# Search specific frames of one orbit
+maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --orbit 08962 --frame C,D
+
+# Search only "A" frames over a time range
+maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA \
+  --start 2024-12-01 --end 2024-12-08 --frame A
+
 # Search with time range
 maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA \
   --start 2024-12-01 --end 2024-12-02
@@ -431,6 +441,17 @@ maap search EarthCAREL1Validated_MAAP CPR_NOM_1B --orbit 07655C
 
 # Download immediately with get
 maap get EarthCAREL1Validated_MAAP CPR_NOM_1B --orbit 07655C --out-dir ./
+
+# Download specific frames over a period
+maap get EarthCAREL1Validated_MAAP CPR_NOM_1B --start 2024-12-01 --end 2024-12-08 --frame C,D --out-dir ./
+
+# X-JSG / X-MET note: MAAP does not index these products by orbit, so --orbit
+# searches return nothing for them. Two working alternatives:
+#   1) frame + time (server-side; frame IS indexed for X-JSG/X-MET):
+maap get EarthCAREL0L1Products_MAAP AUX_JSG_1D --date 2024-09-03 --frame E --out-dir ./
+#   2) registry flow (client-side --orbit filter matches filenames):
+maap search EarthCAREXMETL1DProducts10_MAAP AUX_MET_1D --date 2024-09-03 --registry-save
+maap download EarthCAREXMETL1DProducts10_MAAP AUX_MET_1D --registry --orbit 01524E
 ```
 
 ### Sync Recent Data
@@ -554,6 +575,10 @@ search_result = client.search(
     product_type="CPR_CLD_2A",
     orbit="08962F",
 )
+
+# All frames of an orbit, or specific frames over a period
+result = client.search(collection, product, orbit="8962")
+result = client.search(collection, product, start=start, end=end, frames=["C", "D"])
 
 # Search for HDR files instead of H5
 search_result = client.search(
@@ -710,7 +735,8 @@ Filtering (mutually exclusive):
   --start, -s DATETIME     Start of range (ISO format)
   --end, -e DATETIME       End of range (use with --start)
   --days-back, -d N        Days to look back from now
-  --orbit NNNNNX           Search by orbit+frame (e.g., 07655C)
+  --orbit NNNNN[X]         Search by orbit, optionally one frame (e.g., 07655 or 07655C)
+  --frame LETTERS          Frame letter(s) A-H, comma-separated (e.g., C,D)
 
 Output:
   --url-file, -o FILE      Save URLs to flat file
@@ -739,6 +765,8 @@ Filtering (with --registry):
   --date YYYY-MM-DD        Filter by date
   --start, -s / --end, -e  Filter by range
   --days-back, -d N        Days to look back
+  --frame LETTERS          Filter registry entries by frame (filename match)
+  --orbit NNNNN[X]         Filter registry entries by orbit (filename match)
 
 Output:
   --out-dir, -o DIR        Custom output directory
@@ -759,7 +787,8 @@ Filtering (mutually exclusive):
   --date YYYY-MM-DD        Single day
   --start, -s / --end, -e  Time range
   --days-back, -d N        Days to look back
-  --orbit NNNNNX           Orbit+frame
+  --orbit NNNNN[X]         Search by orbit, optionally one frame (e.g., 07655 or 07655C)
+  --frame LETTERS          Frame letter(s) A-H, comma-separated (e.g., C,D)
 
 Output:
   --out-dir, -o DIR        Custom output directory
@@ -781,6 +810,7 @@ Time selection (mutually exclusive):
   --date YYYY-MM-DD        Sync a single day
   --start, -s DATETIME     Start of range (ISO format)
   --end, -e DATETIME       End of range (defaults to now)
+  --frame LETTERS          Sync only these frames (A-H, comma-separated)
 
 Other:
   --max-items, -n N        Max items per run (default: 50000)

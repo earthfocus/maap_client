@@ -112,6 +112,9 @@ maap -v search EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --date 2025-01-01 --regi
 # Search all baselines and save to registry
 maap -v search EarthCAREL0L1Products_MAAP CPR_NOM_1B --start 2025-01-01 --end 2025-01-07 --registry-save
 
+# Search only specific frames (A-H, comma-separated)
+maap -v search EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --date 2025-01-01 --frame C,D
+
 # Limit results
 maap -v search EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --date 2025-01-01 --max-items 100
 
@@ -142,6 +145,9 @@ maap -v download EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --registry --date 2025
 # Download from registry with date range filter
 maap -v download EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --registry --start 2025-01-01 --end 2025-01-07
 
+# Download from registry filtered by frame (matched against filenames)
+maap -v download EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --registry --frame C,D
+
 # Dry run (show what would be downloaded)
 maap -v download EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --registry --date 2025-01-01 --dry-run
 
@@ -162,6 +168,9 @@ maap -v get EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --start 2025-01-01 --end 20
 
 # Get to flat output directory
 maap -v get EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --date 2025-01-01 -o ./flat_downloads
+
+# Get only specific frames
+maap -v get EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --date 2025-01-01 --frame C,D
 
 # Dry run
 maap -v get EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --date 2025-01-01 --dry-run
@@ -189,6 +198,9 @@ maap -v sync EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --start 2025-01-01 --end 2
 
 # Sync all baselines
 maap -v sync EarthCAREL0L1Products_MAAP CPR_NOM_1B --days-back 3
+
+# Sync only specific frames
+maap -v sync EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --days-back 3 --frame C,D
 
 # Sync to custom output directory
 maap -v sync EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --days-back 1 -o ./sync_data
