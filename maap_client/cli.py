@@ -172,10 +172,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build_filter_exclusive = build_filter_group.add_mutually_exclusive_group()
     build_filter_exclusive.add_argument(
-        "--start", "-s",
-        help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)",
-    )
-    build_filter_exclusive.add_argument(
         "--date",
         help="Single date (YYYY-MM-DD) or exact datetime (YYYY-MM-DDTHH:MM:SSZ)",
     )
@@ -183,6 +179,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--days-back",
         type=int,
         help="Days to look back from now",
+    )
+    build_filter_exclusive.add_argument(
+        "--start", "-s",
+        help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)",
     )
     build_filter_group.add_argument(
         "--end", "-e",
@@ -219,9 +219,6 @@ def build_parser() -> argparse.ArgumentParser:
     filter_group = search_parser.add_argument_group("filtering options")
     filter_exclusive = filter_group.add_mutually_exclusive_group()
     filter_exclusive.add_argument(
-        "--start", "-s", help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
-    )
-    filter_exclusive.add_argument(
         "--date", help="Single date (YYYY-MM-DD) or exact datetime (YYYY-MM-DDTHH:MM:SSZ)"
     )
     filter_exclusive.add_argument(
@@ -231,6 +228,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--orbit",
         help="Orbit-based search: orbit number with optional frame letter "
              "(e.g., '1525' for all frames, '01525F' for one)"
+    )
+    filter_exclusive.add_argument(
+        "--start", "-s", help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
     )
     filter_group.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
@@ -308,13 +308,13 @@ Notes:
     )
     filter_exclusive = filter_group.add_mutually_exclusive_group()
     filter_exclusive.add_argument(
-        "--start", "-s", help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
-    )
-    filter_exclusive.add_argument(
         "--date", help="Single date (YYYY-MM-DD) or exact datetime (YYYY-MM-DDTHH:MM:SSZ)"
     )
     filter_exclusive.add_argument(
         "--days-back", "-d", type=int, help="Days to look back from now"
+    )
+    filter_exclusive.add_argument(
+        "--start", "-s", help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
     )
     filter_group.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
@@ -384,9 +384,6 @@ Notes:
     filter_group = get_parser.add_argument_group("filtering options")
     filter_exclusive = filter_group.add_mutually_exclusive_group()
     filter_exclusive.add_argument(
-        "--start", "-s", help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
-    )
-    filter_exclusive.add_argument(
         "--date", help="Single date (YYYY-MM-DD) or exact datetime (YYYY-MM-DDTHH:MM:SSZ)"
     )
     filter_exclusive.add_argument(
@@ -396,6 +393,9 @@ Notes:
         "--orbit",
         help="Orbit-based search: orbit number with optional frame letter "
              "(e.g., '1525' for all frames, '01525F' for one)"
+    )
+    filter_exclusive.add_argument(
+        "--start", "-s", help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
     )
     filter_group.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
