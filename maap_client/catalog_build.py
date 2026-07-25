@@ -325,6 +325,9 @@ class CatalogCollectionManager(CatalogManager):
                     product_info.set_baseline(baseline, BaselineInfo(
                         **result, count=total, updated_at=now,
                     ))
+                    # Checkpoint: persist progress so a later failure never
+                    # discards baselines already fetched in this run.
+                    self.save(catalog)
                     if verbose:
                         msg = f"added {new_count}, total={total}" if existing else f"count={total}"
                         logger.info(f"    OK ({msg})")
