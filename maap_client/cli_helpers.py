@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from maap_client import MaapClient, MaapConfig
-from maap_client.utils import parse_datetime
+from maap_client.utils import parse_datetime, parse_frames, parse_orbit
 
 
 def get_client(args: argparse.Namespace) -> MaapClient:
@@ -112,4 +112,35 @@ def validate_time_args(args: argparse.Namespace) -> Optional[str]:
         if start > end:
             return f"--start ({args.start}) must be before --end ({args.end})"
 
+    # Validate --orbit format and --frame conflict
+    has_frame = bool(getattr(args, 'frame', None))
+    if has_orbit:
+        try:
+            orbit_num, orbit_letter = parse_orbit(args.orbit)
+        except ValueError as e:
+            return str(e)
+        if orbit_letter and has_frame:
+            return (
+                f"--frame cannot be used when --orbit already includes a frame letter; "
+                f"use --orbit {orbit_num} --frame {','.join(args.frame)}"
+            )
+
+    return None
+
+
+def frames_arg(value: str) -> list[str]:
+    """Argparse type for --frame: comma-separated letters A-H."""
+    try:
+        return parse_frames(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e))
+
+
+def validate_download_filter_args(args: argparse.Namespace) -> Optional[str]:
+    """Registry-only filters (--frame/--orbit) must not be used with --url/--url-file."""
+    if not getattr(args, 'registry', False):
+        if getattr(args, 'frame', None):
+            return "--frame requires --registry"
+        if getattr(args, 'orbit', None):
+            return "--orbit requires --registry"
     return None
