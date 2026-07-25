@@ -35,3 +35,6 @@ __pycache__/
 
 # tmo
 tmp
+
+# Claude worktrees
+.worktrees/
