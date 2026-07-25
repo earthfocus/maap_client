@@ -121,7 +121,11 @@ class DownloadManager:
             raise
 
         # Complete and verified: move into place atomically
-        os.replace(part_path, output_path)
+        try:
+            os.replace(part_path, output_path)
+        except BaseException:
+            part_path.unlink(missing_ok=True)
+            raise
 
         # Log transfer rate
         if elapsed > 0 and downloaded > 0:

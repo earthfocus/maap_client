@@ -117,6 +117,21 @@ def test_content_length_mismatch_message(tmp_path, monkeypatch):
     assert not list(tmp_path.glob("*.part"))
 
 
+def test_rename_failure_removes_part(server, tmp_path, monkeypatch):
+    base, handler = server
+    handler.behaviors["/f3.h5"] = {"body": b"x" * 512}
+
+    def broken_replace(src, dst):
+        raise OSError("simulated rename failure")
+
+    monkeypatch.setattr("maap_client.download.os.replace", broken_replace)
+    dm = DownloadManager(FakeTokenManager(), tmp_path)
+    with pytest.raises(OSError, match="simulated rename failure"):
+        dm.download_file(base + "/f3.h5", tmp_path / "f3.h5")
+    assert not (tmp_path / "f3.h5").exists()
+    assert not list(tmp_path.glob("*.part"))
+
+
 def test_stale_part_overwritten(server, tmp_path):
     base, handler = server
     handler.behaviors["/f2.h5"] = {"body": b"new-content"}
