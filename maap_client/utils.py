@@ -102,3 +102,48 @@ def normalize_time_range(
     t1 = min(end if end else end_cap, end_cap)
 
     return t0, t1
+
+
+def parse_frames(value: str) -> list[str]:
+    """
+    Parse comma-separated frame letters into canonical uppercase form.
+
+    Example: " c, d ,E" -> ["C", "D", "E"]. Duplicates are removed,
+    first-seen order is kept.
+
+    Raises:
+        ValueError: If any entry is not a single letter A-H.
+    """
+    frames: list[str] = []
+    for part in value.split(","):
+        frame = part.strip().upper()
+        if len(frame) != 1 or not "A" <= frame <= "H":
+            raise ValueError(f"invalid frame '{part.strip()}': must be letters A-H")
+        if frame not in frames:
+            frames.append(frame)
+    return frames
+
+
+def parse_orbit(value: str) -> tuple[int, Optional[str]]:
+    """
+    Parse an orbit spec in dual form.
+
+    '1525' or '01525' -> (1525, None); '01525E' -> (1525, 'E').
+
+    Raises:
+        ValueError: If the value is not digits optionally followed by
+                    a frame letter A-H.
+    """
+    orbit_str = value.strip().upper()
+    frame: Optional[str] = None
+    if orbit_str and orbit_str[-1].isalpha():
+        frame = orbit_str[-1]
+        orbit_str = orbit_str[:-1]
+        if not "A" <= frame <= "H":
+            raise ValueError(f"invalid frame letter '{frame}' in orbit '{value.strip()}': must be A-H")
+    if not orbit_str.isdigit():
+        raise ValueError(
+            f"invalid orbit '{value.strip()}': expected digits with optional frame letter "
+            f"(e.g. '1525' or '01525E')"
+        )
+    return int(orbit_str), frame
