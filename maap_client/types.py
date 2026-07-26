@@ -61,3 +61,4 @@ class SyncResult:
     urls_skipped: int = 0
     errors: list[str] = field(default_factory=list)
     tracker: Optional["StateTracker"] = None  # For post-sync operations
+    failed_days: list[tuple[str, date, str]] = field(default_factory=list)  # (baseline, day, error)

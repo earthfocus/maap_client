@@ -1013,39 +1013,44 @@ class MaapClient:
             logger.info(f"  {to_zulu(start)}")
             logger.info(f"  {to_zulu(end)}")
 
-            # Search day-by-day (use searcher directly)
-            urls: list[str] = []
-            for day_urls in self.searcher.search_urls_iter_day(
-                collection=collection,
-                product_type=product_type,
-                baseline=bl,
-                start=start,
-                end=end,
-                verbose=verbose,
-                format=format,
-                reverse=reverse,
-                frames=frames,
-            ):
-                urls.extend(day_urls)
-
-            result.urls_found += len(urls)
-
-            # Get tracker and add URLs
-            tracker = self.get_tracker(collection, product_type, bl)
-            tracker.add_urls(urls)
-
-            # Filter to pending downloads
-            pending = tracker.get_pending_downloads()
-            to_download = [url for url in urls if url in pending][:max_items]
-
-            if not to_download:
-                logger.info(f"No new files to download for {bl.upper()}")
-                continue
-
-            logger.info(f"Found {len(urls)} URLs, {len(pending)} pending, downloading {len(to_download)}")
-
-            # Download with state tracking
             try:
+                tracker = self.get_tracker(collection, product_type, bl)
+                result.tracker = tracker
+
+                # Search day-by-day, registering each day as it is found so
+                # a later failure never loses discovered URLs.
+                urls: list[str] = []
+                for day_urls in self.searcher.search_urls_iter_day(
+                    collection=collection,
+                    product_type=product_type,
+                    baseline=bl,
+                    start=start,
+                    end=end,
+                    verbose=verbose,
+                    format=format,
+                    reverse=reverse,
+                    frames=frames,
+                ):
+                    if day_urls:
+                        tracker.add_urls(day_urls)
+                        urls.extend(day_urls)
+
+                for failed_day, err in self.searcher.last_failed_days:
+                    result.failed_days.append((bl, failed_day, err))
+
+                result.urls_found += len(urls)
+
+                # Filter to pending downloads
+                pending = tracker.get_pending_downloads()
+                to_download = [url for url in urls if url in pending][:max_items]
+
+                if not to_download:
+                    logger.info(f"No new files to download for {bl.upper()}")
+                    continue
+
+                logger.info(f"Found {len(urls)} URLs, {len(pending)} pending, downloading {len(to_download)}")
+
+                # Download with state tracking
                 self._config.ensure_directories()
                 downloader = self._get_downloader(product_dir=product_dir)
                 downloaded = downloader.batch_download(
@@ -1061,16 +1066,13 @@ class MaapClient:
                 result.urls_downloaded += len(downloaded)
                 logger.info(f"Downloaded {len(downloaded)} files for {bl.upper()}")
             except (AuthenticationError, CredentialsError, BatchDownloadAborted):
-                # Auth failures doom every remaining download identically, and
+                # Auth failures doom every remaining baseline identically, and
                 # an abort was explicitly requested by the caller: propagate so
                 # callers can classify instead of parsing stringified errors.
                 raise
             except Exception as e:
                 result.errors.append(f"{bl.upper()}: {e}")
                 logger.error(f"Error syncing {bl.upper()}: {e}")
-
-            # Store last tracker for post-sync operations
-            result.tracker = tracker
 
         if len(baselines) > 1:
             logger.info(f"Total downloaded: {result.urls_downloaded} files")
