@@ -506,14 +506,18 @@ def cmd_state_mark(args: argparse.Namespace) -> int:
     # Collect paths to mark
     items = []
     if args.file:
-        with open(args.file, "r") as f:
-            items = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        try:
+            with open(args.file, "r") as f:
+                items = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        except OSError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return EXIT_NON_TRANSIENT
     if args.paths:
         items.extend(args.paths)
 
     if not items:
         print("No paths provided", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
 
     # Group items by (collection, product, baseline)
     items_by_key: dict[tuple[str, str, str], list[str]] = {}
@@ -522,7 +526,7 @@ def cmd_state_mark(args: argparse.Namespace) -> int:
         info = extract_info(item)
         if info["product_type"] is None or info["baseline"] is None:
             print(f"Error: cannot parse path: {item}", file=sys.stderr)
-            return 1
+            return EXIT_NON_TRANSIENT
 
         # Extract collection from path parts
         collection = None
@@ -532,7 +536,7 @@ def cmd_state_mark(args: argparse.Namespace) -> int:
                 break
         if collection is None:
             print(f"Error: cannot extract collection from path: {item}", file=sys.stderr)
-            return 1
+            return EXIT_NON_TRANSIENT
 
         key = (collection, info["product_type"], info["baseline"])
 
