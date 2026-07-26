@@ -13,7 +13,12 @@ from maap_client.catalog_build import BaselineInfo, CatalogCollectionManager
 from maap_client.catalog_query import CatalogQueryablesManager
 from maap_client.config import MaapConfig
 from maap_client.download import DownloadManager
-from maap_client.exceptions import InvalidRequestError
+from maap_client.exceptions import (
+    AuthenticationError,
+    BatchDownloadAborted,
+    CredentialsError,
+    InvalidRequestError,
+)
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
 from maap_client.paths import (
@@ -929,6 +934,7 @@ class MaapClient:
         product_dir: bool = False,
         reverse: bool = False,
         frames: Optional[list[str]] = None,
+        max_consecutive_failures: Optional[int] = None,
     ) -> SyncResult:
         """
         Incremental sync: search + download + state tracking.
@@ -950,6 +956,7 @@ class MaapClient:
             format: File format to search for ('h5' or 'hdr', default: 'h5')
             frames: Optional frame letters to restrict the sync to (state is
                    per-URL, so filtered syncs are safe)
+            max_consecutive_failures: Forwarded to batch_download; abort a baseline's batch after this many consecutive failures (None = never).
 
         Raises:
             InvalidRequestError: If start > end or datetimes not timezone-aware
@@ -1037,9 +1044,15 @@ class MaapClient:
                     skip_existing=True,
                     on_download=tracker.mark_downloaded,
                     verbose=verbose,
+                    max_consecutive_failures=max_consecutive_failures,
                 )
                 result.urls_downloaded += len(downloaded)
                 logger.info(f"Downloaded {len(downloaded)} files for {bl.upper()}")
+            except (AuthenticationError, CredentialsError, BatchDownloadAborted):
+                # Auth failures doom every remaining download identically, and
+                # an abort was explicitly requested by the caller: propagate so
+                # callers can classify instead of parsing stringified errors.
+                raise
             except Exception as e:
                 result.errors.append(f"{bl.upper()}: {e}")
                 logger.error(f"Error syncing {bl.upper()}: {e}")

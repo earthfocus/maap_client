@@ -44,3 +44,21 @@ class InvalidRequestError(MaapError):
     """
 
     pass
+
+
+class BatchDownloadAborted(MaapError):
+    """Batch download aborted after too many consecutive failures.
+
+    Raised by DownloadManager.batch_download when max_consecutive_failures
+    is set and reached. Progress made before the abort is already persisted
+    via the on_download callback.
+    """
+
+    def __init__(self, downloaded: int, failed: int, last_error: "DownloadError"):
+        self.downloaded = downloaded
+        self.failed = failed
+        self.last_error = last_error
+        super().__init__(
+            f"Batch aborted after {failed} consecutive failures "
+            f"({downloaded} downloaded); last: {last_error}"
+        )

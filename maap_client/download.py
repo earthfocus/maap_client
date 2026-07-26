@@ -10,7 +10,7 @@ import requests
 
 from maap_client.auth import TokenManager, get_auth_headers
 from maap_client.constants import DEFAULT_CHUNK_SIZE, DEFAULT_MISSION, DEDUP_PRODUCTS
-from maap_client.exceptions import DownloadError
+from maap_client.exceptions import BatchDownloadAborted, DownloadError
 from maap_client.paths import (
     extract_orbit_frame,
     extract_sensing_time,
@@ -68,7 +68,7 @@ class DownloadManager:
             Path to downloaded file
 
         Raises:
-            DownloadError: If download fails
+            DownloadError: If download fails or size verification fails
         """
         if output_path is None:
             # Extract filename from URL
@@ -78,36 +78,63 @@ class DownloadManager:
 
         # Ensure parent directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Get auth headers
-        headers = get_auth_headers(self._token_manager)
+        part_path = output_path.with_name(output_path.name + ".part")
 
         logger.info(f"Downloading: {url}")
         logger.debug(f"  -> {output_path}")
 
+        for attempt in (1, 2):
+            headers = get_auth_headers(self._token_manager)
+            try:
+                try:
+                    t0 = time.monotonic()
+                    with requests.get(url, headers=headers, stream=True, timeout=60) as r:
+                        r.raise_for_status()
+
+                        # Get total size if available
+                        total_size = int(r.headers.get("content-length", 0))
+                        downloaded = 0
+
+                        # "wb" truncates any stale .part left by a previous crash
+                        with open(part_path, "wb") as f:
+                            for chunk in r.iter_content(chunk_size=self._chunk_size):
+                                f.write(chunk)
+                                downloaded += len(chunk)
+
+                                if progress_callback and total_size:
+                                    progress_callback(downloaded, total_size)
+
+                    elapsed = time.monotonic() - t0
+
+                    if total_size and downloaded != total_size:
+                        raise DownloadError(
+                            url, f"incomplete: {downloaded}/{total_size} bytes"
+                        )
+
+                except requests.HTTPError as e:
+                    raise DownloadError(url, str(e), e.response.status_code if e.response is not None else None)
+                except requests.RequestException as e:
+                    raise DownloadError(url, str(e))
+            except DownloadError as e:
+                part_path.unlink(missing_ok=True)
+                if e.status_code in (401, 403) and attempt == 1:
+                    logger.warning(
+                        f"HTTP {e.status_code}, refreshing token and retrying once: {url}"
+                    )
+                    self._token_manager.invalidate()
+                    continue
+                raise
+            except BaseException:
+                part_path.unlink(missing_ok=True)
+                raise
+            break
+
+        # Complete and verified: move into place atomically
         try:
-            t0 = time.monotonic()
-            with requests.get(url, headers=headers, stream=True, timeout=60) as r:
-                r.raise_for_status()
-
-                # Get total size if available
-                total_size = int(r.headers.get("content-length", 0))
-                downloaded = 0
-
-                with open(output_path, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=self._chunk_size):
-                        f.write(chunk)
-                        downloaded += len(chunk)
-
-                        if progress_callback and total_size:
-                            progress_callback(downloaded, total_size)
-
-            elapsed = time.monotonic() - t0
-
-        except requests.HTTPError as e:
-            raise DownloadError(url, str(e), e.response.status_code if e.response else None)
-        except requests.RequestException as e:
-            raise DownloadError(url, str(e))
+            os.replace(part_path, output_path)
+        except BaseException:
+            part_path.unlink(missing_ok=True)
+            raise
 
         # Log transfer rate
         if elapsed > 0 and downloaded > 0:
@@ -127,6 +154,7 @@ class DownloadManager:
         skip_existing: bool = True,
         on_download: Optional[Callable[[str, Path], None]] = None,
         verbose: bool = False,
+        max_consecutive_failures: Optional[int] = None,
     ) -> dict[str, Path]:
         """
         Download multiple files.
@@ -140,11 +168,13 @@ class DownloadManager:
             on_download: Optional callback called after each successful download
                          with (url, local_path). Used for incremental state updates.
             verbose: Print progress messages
+            max_consecutive_failures: Abort with BatchDownloadAborted after this many consecutive DownloadErrors (None = never abort, current behavior).
 
         Returns:
             Dictionary mapping URL to local path (only successful downloads)
         """
         results = {}
+        consecutive_failures = 0
         total = len(urls)
         width = len(str(total))
 
@@ -191,7 +221,10 @@ class DownloadManager:
                 pattern = f"*_{sensing_str}_*_{orbit_frame}.*" if orbit_frame else f"*_{sensing_str}_*.*"
                 date_dir = output_path.parent.parent if self._product_dir else output_path.parent
                 our_stem = Path(filename).stem
-                other_version = [f for f in date_dir.rglob(pattern) if f.stem != our_stem]
+                other_version = [
+                    f for f in date_dir.rglob(pattern)
+                    if f.stem != our_stem and f.suffix != ".part"
+                ]
                 if other_version:
                     logger.info(f"  Skipping - duplicate granule exists: {other_version[0].stem}")
                     if verbose:
@@ -210,10 +243,17 @@ class DownloadManager:
                 # Call callback after successful download
                 if on_download:
                     on_download(url, path)
+                consecutive_failures = 0
             except DownloadError as e:
+                consecutive_failures += 1
                 logger.error(f"  Download failed: {e}")
                 if verbose:
                     logger.error(f"[{i:>{width}}/{total}] Error: {e}")
+                if (
+                    max_consecutive_failures is not None
+                    and consecutive_failures >= max_consecutive_failures
+                ):
+                    raise BatchDownloadAborted(len(results), consecutive_failures, e)
                 continue
 
         return results
