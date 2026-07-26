@@ -44,6 +44,7 @@ class DownloadResult:
     downloaded: dict[str, Path] = field(default_factory=dict)  # url -> local_path
     skipped: list[str] = field(default_factory=list)  # URLs skipped (already exist)
     errors: list[str] = field(default_factory=list)  # Error messages
+    permanent_errors: list[str] = field(default_factory=list)  # Per-URL errors a retry cannot fix (unparseable filenames)
     total_bytes: int = 0  # Total bytes downloaded
     elapsed_seconds: float = 0.0  # Time taken for downloads
     failed_days: list[tuple[date, str]] = field(default_factory=list)  # Search-phase gaps (get() only)

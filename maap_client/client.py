@@ -24,6 +24,7 @@ from maap_client.tracker import GlobalStateTracker, StateTracker
 from maap_client.paths import (
     extract_baseline,
     extract_product,
+    extract_sensing_time,
     filter_by_orbit_frame,
     sort_by_sensing_time,
 )
@@ -760,7 +761,11 @@ class MaapClient:
             product = extract_product(filename)
             baseline = extract_baseline(url) # need to pass url to allow baseline extraction for Aeolus
             if not product or not baseline:
-                result.errors.append(f"Cannot extract product/baseline from {filename}")
+                result.permanent_errors.append(f"cannot parse product/baseline from {filename}")
+                continue
+            if extract_sensing_time(filename) is None:
+                # batch_download would silently skip it; a retry cannot fix the name.
+                result.permanent_errors.append(f"cannot parse filename (no sensing time): {filename}")
                 continue
             urls_by_key.setdefault((product, baseline), []).append(url)
 
