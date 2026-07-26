@@ -66,6 +66,26 @@ from maap_client.utils import format_time_range, normalize_time_range, parse_dat
 logger = logging.getLogger(__name__)
 
 
+class LoggingRetry(Retry):
+    """urllib3 Retry that logs each attempt.
+
+    Status-based retries are otherwise only visible at DEBUG level, so
+    users never see that 502/503/429 responses are being retried.
+    """
+
+    def increment(self, method=None, url=None, response=None, error=None,
+                  _pool=None, _stacktrace=None):
+        new_retry = super().increment(
+            method=method, url=url, response=response, error=error,
+            _pool=_pool, _stacktrace=_stacktrace,
+        )
+        cause = f"HTTP {response.status}" if response is not None else repr(error)
+        remaining = new_retry.total if new_retry.total is not None else 0
+        attempt = STAC_RETRY_TOTAL - remaining
+        logger.warning(f"STAC retry {attempt}/{STAC_RETRY_TOTAL} after {cause}: {url}")
+        return new_retry
+
+
 class MaapSearcher:
     """
     STAC search operations for MAAP catalog.
@@ -93,7 +113,7 @@ class MaapSearcher:
     def client(self) -> Client:
         """Lazy-load STAC client with transport-level retries for transient errors."""
         if self._client is None:
-            retry = Retry(
+            retry = LoggingRetry(
                 total=STAC_RETRY_TOTAL,
                 backoff_factor=STAC_RETRY_BACKOFF_FACTOR,
                 status_forcelist=list(STAC_RETRY_STATUS_FORCELIST),
