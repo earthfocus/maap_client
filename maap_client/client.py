@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from maap_client.auth import load_credentials, TokenManager
 from maap_client.catalog_build import BaselineInfo, CatalogCollectionManager
@@ -549,6 +549,7 @@ class MaapClient:
         format: Optional[str] = None,
         reverse: bool = False,
         frames: Optional[list[str]] = None,
+        on_day: Optional[Callable[[list[str]], None]] = None,
     ) -> SearchResult:
         """
         Search for product URLs.
@@ -573,6 +574,8 @@ class MaapClient:
             frames: Optional frame letters to restrict results to (works for both
                    time-based and orbit-based search); if orbit already includes
                    a frame letter, frames must be omitted
+            on_day: Called with each day's URLs as found (day-by-day path only).
+                   Durability hook for incremental persistence.
 
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end,
@@ -644,6 +647,7 @@ class MaapClient:
             format=format,
             reverse=reverse,
             frames=resolved_frames,
+            on_day=on_day,
         )
 
         # Extract baselines from results
@@ -658,6 +662,7 @@ class MaapClient:
             start=search_start,
             end=search_end,
             total_count=len(urls),
+            failed_days=list(self.searcher.last_failed_days),
         )
 
     def download(

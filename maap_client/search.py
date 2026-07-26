@@ -37,7 +37,7 @@ Assumptions:
 import logging
 import os
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Iterator, Literal, Optional
+from typing import Any, Callable, Iterator, Literal, Optional
 
 from pystac_client import Client
 from pystac_client.stac_api_io import StacApiIO
@@ -490,6 +490,7 @@ class MaapSearcher:
         format: Optional[str] = None,
         reverse: bool = False,
         frames: Optional[list[str]] = None,
+        on_day: Optional[Callable[[list[str]], None]] = None,
     ) -> list[str]:
         """
         Search for download URLs for matching products.
@@ -500,6 +501,8 @@ class MaapSearcher:
         Args:
             reverse: If True, return URLs sorted newest-first by sensing time.
             frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
+            on_day: Called with each day's URLs as found (day-by-day path only).
+                Durability hook for incremental persistence.
 
         Returns:
             List of product URLs
@@ -544,6 +547,8 @@ class MaapSearcher:
                 frames=frames,
             ):
                 urls.extend(day_urls)
+                if on_day and day_urls:
+                    on_day(day_urls)
             if verbose:
                 logger.info(f"Total: {len(urls)} URLs")
 

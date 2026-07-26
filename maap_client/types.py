@@ -1,7 +1,7 @@
 """Type definitions for MAAP client."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import NamedTuple, Optional, TYPE_CHECKING
 
@@ -34,6 +34,7 @@ class SearchResult:
     start: Optional[datetime]  # Actual start of search range
     end: Optional[datetime]  # Actual end of search range
     total_count: int  # Number of URLs found
+    failed_days: list[tuple[date, str]] = field(default_factory=list)  # Days skipped after retries
 
 
 @dataclass
