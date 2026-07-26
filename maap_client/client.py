@@ -1077,6 +1077,13 @@ class MaapClient:
                     max_consecutive_failures=max_consecutive_failures,
                 )
                 result.urls_downloaded += len(downloaded)
+
+                # batch_download's mapping includes successes and skipped
+                # files; anything absent failed and must reach the caller.
+                for url in to_download:
+                    if url not in downloaded:
+                        result.errors.append(f"{url}: download failed")
+
                 logger.info(f"Downloaded {len(downloaded)} files for {bl.upper()}")
             except (AuthenticationError, CredentialsError, BatchDownloadAborted):
                 # Auth failures doom every remaining baseline identically, and
