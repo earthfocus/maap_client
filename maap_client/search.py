@@ -36,7 +36,7 @@ Assumptions:
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Iterator, Literal, Optional
 
 from pystac_client import Client
@@ -53,6 +53,7 @@ from maap_client.constants import (
     STAC_RETRY_STATUS_FORCELIST,
     STAC_RETRY_TOTAL,
 )
+from maap_client.exceptions import AuthenticationError, CredentialsError
 from maap_client.paths import (
     extract_sensing_time,
     extract_baseline,
@@ -108,6 +109,8 @@ class MaapSearcher:
         self._mission_start = mission_start or DEFAULT_MISSION_START
         self._mission_end = mission_end or DEFAULT_MISSION_END
         self._client: Optional[Client] = None
+        # Days skipped by the last day-by-day search, as (date, error) tuples.
+        self.last_failed_days: list[tuple[date, str]] = []
 
     @property
     def client(self) -> Client:
@@ -501,6 +504,7 @@ class MaapSearcher:
         Returns:
             List of product URLs
         """
+        self.last_failed_days = []
         start, end = self._resolve_time_range(start, end)
 
         period_days = (end - start).days
@@ -543,8 +547,7 @@ class MaapSearcher:
             if verbose:
                 logger.info(f"Total: {len(urls)} URLs")
 
-        if reverse:
-            urls = sort_by_sensing_time(urls, reverse=True)
+        urls = sort_by_sensing_time(urls, reverse=reverse)
 
         return urls
 
@@ -628,6 +631,8 @@ class MaapSearcher:
             List of URLs for each day in the range
         """
         start, end = self._resolve_time_range(start, end)
+        self.last_failed_days = []
+        failed_ranges: list[tuple[datetime, datetime]] = []
         total_days = (end.date() - start.date()).days + 1
 
         day_ranges = list(self._iter_day_ranges(start, end))
@@ -636,15 +641,24 @@ class MaapSearcher:
         for i, (day_start, day_end) in enumerate(day_ranges):
             datetime_arg = to_stac_datetime(day_start, day_end)
             filter_str = self._build_filter(product_type, baseline=baseline, frames=frames)
-            search = self.client.search(
-                collections=[collection],
-                filter=filter_str,
-                filter_lang="cql2-text",
-                datetime=datetime_arg,
-                method="GET",
-                max_items=max_items,
-            )
-            urls = self._clean_search_results(search, day_start, day_end, format=format)
+            try:
+                search = self.client.search(
+                    collections=[collection],
+                    filter=filter_str,
+                    filter_lang="cql2-text",
+                    datetime=datetime_arg,
+                    method="GET",
+                    max_items=max_items,
+                )
+                urls = self._clean_search_results(search, day_start, day_end, format=format)
+            except (AuthenticationError, CredentialsError):
+                raise
+            except Exception as e:
+                # Transport retries are exhausted: skip the day, keep the range.
+                logger.warning(f"FAILED DAY {day_start.date().isoformat()}: {e}")
+                failed_ranges.append((day_start, day_end))
+                self.last_failed_days.append((day_start.date(), str(e)))
+                continue
 
             if verbose:
                 # Show baselines found by extracting from results
@@ -664,3 +678,31 @@ class MaapSearcher:
                 logger.info(f"[{i+1:{width}d}/{total_days}] {start_str} -> {end_str}... found {len(urls)} {bl_str}")
 
             yield urls
+
+        # Second pass: retry each failed day once. By the time a long range
+        # finishes, transient blips have usually passed; only days failing
+        # both passes are reported.
+        if failed_ranges:
+            logger.info(f"Retrying {len(failed_ranges)} failed day(s)...")
+            self.last_failed_days = []
+            for day_start, day_end in failed_ranges:
+                datetime_arg = to_stac_datetime(day_start, day_end)
+                filter_str = self._build_filter(product_type, baseline=baseline, frames=frames)
+                try:
+                    search = self.client.search(
+                        collections=[collection],
+                        filter=filter_str,
+                        filter_lang="cql2-text",
+                        datetime=datetime_arg,
+                        method="GET",
+                        max_items=max_items,
+                    )
+                    urls = self._clean_search_results(search, day_start, day_end, format=format)
+                except (AuthenticationError, CredentialsError):
+                    raise
+                except Exception as e:
+                    logger.warning(f"FAILED DAY (retry) {day_start.date().isoformat()}: {e}")
+                    self.last_failed_days.append((day_start.date(), str(e)))
+                    continue
+                logger.info(f"Recovered day {day_start.date().isoformat()}")
+                yield urls
