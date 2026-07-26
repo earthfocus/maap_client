@@ -338,11 +338,16 @@ def cmd_download(args: argparse.Namespace) -> int:
             return EXIT_NON_TRANSIENT
 
         # Report results
-        if result.errors:
-            for error in result.errors:
-                print(f"Error: {error}", file=sys.stderr)
+        for error in result.errors:
+            print(f"Error: {error}", file=sys.stderr)
+        for error in result.permanent_errors:
+            print(f"Error: {error}", file=sys.stderr)
 
-        return EXIT_TRANSIENT if result.errors else 0
+        if result.errors:
+            return EXIT_TRANSIENT
+        if result.permanent_errors:
+            return EXIT_NON_TRANSIENT
+        return 0
 
     except InvalidRequestError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -384,15 +389,17 @@ def cmd_get(args: argparse.Namespace) -> int:
         )
 
         # Report results
-        if result.errors:
-            for error in result.errors:
-                print(f"Error: {error}", file=sys.stderr)
+        for error in result.errors:
+            print(f"Error: {error}", file=sys.stderr)
+        for error in result.permanent_errors:
+            print(f"Error: {error}", file=sys.stderr)
 
         report_failed_days(result.failed_days)
         if result.errors or result.failed_days:
             return EXIT_TRANSIENT
+        if result.permanent_errors:
+            return EXIT_NON_TRANSIENT
         return 0
-
     except InvalidRequestError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NON_TRANSIENT
