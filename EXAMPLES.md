@@ -349,11 +349,13 @@ wrapper needs no output parsing:
 ```bash
 for attempt in 1 2 3; do
   maap sync "$COLLECTION" "$PRODUCT" "$BASELINE" --start "$START" --end "$END"
-  case $? in
+  rc=$?
+  case $rc in
     0) break ;;                                  # complete
     2) echo "auth dead, aborting" >&2; exit 2 ;; # do not retry
     3) sleep $((attempt * 300)) ;;               # transient/partial: re-run fills the gaps
     4) echo "bad request" >&2; exit 4 ;;         # fix the invocation
   esac
 done
+exit $rc  # 0 if it broke out clean, otherwise the last transient exit code
 ```

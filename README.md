@@ -889,8 +889,8 @@ By default, the client is configured for EarthCARE mission data:
 
 ## Exit Codes
 
-Every command exits with a classified status so wrapper scripts can react
-without parsing logs:
+The data commands (search, get, download, sync, catalog build) exit with a
+classified status so wrapper scripts can react without parsing logs:
 
 | Code | Meaning       | Wrapper action                                              |
 |------|---------------|-------------------------------------------------------------|
