@@ -314,7 +314,14 @@ def cmd_download(args: argparse.Namespace) -> int:
         # Download from URL file
         elif args.url_file:
             from maap_client.registry import read_pairs_file
-            url_records = read_pairs_file(args.url_file)
+            if not args.url_file.exists():
+                print(f"Error: URL file not found: {args.url_file}", file=sys.stderr)
+                return EXIT_NON_TRANSIENT
+            try:
+                url_records = read_pairs_file(args.url_file)
+            except OSError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return EXIT_NON_TRANSIENT
             urls = [url for url, _ in url_records]
             result = client.download(
                 urls=urls,
