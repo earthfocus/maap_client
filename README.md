@@ -889,8 +889,8 @@ By default, the client is configured for EarthCARE mission data:
 
 ## Exit Codes
 
-The data commands (search, get, download, sync, catalog build) exit with a
-classified status so wrapper scripts can react without parsing logs:
+Every command exits with a classified status so wrapper scripts can react
+without parsing logs:
 
 | Code | Meaning       | Wrapper action                                              |
 |------|---------------|-------------------------------------------------------------|
@@ -906,6 +906,10 @@ exhausted) exits 3 and lists each gap on stderr in a stable format:
     WARNING: 1 day(s) failed; re-run the same command to fill the gaps
 
 `sync` prefixes the baseline: `FAILED DAY: AC 2025-03-14 (...)`.
+
+When the only per-file failures are filenames that cannot be parsed into a
+data path (bad registry or `--url-file` entries), `download`/`get` exit 4
+instead: retrying cannot help until the entries are fixed.
 
 > Note: argparse usage errors (unknown flags, missing arguments) exit 2 by
 > Python convention, the same code as auth-fatal. For an unattended wrapper,
