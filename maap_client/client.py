@@ -742,6 +742,10 @@ class MaapClient:
                     logger.info(f"[{i:>{len(str(total_urls))}}/{total_urls}] Downloading: {filename}")
                     downloader.download_file(url, output_path)
                     result.downloaded[url] = output_path
+                except (AuthenticationError, CredentialsError):
+                    # Auth failures doom every remaining download identically:
+                    # propagate so callers can classify.
+                    raise
                 except Exception as e:
                     result.errors.append(f"{url}: {e}")
 
@@ -783,6 +787,10 @@ class MaapClient:
                 for u in group_urls:
                     if u not in downloaded:
                         result.errors.append(f"{u}: download failed")
+            except (AuthenticationError, CredentialsError):
+                # Auth failures doom every remaining download identically:
+                # propagate so callers can classify.
+                raise
             except Exception as e:
                 result.errors.append(f"{product}/{baseline}: {e}")
 

@@ -182,13 +182,18 @@ def cmd_search(args: argparse.Namespace) -> int:
     start, end = resolve_date_args(args) if not orbit else (None, None)
 
     on_day = None
+    accumulated_new_count = 0
+    accumulated_files: list = []
     if registry_save:
         def on_day(day_urls):
-            client.save_to_registry(
+            n, files = client.save_to_registry(
                 urls=day_urls,
                 collection=args.collection,
                 product_type=args.product,
             )
+            nonlocal accumulated_new_count, accumulated_files
+            accumulated_new_count += n
+            accumulated_files.extend(f for f in files if f not in accumulated_files)
 
     try:
         # Use facade search() method
@@ -216,19 +221,25 @@ def cmd_search(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return classify_exit_code(e)
 
-    # Save to registry if requested
+    # Save to registry if requested. When on_day already saved incrementally
+    # (long ranges), this final call covers only leftovers from the ≤10-day
+    # and orbit paths where on_day never fires; combine both into one summary
+    # so the incremental saves aren't hidden behind a stale "no new URLs".
     if registry_save and urls:
         new_count, files_written = client.save_to_registry(
             urls=urls,
             collection=args.collection,
             product_type=args.product,
         )
-        num_files = len(files_written)
-        if new_count > 0:
+        total_new_count = accumulated_new_count + new_count
+        total_files = list(accumulated_files)
+        total_files.extend(f for f in files_written if f not in total_files)
+        num_files = len(total_files)
+        if total_new_count > 0:
             if num_files == 1:
-                print(f"Saved {new_count} new URLs to {files_written[0]} ({len(urls)} total)", file=sys.stderr)
+                print(f"Saved {total_new_count} new URLs to {total_files[0]} ({len(urls)} total)", file=sys.stderr)
             else:
-                print(f"Saved {new_count} new URLs to {num_files} registry files ({len(urls)} total)", file=sys.stderr)
+                print(f"Saved {total_new_count} new URLs to {num_files} registry files ({len(urls)} total)", file=sys.stderr)
         else:
             print(f"No new URLs ({len(urls)} already exist in registry)", file=sys.stderr)
 
