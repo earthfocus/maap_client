@@ -7,10 +7,12 @@ from pathlib import Path
 from maap_client import MaapClient, MaapConfig, InvalidRequestError
 from maap_client.cli_helpers import (
     get_client,
+    report_failed_days,
     resolve_date_args,
     validate_download_filter_args,
     validate_time_args,
 )
+from maap_client.exceptions import classify_exit_code, EXIT_NON_TRANSIENT, EXIT_TRANSIENT
 from maap_client.utils import to_zulu
 
 
@@ -41,7 +43,7 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
     validation_error = validate_time_args(args)
     if validation_error:
         print(f"Error: {validation_error}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
 
     # Resolve time range
     start, end = resolve_date_args(args)
@@ -72,16 +74,16 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
             for coll, prod, baseline, err in failures:
                 print(f"  {coll}/{prod}/{baseline}: {err}", file=sys.stderr)
             print("Re-run the same command to fill only the gaps.", file=sys.stderr)
-            return 1
+            return EXIT_TRANSIENT
 
         return 0
 
     except InvalidRequestError as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return classify_exit_code(e)
 
 
 def cmd_list(args: argparse.Namespace) -> int:
@@ -170,7 +172,7 @@ def cmd_search(args: argparse.Namespace) -> int:
     validation_error = validate_time_args(args)
     if validation_error:
         print(f"Error: {validation_error}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
 
     registry_save = getattr(args, 'registry_save', False)
     orbit = getattr(args, 'orbit', None)
@@ -178,6 +180,15 @@ def cmd_search(args: argparse.Namespace) -> int:
 
     # Resolve time range (for time-based search)
     start, end = resolve_date_args(args) if not orbit else (None, None)
+
+    on_day = None
+    if registry_save:
+        def on_day(day_urls):
+            client.save_to_registry(
+                urls=day_urls,
+                collection=args.collection,
+                product_type=args.product,
+            )
 
     try:
         # Use facade search() method
@@ -194,12 +205,16 @@ def cmd_search(args: argparse.Namespace) -> int:
             verbose=getattr(args, 'verbose', 0) >= 1,
             format=getattr(args, 'format', None),
             reverse=getattr(args, 'newest_first', False),
+            on_day=on_day,
         )
         urls = result.urls
 
     except InvalidRequestError as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return classify_exit_code(e)
 
     # Save to registry if requested
     if registry_save and urls:
@@ -228,7 +243,8 @@ def cmd_search(args: argparse.Namespace) -> int:
         for url in urls:
             print(url)
 
-    return 0
+    report_failed_days(result.failed_days)
+    return EXIT_TRANSIENT if result.failed_days else 0
 
 
 def cmd_download(args: argparse.Namespace) -> int:
@@ -238,14 +254,14 @@ def cmd_download(args: argparse.Namespace) -> int:
     filter_error = validate_download_filter_args(args)
     if filter_error:
         print(f"Error: {filter_error}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
 
     # Validate time arguments (only when using --registry with time filters)
     if args.registry:
         validation_error = validate_time_args(args, orbit_is_filter=True)
         if validation_error:
             print(f"Error: {validation_error}", file=sys.stderr)
-            return 1
+            return EXIT_NON_TRANSIENT
 
     try:
         # Download from registry
@@ -298,21 +314,21 @@ def cmd_download(args: argparse.Namespace) -> int:
 
         else:
             print("Error: No URL source specified (--registry, --url, or --url-file)", file=sys.stderr)
-            return 1
+            return EXIT_NON_TRANSIENT
 
         # Report results
         if result.errors:
             for error in result.errors:
                 print(f"Error: {error}", file=sys.stderr)
 
-        return 1 if result.errors else 0
+        return EXIT_TRANSIENT if result.errors else 0
 
     except InvalidRequestError as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return classify_exit_code(e)
 
 
 def cmd_get(args: argparse.Namespace) -> int:
@@ -323,7 +339,7 @@ def cmd_get(args: argparse.Namespace) -> int:
     validation_error = validate_time_args(args)
     if validation_error:
         print(f"Error: {validation_error}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
 
     orbit = getattr(args, 'orbit', None)
 
@@ -351,14 +367,17 @@ def cmd_get(args: argparse.Namespace) -> int:
             for error in result.errors:
                 print(f"Error: {error}", file=sys.stderr)
 
-        return 1 if result.errors else 0
+        report_failed_days(result.failed_days)
+        if result.errors or result.failed_days:
+            return EXIT_TRANSIENT
+        return 0
 
     except InvalidRequestError as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return classify_exit_code(e)
 
 
 def cmd_sync(args: argparse.Namespace) -> int:
@@ -367,7 +386,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
     validation_error = validate_time_args(args)
     if validation_error:
         print(f"Error: {validation_error}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
 
     # Handle --out-dir override
     if args.out_dir:
@@ -400,16 +419,18 @@ def cmd_sync(args: argparse.Namespace) -> int:
         if result.errors:
             for error in result.errors:
                 print(f"Error: {error}", file=sys.stderr)
-            return 1
 
+        report_failed_days(result.failed_days)
+        if result.errors or result.failed_days:
+            return EXIT_TRANSIENT
         return 0
 
     except InvalidRequestError as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return EXIT_NON_TRANSIENT
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return classify_exit_code(e)
 
 
 def cmd_state_show(args: argparse.Namespace) -> int:

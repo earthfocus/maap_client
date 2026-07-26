@@ -5,6 +5,7 @@ Business logic has been moved to MaapClient facade methods.
 """
 
 import argparse
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -153,3 +154,23 @@ def validate_download_filter_args(args: argparse.Namespace) -> Optional[str]:
         if getattr(args, 'orbit', None):
             return "--orbit requires --registry"
     return None
+
+
+def report_failed_days(failed_days: list) -> None:
+    """Print skipped days in a stable, parseable format.
+
+    Entries are (day, error) tuples, or (baseline, day, error) from sync.
+    """
+    for entry in failed_days:
+        if len(entry) == 3:
+            baseline, day, err = entry
+            print(f"FAILED DAY: {baseline.upper()} {day.isoformat()} ({err})", file=sys.stderr)
+        else:
+            day, err = entry
+            print(f"FAILED DAY: {day.isoformat()} ({err})", file=sys.stderr)
+    if failed_days:
+        print(
+            f"WARNING: {len(failed_days)} day(s) failed; "
+            "re-run the same command to fill the gaps",
+            file=sys.stderr,
+        )

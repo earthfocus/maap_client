@@ -7,6 +7,7 @@ from pathlib import Path
 
 from maap_client.constants import __version__
 from maap_client.cli_helpers import frames_arg
+from maap_client.exceptions import classify_exit_code
 from maap_client.cli_commands import (
     cmd_catalog_update,
     cmd_catalog_build,
@@ -580,7 +581,7 @@ def main() -> int:
         if args.verbose >= 2:
             raise
         print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return classify_exit_code(e)
 
 
 if __name__ == "__main__":
