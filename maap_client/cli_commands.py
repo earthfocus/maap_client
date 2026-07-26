@@ -113,9 +113,12 @@ def cmd_list(args: argparse.Namespace) -> int:
             for product in products:
                 print(product)
             return 0
-        except (FileNotFoundError, CatalogError) as e:
+        except FileNotFoundError as e:
             print(f"Error: {e}", file=sys.stderr)
-            return 1
+            return EXIT_NON_TRANSIENT
+        except CatalogError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return classify_exit_code(e)
 
     # Level 2: List baselines (from queryables)
     if args.baseline is None:
@@ -133,7 +136,7 @@ def cmd_list(args: argparse.Namespace) -> int:
             return 0
         except (FileNotFoundError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)
-            return 1
+            return EXIT_NON_TRANSIENT
 
     # Level 3: Show baseline info
     baseline_info = client.get_baseline_info(
@@ -149,7 +152,7 @@ def cmd_list(args: argparse.Namespace) -> int:
             f"Run: maap catalog build {args.collection} {args.product} {args.baseline}",
             file=sys.stderr,
         )
-        return 1
+        return EXIT_NON_TRANSIENT
 
     # Print info (same format as current 'maap info')
     print(f"Info for {args.collection}/{args.product}/{args.baseline.upper()}:")
