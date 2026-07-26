@@ -251,9 +251,9 @@ maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --use-catalog --date 2024-12
 > Rebuild periodically to keep catalogs current with new data.
 
 Building is **resumable and failure-tolerant**:
-- Transient gateway errors (502/503/504) are retried automatically with exponential backoff.
+- Transient errors (429, 500, 502, 503, 504) are retried automatically with exponential backoff, and every retry is logged.
 - Progress is saved to disk after every baseline, so an interrupted build never loses fetched work.
-- A baseline that keeps failing is skipped and reported at the end (exit code 1); re-running the same command fills only the gaps — already-built baselines just fetch the tail since their last update.
+- A baseline that keeps failing is skipped and reported at the end (exit code 3); re-running the same command fills only the gaps — already-built baselines just fetch the tail since their last update.
 
 > **Known limitation:** incremental updates only extend the covered time range at
 > its edges — a time window that overlaps an already-covered range is skipped, not
@@ -420,6 +420,8 @@ Combines search + registry + download:
 - Automatic state tracking
 - Skips already-downloaded files
 - Designed for unattended operation
+- Failed days are skipped and reported (`FAILED DAY:` lines, exit 3) — re-run to fill the gaps; exit 2 means credentials are dead
+- URLs are registered day-by-day as found, so an interrupted sync never loses discovered work
 
 ---
 
@@ -656,6 +658,9 @@ for day_urls in client.searcher.search_urls_iter_day(
     # Process or download day_urls
 ```
 
+Days that keep failing after transport retries are skipped and recorded in
+`client.searcher.last_failed_days` as `(date, error)` tuples.
+
 ### Sync Workflow
 
 ```python
@@ -879,6 +884,32 @@ By default, the client is configured for EarthCARE mission data:
 | JAXAL2InstChecked_MAAP | JAXA L2 instrument-checked |
 | JAXAL2Products_MAAP | JAXA L2 products |
 | JAXAL2Validated_MAAP | JAXA L2 validated |
+
+---
+
+## Exit Codes
+
+Every command exits with a classified status so wrapper scripts can react
+without parsing logs:
+
+| Code | Meaning       | Wrapper action                                              |
+|------|---------------|-------------------------------------------------------------|
+| 0    | Success       | Nothing to do                                                |
+| 2    | Auth fatal    | Stop everything; fix credentials/token                       |
+| 3    | Transient     | Re-run the same command later; completed work is kept and gaps fill in |
+| 4    | Non-transient | Do not retry; fix the request                                |
+
+A partially successful run (some days failed after transport retries were
+exhausted) exits 3 and lists each gap on stderr in a stable format:
+
+    FAILED DAY: 2025-03-14 (503 Server Error ...)
+    WARNING: 1 day(s) failed; re-run the same command to fill the gaps
+
+`sync` prefixes the baseline: `FAILED DAY: AC 2025-03-14 (...)`.
+
+> Note: argparse usage errors (unknown flags, missing arguments) exit 2 by
+> Python convention, the same code as auth-fatal. For an unattended wrapper,
+> "stop and let a human look" is the right reaction to both.
 
 ---
 

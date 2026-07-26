@@ -340,3 +340,20 @@ maap -v -c /path/to/config.toml search EarthCAREL0L1Products_MAAP CPR_NOM_1B DA
 # Custom data directory
 maap -v -d /path/to/data search EarthCAREL0L1Products_MAAP CPR_NOM_1B DA --registry-save
 ```
+
+## Wrapper scripts and exit codes
+
+`maap` classifies its exit status (see README "Exit Codes"), so a cron
+wrapper needs no output parsing:
+
+```bash
+for attempt in 1 2 3; do
+  maap sync "$COLLECTION" "$PRODUCT" "$BASELINE" --start "$START" --end "$END"
+  case $? in
+    0) break ;;                                  # complete
+    2) echo "auth dead, aborting" >&2; exit 2 ;; # do not retry
+    3) sleep $((attempt * 300)) ;;               # transient/partial: re-run fills the gaps
+    4) echo "bad request" >&2; exit 4 ;;         # fix the invocation
+  esac
+done
+```
