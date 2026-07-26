@@ -778,6 +778,11 @@ class MaapClient:
                     verbose=verbose,
                 )
                 result.downloaded.update(downloaded)
+                # batch_download's mapping includes successes and skipped
+                # files; anything absent failed and must reach the caller.
+                for u in group_urls:
+                    if u not in downloaded:
+                        result.errors.append(f"{u}: download failed")
             except Exception as e:
                 result.errors.append(f"{product}/{baseline}: {e}")
 
@@ -916,7 +921,7 @@ class MaapClient:
         )
 
         # Download (URLs are already ordered by search; no need to sort again)
-        return self.download(
+        result = self.download(
             urls=search_result.urls,
             collection=collection,
             out_dir=out_dir,
@@ -925,6 +930,8 @@ class MaapClient:
             verbose=verbose,
             product_dir=product_dir,
         )
+        result.failed_days = search_result.failed_days
+        return result
 
     def sync(
         self,

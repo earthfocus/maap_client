@@ -46,6 +46,7 @@ class DownloadResult:
     errors: list[str] = field(default_factory=list)  # Error messages
     total_bytes: int = 0  # Total bytes downloaded
     elapsed_seconds: float = 0.0  # Time taken for downloads
+    failed_days: list[tuple[date, str]] = field(default_factory=list)  # Search-phase gaps (get() only)
 
 
 @dataclass
