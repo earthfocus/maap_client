@@ -39,15 +39,6 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
     """Handle 'catalog build' command."""
     client = get_client(args)
 
-    # Validate time arguments
-    validation_error = validate_time_args(args)
-    if validation_error:
-        print(f"Error: {validation_error}", file=sys.stderr)
-        return EXIT_NON_TRANSIENT
-
-    # Resolve time range
-    start, end = resolve_date_args(args)
-
     # Use config's built_catalog_dir if --out-dir not specified
     out_dir = args.out_dir if args.out_dir else None
 
@@ -58,8 +49,6 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
             product_type=args.product,
             baseline=args.baseline,
             latest_baseline=getattr(args, 'latest_baseline', False),
-            start=start,
-            end=end,
             force=getattr(args, 'force', False),
             out_dir=out_dir,
             verbose=getattr(args, 'verbose', 0) >= 1,

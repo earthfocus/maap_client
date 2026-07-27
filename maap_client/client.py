@@ -1105,8 +1105,6 @@ class MaapClient:
         product_type: Optional[str] = None,
         baseline: Optional[str] = None,
         latest_baseline: bool = False,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
         force: bool = False,
         out_dir: Optional[Path] = None,
         verbose: bool = False,
@@ -1120,8 +1118,6 @@ class MaapClient:
             product_type: Product type filter
             baseline: Baseline filter
             latest_baseline: Only build for latest baseline
-            start: Optional start datetime filter
-            end: Optional end datetime filter
             force: Delete existing catalog and rebuild from scratch
             out_dir: Output directory (uses config default if None)
             verbose: Print progress messages
@@ -1130,15 +1126,9 @@ class MaapClient:
                 that failed after retries. A whole-collection error appends
                 (collection, "*", "*", error).
 
-        Raises:
-            InvalidRequestError: If start > end or datetimes not timezone-aware
-
         Returns:
             Dictionary mapping collection name to catalog file path
         """
-        # Validate time range
-        self._validate_time_range(start, end)
-
         # Use config's built_catalog_dir if not specified
         catalog_dir = out_dir or self._config.built_catalog_dir
 
@@ -1159,20 +1149,12 @@ class MaapClient:
             try:
                 logger.info(f"Building catalog for {coll}...")
 
-                if start or end:
-                    start_str = to_zulu(start) if start else "..."
-                    end_str = to_zulu(end) if end else "..."
-                    logger.info(f"  {start_str}")
-                    logger.info(f"  {end_str}")
-
                 manager = CatalogCollectionManager(client=self, catalog_dir=catalog_dir)
                 catalog = manager.build(
                     collection=coll,
                     products_filter=products_filter,
                     baselines_filter=baselines_filter,
                     latest_baseline=latest_baseline,
-                    start=start,
-                    end=end,
                     force=force,
                     verbose=verbose,
                 )

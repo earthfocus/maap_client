@@ -144,15 +144,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Build a metadata catalog with time ranges and product counts for a collection.",
         usage="%(prog)s [collection [product [baseline]]] [options]",
         epilog="""Notes:
-  --date, --days-back and --start/--end are mutually exclusive.
-
   Products and baselines are retrieved from the queryables catalog. If new
-  products or baselines are available, run 'maap catalog update' first.
-
-  When extending an existing catalog with time increases (--start/--end),
-  the total count may be inaccurate because new files may have appeared
-  in time periods covered by previous searches. Use --force for accurate
-  counts (rebuilds from scratch).""",
+  products or baselines are available, run 'maap catalog update' first.""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     catalog_build.add_argument("collection", nargs="?", default=None, help="Collection name (if omitted, builds all)")
@@ -170,24 +163,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--latest-baseline",
         action="store_true",
         help="Latest baseline",
-    )
-    build_filter_exclusive = build_filter_group.add_mutually_exclusive_group()
-    build_filter_exclusive.add_argument(
-        "--date",
-        help="Single date (YYYY-MM-DD) or exact datetime (YYYY-MM-DDTHH:MM:SSZ)",
-    )
-    build_filter_exclusive.add_argument(
-        "--days-back",
-        type=int,
-        help="Days to look back from now",
-    )
-    build_filter_exclusive.add_argument(
-        "--start", "-s",
-        help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)",
-    )
-    build_filter_group.add_argument(
-        "--end", "-e",
-        help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)",
     )
 
     # Output options group

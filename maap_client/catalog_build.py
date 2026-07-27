@@ -161,8 +161,6 @@ class CatalogCollectionManager(CatalogManager):
         products_filter: Optional[list[str]] = None,
         baselines_filter: Optional[list[str]] = None,
         latest_baseline: bool = False,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
         force: bool = False,
         verbose: bool = False,
     ) -> CatalogCollection:
@@ -174,8 +172,6 @@ class CatalogCollectionManager(CatalogManager):
             products_filter: Optional list of product names to include (if None, include all)
             baselines_filter: Optional list of baseline names to include (if None, include all)
             latest_baseline: If True, only update the latest baseline per product
-            start: Optional start datetime for filtering which baselines to update
-            end: Optional end datetime for filtering which baselines to update
             force: If True, delete existing catalog and rebuild from scratch
             verbose: Print progress messages
 
@@ -183,10 +179,6 @@ class CatalogCollectionManager(CatalogManager):
             The built/updated CatalogCollection
 
         Note:
-            If start/end are specified, the catalog performs incremental updates:
-            - New catalog: fetches metadata only for the specified range
-            - Existing catalog: extends range if start < time_start or end > time_end,
-              filling gaps and merging counts. Skips if range already covered.
             The catalog is checkpointed to disk after every baseline that
             adds data, so previously fetched work survives crashes. A
             baseline whose fetch fails (after transport retries) is skipped
@@ -278,17 +270,17 @@ class CatalogCollectionManager(CatalogManager):
                     existing = product_info.get_baseline(baseline)
                     ex_range = existing.time_range() if existing else None
 
-                    # Use mission boundaries for None values
-                    effective_start, effective_end = self._client.normalize_time_range(start, end)
+                    # Use mission boundaries (full mission range)
+                    effective_start, effective_end = self._client.normalize_time_range(None, None)
 
                     # Build list of (start, end, updates_start) ranges to fetch
                     # updates_start: True=before, False=after, None=full (update both)
-                    to_fetch: list[tuple[Optional[datetime], Optional[datetime], Optional[bool]]] = []
+                    to_fetch: list[tuple[datetime, datetime, Optional[bool]]] = []
                     if ex_range:
                         t0, t1 = ex_range
-                        if effective_start and effective_start < t0:
+                        if effective_start < t0:
                             to_fetch.append((effective_start, t0 - timedelta(seconds=1), True))
-                        if effective_end and effective_end > t1:
+                        if effective_end > t1:
                             to_fetch.append((t1 + timedelta(seconds=1), effective_end, False))
                         if not to_fetch:
                             if verbose:
@@ -308,9 +300,7 @@ class CatalogCollectionManager(CatalogManager):
                     for f_start, f_end, updates_start in to_fetch:
                         # Log the time range being fetched
                         if verbose:
-                            start_str = to_zulu(f_start) if f_start else "..."
-                            end_str = to_zulu(f_end) if f_end else "..."
-                            logger.info(f"    Fetching : {start_str} - {end_str}")
+                            logger.info(f"    Fetching : {to_zulu(f_start)} - {to_zulu(f_end)}")
 
                         if not self._client.searcher.search_has_any_product(
                             collection, product, baseline, f_start, f_end
