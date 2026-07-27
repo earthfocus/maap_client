@@ -253,7 +253,7 @@ maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --use-catalog --date 2024-12
 Building is **resumable and failure-tolerant**:
 - Transient errors (429, 500, 502, 503, 504) are retried automatically with exponential backoff, and every retry is logged.
 - Progress is saved to disk after every baseline, so an interrupted build never loses fetched work.
-- A baseline that keeps failing is skipped and reported at the end (exit code 3); re-running the same command fills only the gaps — already-built baselines just fetch the tail since their last update.
+- A baseline that keeps failing is skipped and reported at the end (exit code 3); re-running the same command fills only the gaps — already-built baselines just fetch the tail since their last update and re-sync their count.
 
 > Each pass re-syncs every baseline's file count with the server's
 > authoritative total, so counts self-heal when reprocessing inserts files

@@ -62,7 +62,11 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
             print(f"{len(failures)} baseline(s) failed after retries:", file=sys.stderr)
             for coll, prod, baseline, err in failures:
                 print(f"  {coll}/{prod}/{baseline}: {err}", file=sys.stderr)
-            print("Re-run the same command to fill only the gaps.", file=sys.stderr)
+            print(
+                "Re-run the same command to fill only the gaps "
+                "(if a baseline was deleted on the server, use --force).",
+                file=sys.stderr,
+            )
             return EXIT_TRANSIENT
 
         return 0

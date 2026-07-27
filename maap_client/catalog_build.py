@@ -329,6 +329,8 @@ class CatalogCollectionManager(CatalogManager):
                     # request; behavior identical to before).
                     recount = 0
                     if existing is not None or new_count > 0:
+                        # search_product_count maps a missing numberMatched to 0,
+                        # so recount is always an int.
                         recount = self._client.searcher.search_product_count(
                             collection, product, baseline
                         )
