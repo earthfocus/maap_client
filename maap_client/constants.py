@@ -1,6 +1,6 @@
 """Constants for MAAP client."""
 
-__version__ = "0.1.0"
+__version__ = "0.2"
 
 # API endpoints (defaults)
 DEFAULT_CATALOG_URL = "https://catalog.maap.eo.esa.int/catalogue"
