@@ -400,9 +400,13 @@ class CatalogCollectionManager(CatalogManager):
                     elif new_count > 0:
                         logger.info(f"    OK (added {new_count}, count={count})")
                     else:
+                        reason = (
+                            "in-range backfill"
+                            if count > existing.count
+                            else "in-range deletions; use --force if edges became stale"
+                        )
                         logger.info(
-                            f"    count adjusted {existing.count} -> {count} "
-                            f"(in-range backfill)"
+                            f"    count adjusted {existing.count} -> {count} ({reason})"
                         )
 
         return catalog
