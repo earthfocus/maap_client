@@ -179,20 +179,26 @@ class CatalogCollectionManager(CatalogManager):
             The built/updated CatalogCollection
 
         Note:
-            The catalog always represents the full mission time range. Each
-            pass fetches only the uncovered gap windows (mission start ->
-            time_start and time_end -> now) to update the time/frame edges,
-            then re-counts the baseline against the server's total matched
-            (no time filter), so counts self-heal when reprocessing inserts
-            granules inside the already-covered range. A recount of 0 for a
-            baseline with existing data is treated as a transient failure
-            and never overwrites the entry. The catalog is checkpointed to
-            disk after every baseline that changes, so previously fetched
-            work survives crashes. A baseline whose fetch fails (after
-            transport retries) is skipped and recorded in
-            ``self.last_failures`` as a (product, baseline, error) tuple,
-            and the build continues. Use force=True only to rebuild from
-            scratch (stale edges after server-side granule deletions).
+            The catalog always represents the full mission time range. A
+            baseline already in the catalog is first re-counted against the
+            server's total matched (no time filter): an unchanged total
+            means no additions anywhere, so the pass costs one request and
+            skips the window fetches. When the total differs, only the
+            uncovered gap windows (mission start -> time_start and
+            time_end -> now) are fetched to update the time/frame edges,
+            and the server total becomes the stored count, so counts
+            self-heal when reprocessing inserts granules inside the
+            already-covered range. A recount of 0 for a baseline with
+            existing data is treated as a transient failure and never
+            overwrites the entry. A new baseline fetches the full range
+            first and is re-counted only if its windows saw data. The
+            catalog is checkpointed to disk after every baseline that
+            changes, so previously fetched work survives crashes. A
+            baseline whose fetch fails (after transport retries) is skipped
+            and recorded in ``self.last_failures`` as a (product, baseline,
+            error) tuple, and the build continues. Use force=True only to
+            rebuild from scratch (stale edges after server-side granule
+            deletions, which can move edges without changing the count).
         """
         now = to_zulu(datetime.now(timezone.utc))
         self.last_failures = []
@@ -279,6 +285,35 @@ class CatalogCollectionManager(CatalogManager):
                     existing = product_info.get_baseline(baseline)
                     ex_range = existing.time_range() if existing else None
 
+                    # Authoritative recount first for known baselines: the
+                    # server's total matched for productType+productVersion,
+                    # no time filter. Additions anywhere raise the total, so
+                    # an unchanged one means no new data and the gap fetches
+                    # below are skipped (edges moving while the count stays
+                    # equal would need server-side deletions, which already
+                    # require --force). search_product_count maps a missing
+                    # numberMatched to 0, so recount is always an int.
+                    recount = 0
+                    if existing is not None:
+                        recount = self._client.searcher.search_product_count(
+                            collection, product, baseline
+                        )
+                        if recount == 0:
+                            # A transiently-empty matched must never wipe the
+                            # catalog.
+                            logger.warning(
+                                f"    RECOUNT returned 0 for {product}/{baseline} "
+                                f"with existing data; keeping catalog entry"
+                            )
+                            self.last_failures.append(
+                                (product, baseline, "recount returned 0 with existing data")
+                            )
+                            continue
+                        if recount == existing.count:
+                            if verbose:
+                                logger.info("    SKIP (no change)")
+                            continue
+
                     # Use mission boundaries (full mission range)
                     effective_start, effective_end = self._client.normalize_time_range(None, None)
 
@@ -323,14 +358,10 @@ class CatalogCollectionManager(CatalogManager):
                                 result["time_end"] = info.time_end
                                 result["frame_end"] = info.frame_end
 
-                    # Authoritative recount: the server's total matched for
-                    # productType+productVersion, no time filter. Skipped for
-                    # queryables baselines with no entry and no data (saves a
-                    # request; behavior identical to before).
-                    recount = 0
-                    if existing is not None or new_count > 0:
-                        # search_product_count maps a missing numberMatched to 0,
-                        # so recount is always an int.
+                    # New baseline: recount only if its windows saw data
+                    # (saves a request for the empty product x baseline
+                    # combinations from queryables).
+                    if existing is None and new_count > 0:
                         recount = self._client.searcher.search_product_count(
                             collection, product, baseline
                         )
@@ -339,17 +370,6 @@ class CatalogCollectionManager(CatalogManager):
                     # so one bad baseline doesn't discard the rest of the pass.
                     logger.warning(f"    FAILED ({product}/{baseline}): {e}")
                     self.last_failures.append((product, baseline, str(e)))
-                    continue
-
-                if existing is not None and recount == 0:
-                    # A transiently-empty matched must never wipe the catalog.
-                    logger.warning(
-                        f"    RECOUNT returned 0 for {product}/{baseline} "
-                        f"with existing data; keeping catalog entry"
-                    )
-                    self.last_failures.append(
-                        (product, baseline, "recount returned 0 with existing data")
-                    )
                     continue
 
                 count = recount if recount > 0 else new_count
@@ -365,19 +385,9 @@ class CatalogCollectionManager(CatalogManager):
                         f"using window count {new_count}"
                     )
 
-                changed = (
-                    existing is None
-                    or existing.count != count
-                    or existing.time_start != result["time_start"]
-                    or existing.time_end != result["time_end"]
-                    or existing.frame_start != result["frame_start"]
-                    or existing.frame_end != result["frame_end"]
-                )
-                if not changed:
-                    if verbose:
-                        logger.info("    SKIP (no change)")
-                    continue
-
+                # Reaching here implies a change: a known baseline only gets
+                # past the recount gate when the server total differs, and a
+                # new baseline with data is always new.
                 product_info.set_baseline(baseline, BaselineInfo(
                     **result, count=count, updated_at=now,
                 ))

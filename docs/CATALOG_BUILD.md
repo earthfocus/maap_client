@@ -160,6 +160,14 @@ maap catalog build EarthCAREL2Validated_MAAP --out-dir ./catalogs/
 
 ## Incremental Updates
 
+Re-running `maap catalog build` on an existing catalog is cheap: each
+already-built baseline is first re-counted against the server's total
+(`numberMatched`, one request). An unchanged total means no additions
+anywhere, so the baseline is skipped without any window searches. When the
+total differs, only the uncovered gap windows (mission start → `time_start`,
+`time_end` → now) are searched to update the edges, and the server total
+becomes the stored count.
+
 When `--latest-baseline` is used:
 1. Loads existing catalog from disk
 2. For each product, identifies the baseline with the most recent `time_end`
