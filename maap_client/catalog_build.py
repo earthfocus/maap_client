@@ -179,11 +179,20 @@ class CatalogCollectionManager(CatalogManager):
             The built/updated CatalogCollection
 
         Note:
-            The catalog is checkpointed to disk after every baseline that
-            adds data, so previously fetched work survives crashes. A
-            baseline whose fetch fails (after transport retries) is skipped
-            and recorded in ``self.last_failures`` as a
-            (product, baseline, error) tuple, and the build continues.
+            The catalog always represents the full mission time range. Each
+            pass fetches only the uncovered gap windows (mission start ->
+            time_start and time_end -> now) to update the time/frame edges,
+            then re-counts the baseline against the server's total matched
+            (no time filter), so counts self-heal when reprocessing inserts
+            granules inside the already-covered range. A recount of 0 for a
+            baseline with existing data is treated as a transient failure
+            and never overwrites the entry. The catalog is checkpointed to
+            disk after every baseline that changes, so previously fetched
+            work survives crashes. A baseline whose fetch fails (after
+            transport retries) is skipped and recorded in
+            ``self.last_failures`` as a (product, baseline, error) tuple,
+            and the build continues. Use force=True only to rebuild from
+            scratch (stale edges after server-side granule deletions).
         """
         now = to_zulu(datetime.now(timezone.utc))
         self.last_failures = []
@@ -282,10 +291,6 @@ class CatalogCollectionManager(CatalogManager):
                             to_fetch.append((effective_start, t0 - timedelta(seconds=1), True))
                         if effective_end > t1:
                             to_fetch.append((t1 + timedelta(seconds=1), effective_end, False))
-                        if not to_fetch:
-                            if verbose:
-                                logger.info("    SKIP (already in catalog)")
-                            continue
                     else:
                         to_fetch.append((effective_start, effective_end, None))  # Full fetch
 
@@ -317,6 +322,16 @@ class CatalogCollectionManager(CatalogManager):
                             if updates_start is None or not updates_start:  # full or after
                                 result["time_end"] = info.time_end
                                 result["frame_end"] = info.frame_end
+
+                    # Authoritative recount: the server's total matched for
+                    # productType+productVersion, no time filter. Skipped for
+                    # queryables baselines with no entry and no data (saves a
+                    # request; behavior identical to before).
+                    recount = 0
+                    if existing is not None or new_count > 0:
+                        recount = self._client.searcher.search_product_count(
+                            collection, product, baseline
+                        )
                 except Exception as e:
                     # Transport retries are exhausted by now: record and move on
                     # so one bad baseline doesn't discard the rest of the pass.
@@ -324,18 +339,58 @@ class CatalogCollectionManager(CatalogManager):
                     self.last_failures.append((product, baseline, str(e)))
                     continue
 
-                if new_count > 0:
-                    total = (existing.count if existing else 0) + new_count
-                    product_info.set_baseline(baseline, BaselineInfo(
-                        **result, count=total, updated_at=now,
-                    ))
-                    # Checkpoint: persist progress so a later failure never
-                    # discards baselines already fetched in this run.
-                    self.save(catalog)
+                if existing is not None and recount == 0:
+                    # A transiently-empty matched must never wipe the catalog.
+                    logger.warning(
+                        f"    RECOUNT returned 0 for {product}/{baseline} "
+                        f"with existing data; keeping catalog entry"
+                    )
+                    self.last_failures.append(
+                        (product, baseline, "recount returned 0 with existing data")
+                    )
+                    continue
+
+                count = recount if recount > 0 else new_count
+                if count == 0:
                     if verbose:
-                        msg = f"added {new_count}, total={total}" if existing else f"count={total}"
-                        logger.info(f"    OK ({msg})")
-                elif verbose:
-                    logger.info("    SKIP (no data)")
+                        logger.info("    SKIP (no data)")
+                    continue
+                if recount == 0:
+                    # New baseline whose windows saw data but the recount says
+                    # 0: keep the window sum this pass.
+                    logger.warning(
+                        f"    RECOUNT returned 0 for {product}/{baseline}; "
+                        f"using window count {new_count}"
+                    )
+
+                changed = (
+                    existing is None
+                    or existing.count != count
+                    or existing.time_start != result["time_start"]
+                    or existing.time_end != result["time_end"]
+                    or existing.frame_start != result["frame_start"]
+                    or existing.frame_end != result["frame_end"]
+                )
+                if not changed:
+                    if verbose:
+                        logger.info("    SKIP (no change)")
+                    continue
+
+                product_info.set_baseline(baseline, BaselineInfo(
+                    **result, count=count, updated_at=now,
+                ))
+                # Checkpoint: persist progress so a later failure never
+                # discards baselines already fetched in this run.
+                self.save(catalog)
+                if verbose:
+                    if existing is None:
+                        logger.info(f"    OK (count={count})")
+                    elif new_count > 0:
+                        logger.info(f"    OK (added {new_count}, count={count})")
+                    else:
+                        logger.info(
+                            f"    count adjusted {existing.count} -> {count} "
+                            f"(in-range backfill)"
+                        )
 
         return catalog
