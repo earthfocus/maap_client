@@ -316,12 +316,15 @@ class MaapSearcher:
         Count matching products without fetching all items.
 
         Note:
-            The initial STAC query filters by datetime metadata. When a time range
-            is provided, results are post-filtered by sensing_time and the count
-            is adjusted accordingly.
+            Returns the server's ``numberMatched`` for the STAC ``datetime``
+            metadata window. No post-filtering by filename sensing_time is
+            done (that would require fetching every item), so with a time
+            range the count may differ slightly at the window edges from
+            sensing_time-filtered results, and it includes items whose
+            filenames cannot be parsed.
 
         Returns:
-            Number of matching products
+            Number of matching products (0 if the server reports none)
         """
         if verbose:
             logger.info(f"Counting {collection} {product_type}/{baseline}{format_time_range(start, end)}...")

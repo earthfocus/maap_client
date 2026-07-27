@@ -322,6 +322,12 @@ class MaapClient:
         """
         Get metadata for a specific baseline.
 
+        Note:
+            ``count`` comes from the server's ``numberMatched`` (STAC
+            ``datetime`` metadata), while ``time_*``/``frame_*`` come from
+            filename sensing times — the two can disagree slightly at range
+            edges.
+
         Args:
             collection: Collection name
             product_type: Product type name
