@@ -140,13 +140,7 @@ maap catalog build [COLLECTION [PRODUCT [BASELINE]]] [OPTIONS]
 |--------|-------------|
 | `--force` | Delete existing catalog and rebuild from scratch |
 | `--latest-baseline` | Only build for the latest baseline |
-| `--start` / `-s` | Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ) |
-| `--end` / `-e` | End datetime |
-| `--date` | Single date (expands to full day) |
-| `--days-back` | Days to look back from now |
 | `-o, --out-dir PATH` | Output directory for catalog file |
-
-Note: `--date`, `--days-back`, and `--start/--end` are mutually exclusive.
 
 **Examples:**
 ```bash
@@ -164,9 +158,6 @@ maap catalog build EarthCAREL2Validated_MAAP CPR_CLD_2A BC
 
 # Update only latest baselines (faster)
 maap catalog build EarthCAREL2Validated_MAAP --latest-baseline
-
-# Build with time range filter
-maap catalog build EarthCAREL2Validated_MAAP --start 2024-12-01 --end 2024-12-31
 
 # Force rebuild from scratch
 maap catalog build EarthCAREL2Validated_MAAP --force

@@ -47,11 +47,6 @@ maap -v catalog build EarthCAREL0L1Products_MAAP CPR_NOM_1B DA
 # Build only latest baseline
 maap -v catalog build EarthCAREL0L1Products_MAAP CPR_NOM_1B --latest-baseline
 
-# Build with time filters
-maap -v catalog build EarthCAREL0L1Products_MAAP CPR_NOM_1B --days-back 7
-maap -v catalog build EarthCAREL0L1Products_MAAP CPR_NOM_1B --date 2024-12-25
-maap -v catalog build EarthCAREL0L1Products_MAAP CPR_NOM_1B --start 2024-12-01 --end 2024-12-31
-
 # Build to custom output directory
 maap -v catalog build EarthCAREL0L1Products_MAAP CPR_NOM_1B -o ./my_built_catalogs
 ```

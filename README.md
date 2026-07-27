@@ -255,12 +255,11 @@ Building is **resumable and failure-tolerant**:
 - Progress is saved to disk after every baseline, so an interrupted build never loses fetched work.
 - A baseline that keeps failing is skipped and reported at the end (exit code 3); re-running the same command fills only the gaps — already-built baselines just fetch the tail since their last update.
 
-> **Known limitation:** incremental updates only extend the covered time range at
-> its edges — a time window that overlaps an already-covered range is skipped, not
-> re-checked. Files published late by the server (with sensing times *inside* an
-> already-covered range) are therefore never picked up, and the per-baseline file
-> **count slowly drifts** from the server's truth. Run `maap catalog build --force`
-> periodically to rebuild from scratch and correct the drift.
+> Each pass re-syncs every baseline's file count with the server's
+> authoritative total, so counts self-heal when reprocessing inserts files
+> inside the already-covered range. `maap catalog build --force` is only
+> needed to fix stale time edges after files are deleted from the server
+> (rare).
 
 ### Registry
 

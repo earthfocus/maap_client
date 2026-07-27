@@ -211,22 +211,17 @@ Summary: 2 products, 3 baselines
 # Update entire collection
 maap catalog build EarthCAREL2Validated_MAAP
 
-# Update only recent data (faster)
-maap catalog build EarthCAREL2Validated_MAAP --days-back 7
-
 # Update only latest baselines (fastest)
-maap catalog build EarthCAREL2Validated_MAAP --latest-baseline --days-back 7
+maap catalog build EarthCAREL2Validated_MAAP --latest-baseline
 ```
 
 #### Incremental Updates
 
-Update only new data without rebuilding from scratch:
+Re-running the same command is already incremental: each baseline only
+fetches data since its last covered edge, and every pass re-syncs the
+authoritative file count from the server:
 ```bash
-# Update last 7 days
-maap catalog build EarthCAREL2Validated_MAAP CPR_CLD_2A BC --days-back 7
-
-# Update specific date range
-maap catalog build EarthCAREL2Validated_MAAP CPR_CLD_2A BC --start 2024-12-20 --end 2024-12-31
+maap catalog build EarthCAREL2Validated_MAAP CPR_CLD_2A BC
 ```
 
 ### Using Catalogs
@@ -280,8 +275,8 @@ maap catalog build EarthCAREL1Validated_MAAP
 ```bash
 #!/bin/bash
 # Update catalogs weekly
-maap catalog build EarthCAREL2Validated_MAAP --latest-baseline --days-back 7
-maap catalog build EarthCAREL1Validated_MAAP --latest-baseline --days-back 7
+maap catalog build EarthCAREL2Validated_MAAP --latest-baseline
+maap catalog build EarthCAREL1Validated_MAAP --latest-baseline
 ```
 
 ### 3. Use `--use-catalog` for Large Date Ranges
@@ -375,7 +370,7 @@ The catalog system provides:
 
 **Management:**
 1. **Setup:** `maap catalog update && maap catalog build`
-2. **Update:** Weekly with `--days-back 7`
+2. **Update:** Re-run `maap catalog build` weekly
 3. **Use:** Add `--use-catalog` to search commands
 
 **Best for:** Large date ranges, automated workflows, offline work
