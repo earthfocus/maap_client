@@ -1059,8 +1059,11 @@ class MaapClient:
 
                 result.urls_found += len(urls)
 
-                # Filter to pending downloads
-                pending = tracker.get_pending_downloads()
+                # Filter to pending downloads. Scoped to the sync range: the
+                # result is identical (to_download intersects with this run's
+                # URLs, all inside the range) but the read stays off registry
+                # files a concurrent same-product worker may be appending to.
+                pending = tracker.get_pending_downloads(start, end)
                 to_download = [url for url in urls if url in pending][:max_items]
 
                 if not to_download:
