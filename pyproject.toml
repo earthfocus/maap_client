@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Bernat Ferragut"}
+    {name = "Bernat"}
 ]
 dependencies = [
     "requests>=2.28",
