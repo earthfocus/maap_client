@@ -102,10 +102,12 @@ class MaapSearcher:
 
         Args:
             catalog_url: STAC catalog URL. Defaults to DEFAULT_CATALOG_URL.
+                Normalized to end in a slash, since MAAP answers the slashless
+                root with a load-balancer 503.
             mission_start: Mission start datetime (ISO 8601). Defaults to DEFAULT_MISSION_START.
             mission_end: Mission end datetime (ISO 8601). Defaults to DEFAULT_MISSION_END.
         """
-        self._catalog_url = catalog_url or DEFAULT_CATALOG_URL
+        self._catalog_url = (catalog_url or DEFAULT_CATALOG_URL).rstrip("/") + "/"
         self._mission_start = mission_start or DEFAULT_MISSION_START
         self._mission_end = mission_end or DEFAULT_MISSION_END
         self._client: Optional[Client] = None
