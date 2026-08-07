@@ -56,9 +56,14 @@ DEFAULT_CHUNK_SIZE = 8192
 DEFAULT_TIMEOUT = 30
 
 # STAC transport retries (transient gateway errors: nginx 502/503/504).
-# Backoff factor 2 -> sleeps of ~2, 4, 8, 16, 32 s across 5 retries.
+# Backoff factor 2 -> sleeps of 0, 4, 8, 16, 32 s across 5 retries
+# (urllib3 skips the backoff before the first retry).
 # POST is safe to retry: STAC searches are read-only queries.
 STAC_RETRY_TOTAL = 5
 STAC_RETRY_BACKOFF_FACTOR = 2
 STAC_RETRY_STATUS_FORCELIST = (429, 500, 502, 503, 504)
 STAC_RETRY_ALLOWED_METHODS = ("GET", "POST")
+
+# Scope, deliberate: these apply to STAC search only. Downloads get one
+# attempt per file (plus the 401/403 token refresh in download.py) and no
+# transient retry loop — retry cadence lives in the wrapper

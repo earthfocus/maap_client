@@ -898,6 +898,13 @@ without parsing logs:
 | 3    | Transient     | Re-run the same command later; completed work is kept and gaps fill in |
 | 4    | Non-transient | Do not retry; fix the request                                |
 
+**Where retries happen:** `search` and `catalog build` retry transient HTTP
+errors inside the process (5 transport retries with exponential backoff, each
+one logged). Downloads do not: every file gets a single attempt, plus one
+token refresh on 401/403. Retry cadence for downloads is the caller's policy —
+a failed file exits 3, and re-running the same command fetches only what is
+missing, since state is tracked per URL and downloads are atomic.
+
 A partially successful run (some days failed after transport retries were
 exhausted) exits 3 and lists each gap on stderr in a stable format:
 

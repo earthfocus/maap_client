@@ -40,7 +40,7 @@ tmp
 .worktrees/
 
 # Other docs
-docs/.*
+docs/
 
 # Tests
 tests/
