@@ -19,7 +19,8 @@ A Python client for accessing ESA MAAP satellite data. Provides both a CLI (`maa
   - [Catalogs](#catalogs)
   - [Registry](#registry)
   - [Data Organization](#data-organization)
-- [Time Filtering](#time-filtering)
+  - [Time Filtering](#time-filtering)
+  - [Reliability](#reliability)
 - [Workflows](#workflows)
   - [Direct Download (get)](#direct-download-get)
   - [Two-Step Workflow (search + download)](#two-step-workflow-search--download)
@@ -46,6 +47,7 @@ A Python client for accessing ESA MAAP satellite data. Provides both a CLI (`maa
   - [Sync Options](#sync-options)
 - [Other Missions](#other-missions)
 - [Default Collections](#default-collections)
+- [Exit Codes](#exit-codes)
 - [Troubleshooting](#troubleshooting)
 - [Links](#links)
 - [Contact](#contact)
@@ -251,9 +253,10 @@ maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --use-catalog --date 2024-12
 > Rebuild periodically to keep catalogs current with new data.
 
 Building is **resumable and failure-tolerant**:
-- Transient errors (429, 500, 502, 503, 504) are retried automatically with exponential backoff, and every retry is logged.
 - Progress is saved to disk after every baseline, so an interrupted build never loses fetched work.
 - A baseline that keeps failing is skipped and reported at the end (exit code 3); re-running the same command fills only the gaps — already-built baselines are recounted first (one request) and only fetch the tail when the server total changed.
+
+See [Reliability](#reliability) for what is retried before a baseline is given up on.
 
 > Each pass re-syncs every baseline's file count with the server's
 > authoritative total, so counts self-heal when reprocessing inserts files
@@ -365,6 +368,39 @@ Files are organized and tracked by their **sensing date**:
 data/EarthCARE/.../CPR_CLD_2A/BC/2024/12/01/
   ECA_EXBC_CPR_CLD_2A_20241201T123456Z_...h5
 ```
+
+### Reliability
+
+Every command is built to be re-run. Transient failures are retried in-process
+where that is cheap and safe; whatever survives is skipped, recorded and
+reported, so a later run picks up exactly the gaps.
+
+| Operation | In-process retries | On failure |
+|-----------|--------------------|------------|
+| STAC search (`search`, `sync`, `get`) | 5 transport retries with exponential backoff, each logged; then a second pass at the end of the range retrying every failed day once | Day skipped and recorded → `FAILED DAY:` on stderr, exit 3 |
+| Catalog build | The same transport retries (it shares the STAC client); no second pass | Baseline skipped and reported at the end, exit 3 |
+| Download | None — one attempt per file, plus one token refresh on 401/403 | File recorded in `errors.txt`, exit 3 |
+
+The retried statuses are **429, 500, 502, 503 and 504** — rate limiting plus
+the gateway errors MAAP's load balancer returns under load. Anything else (400,
+404, a malformed response) is treated as non-transient and fails immediately.
+Backoff doubles: sleeps of 0, 4, 8, 16 and 32 seconds across the five retries.
+
+One exception to the table: when a run's only per-file failures are filenames
+that cannot be parsed into a data path, `download` and `get` exit 4 instead,
+because retrying cannot help until the entries are fixed.
+
+**Retry cadence between runs is the caller's policy.** The client never sleeps
+waiting for a server to recover; it exits 3 and lets your cron job or wrapper
+script decide when to try again. See [Exit Codes](#exit-codes) for the contract.
+
+**Re-running is cheap**, which is what makes that policy workable:
+- Discovered URLs are registered day by day as they are found, so an interrupted
+  run keeps everything it had already discovered.
+- Files that already exist on disk are skipped (`skip_existing`, on by default).
+- Downloads are atomic: each file is written to a `.part` sibling and renamed
+  into place only once complete, so an interrupted transfer never leaves a
+  truncated file for a later run to mistake for a finished one.
 
 ---
 
@@ -898,15 +934,11 @@ without parsing logs:
 | 3    | Transient     | Re-run the same command later; completed work is kept and gaps fill in |
 | 4    | Non-transient | Do not retry; fix the request                                |
 
-**Where retries happen:** `search` and `catalog build` retry transient HTTP
-errors inside the process (5 transport retries with exponential backoff, each
-one logged). Downloads do not: every file gets a single attempt, plus one
-token refresh on 401/403. Retry cadence for downloads is the caller's policy —
-a failed file exits 3, and re-running the same command fetches only what is
-missing, since state is tracked per URL and downloads are atomic.
+See [Reliability](#reliability) for what each command retries before it gives
+up and returns one of these codes.
 
-A partially successful run (some days failed after transport retries were
-exhausted) exits 3 and lists each gap on stderr in a stable format:
+A partially successful run (some days failed after every retry was exhausted)
+exits 3 and lists each gap on stderr in a stable format:
 
     FAILED DAY: 2025-03-14 (503 Server Error ...)
     WARNING: 1 day(s) failed; re-run the same command to fill the gaps
