@@ -8,16 +8,12 @@ examples/
 EXAMPLES_ME.md
 LESSONS_LEARNED.md
 SETUP.md
-CLAUDE.md
 
 # Data and registry files (keep structure, ignore contents)
 data/EarthCARE/
 registry/urls/EarthCARE/
 registry/downloads/EarthCARE/
 registry/marked/EarthCARE/
-
-# Specific examples
-examples/cron/maap_build_all_catalogs_parallel.sh
 
 # Build artifacts
 *.egg-info/
@@ -33,10 +29,10 @@ __pycache__/
 # OS
 .DS_Store
 
-# tmo
+# tmp
 tmp
 
-# Claude worktrees
+# worktrees
 .worktrees/
 
 # Other docs
