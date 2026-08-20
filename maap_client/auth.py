@@ -66,6 +66,19 @@ def load_credentials(credentials_file: Optional[Path] = None) -> Credentials:
     )
 
 
+def _error_response_detail(response: Optional[requests.Response]) -> str:
+    """Extract a human-readable reason from an IAM error response, if any."""
+    if response is None:
+        return ""
+    try:
+        body = response.json()
+    except ValueError:
+        return response.text.strip()[:200]
+    if isinstance(body, dict):
+        return body.get("error_description") or body.get("error") or ""
+    return ""
+
+
 class TokenManager:
     """Manages OAuth2 token lifecycle with caching."""
 
@@ -115,7 +128,11 @@ class TokenManager:
             response = requests.post(self._token_url, data=data, timeout=30)
             response.raise_for_status()
         except requests.RequestException as e:
-            raise AuthenticationError(f"Failed to refresh token: {e}")
+            message = f"Failed to refresh token: {e}"
+            detail = _error_response_detail(e.response)
+            if detail:
+                message += f" ({detail})"
+            raise AuthenticationError(message)
 
         response_json = response.json()
         access_token = response_json.get("access_token")
