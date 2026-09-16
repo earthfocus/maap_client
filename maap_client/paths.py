@@ -14,6 +14,10 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+# Root of the MAAP archive serving EarthCARE products over HTTPS. The layout
+# below it is keyed entirely by the filename (see filename_to_url).
+EARTHCARE_DATA_URL = "https://catalog.maap.eo.esa.int/data/earthcare-pdgs-01/EarthCARE"
+
 
 def generate_data_path(
     data_dir: Path,
@@ -579,4 +583,41 @@ def url_to_local_path(
         dt=info["sensing_time"],
         filename=info["filename"],
         product_dir=product_dir,
+    )
+
+
+def filename_to_url(filename: str) -> Optional[str]:
+    """
+    Rebuild the MAAP download URL of an EarthCARE product from its filename.
+
+    The archive lays products out as
+    ``.../{product_type}/{baseline}/{yyyy}/{mm}/{dd}/{stem}/{stem}/{filename}``
+    (the stem repeats), dated by sensing time, so every field comes from the
+    filename and no catalogue query is needed. The URL is the enclosure asset
+    and needs a MAAP token to download; it is not the public STAC item page.
+
+    Counterpart of ``url_to_local_path``, which maps the same product onto the
+    local convention instead (that one keys on collection, the URL does not).
+
+    Args:
+        filename: Product filename or path (directory is stripped)
+
+    Returns:
+        Download URL, or None for non-EarthCARE or unparsable names
+    """
+    info = extract_info(filename)
+    if info["mission"] != "ECA":
+        return None
+
+    product_type = info["product_type"]
+    baseline = info["baseline"]
+    dt = info["sensing_time"]
+    if not (product_type and baseline and dt):
+        return None
+
+    name = info["filename"]
+    stem = os.path.splitext(name)[0]
+    return (
+        f"{EARTHCARE_DATA_URL}/{product_type}/{baseline}"
+        f"/{dt.year:04d}/{dt.month:02d}/{dt.day:02d}/{stem}/{stem}/{name}"
     )
