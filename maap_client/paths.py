@@ -586,6 +586,38 @@ def url_to_local_path(
     )
 
 
+def extract_collection(path: str | Path) -> Optional[str]:
+    """
+    Read the collection back from a local data path.
+
+    Inverse of ``generate_data_path``: the directory above
+    ``{product_type}/{baseline}/{yyyy}/{mm}/{dd}`` (optionally followed by the
+    ``{stem}`` product directory), all checked against the filename.
+
+    Args:
+        path: Local path of a product file laid out by ``generate_data_path``
+
+    Returns:
+        Collection name, or None for unparsable names or paths outside the layout
+    """
+    path = Path(path)
+    info = extract_info(str(path))
+    product_type = info["product_type"]
+    baseline = info["baseline"]
+    dt = info["sensing_time"]
+    if not (product_type and baseline and dt):
+        return None
+
+    parts = path.parent.parts
+    if parts and parts[-1] == path.stem:
+        parts = parts[:-1]
+    tail = (product_type, baseline, f"{dt.year:04d}", f"{dt.month:02d}", f"{dt.day:02d}")
+    if len(parts) <= len(tail) or parts[-len(tail):] != tail:
+        return None
+    collection = parts[-len(tail) - 1]
+    return None if collection == path.anchor else collection
+
+
 def filename_to_url(filename: str) -> Optional[str]:
     """
     Rebuild the MAAP download URL of an EarthCARE product from its filename.
