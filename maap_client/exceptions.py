@@ -66,7 +66,7 @@ class BatchDownloadAborted(MaapError):
 
 # CLI exit-code taxonomy, consumed by wrapper scripts to apply retry policy.
 EXIT_OK = 0
-EXIT_AUTH_FATAL = 2       # token refresh dead, persistent 401/403 - global stop
+EXIT_AUTH_FATAL = 2       # token refresh dead, persistent 401 - global stop
 EXIT_TRANSIENT = 3        # 5xx/timeouts/connection/partial result - retry later
 EXIT_NON_TRANSIENT = 4    # 400 / invalid request - retrying will not help
 
@@ -89,13 +89,15 @@ def classify_exit_code(exc: BaseException) -> int:
     """Map an exception to the CLI exit-code taxonomy."""
     if isinstance(exc, (AuthenticationError, CredentialsError)):
         return EXIT_AUTH_FATAL
+    # A download 403 that survived the token refresh denies that one object
+    # (S3 answers 403 for a missing key), not the session: transient.
     if isinstance(exc, BatchDownloadAborted):
         last = exc.last_error
-        if isinstance(last, DownloadError) and last.status_code in (401, 403):
+        if isinstance(last, DownloadError) and last.status_code == 401:
             return EXIT_AUTH_FATAL
         return EXIT_TRANSIENT
     if isinstance(exc, DownloadError):
-        if exc.status_code in (401, 403):
+        if exc.status_code == 401:
             return EXIT_AUTH_FATAL
         if exc.status_code == 400:
             return EXIT_NON_TRANSIENT
