@@ -5,7 +5,7 @@ import logging
 import sys
 from pathlib import Path
 
-from maap_client.constants import __version__
+from maap_client.constants import TOKEN_RENEW_URL, __version__
 from maap_client.cli_helpers import frames_arg
 from maap_client.exceptions import classify_exit_code
 from maap_client.cli_commands import (
@@ -21,6 +21,7 @@ from maap_client.cli_commands import (
     cmd_state_mark,
     cmd_state_cleanup,
     cmd_config,
+    cmd_token,
 )
 
 
@@ -535,6 +536,17 @@ Notes:
         description="Show the currently loaded configuration including all paths and settings.",
     )
     config_parser.set_defaults(func=cmd_config)
+
+    # --- token subcommand ---
+    token_parser = subparsers.add_parser(
+        "token",
+        help="Show when the offline token expires",
+        description="Show when the offline token in the credentials file expires (read from "
+                    "the token itself, no request). Renew it at " + TOKEN_RENEW_URL,
+    )
+    token_parser.add_argument("--days-left", action="store_true",
+                              help="Print only the whole days left (negative once expired)")
+    token_parser.set_defaults(func=cmd_token)
 
     return parser
 

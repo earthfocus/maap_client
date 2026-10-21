@@ -86,6 +86,7 @@ OFFLINE_TOKEN=<your_token>
 ```
 
 > The token expires after 90 days and must be renewed from the ESA portal.
+> `maap token` shows when (`--days-left` prints only the days, for scripts).
 
 ---
 
@@ -768,6 +769,7 @@ maap state cleanup <coll> <prod> <bl>         Delete marked files
 maap catalog update [collection]              Update catalog queryables
 maap catalog build [collection]               Build metadata cache
 maap config                                   Show configuration
+maap token [--days-left]                      Show when the offline token expires
 ```
 
 Use `maap <command> -h` for detailed help on any command.

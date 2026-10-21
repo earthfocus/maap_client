@@ -68,6 +68,9 @@ STAC_RETRY_ALLOWED_METHODS = ("GET", "POST")
 # attempt per file (plus the 401/403 token refresh in download.py) and no
 # transient retry loop — retry cadence lives in the wrapper
 
+# Where a new 90-day offline token is issued.
+TOKEN_RENEW_URL = "https://portal.maap.eo.esa.int/ini/services/auth/token/90dToken.php"
+
 # Token refresh retries when IAM cannot answer (proxy/connection errors or
 # a busy status), with the STAC cadence: sleeps of 0, 4, 8, 16, 32 s.
 TOKEN_RETRY_TOTAL = 5

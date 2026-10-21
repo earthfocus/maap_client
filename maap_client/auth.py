@@ -1,5 +1,7 @@
 """OAuth2 authentication for MAAP API."""
 
+import base64
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -74,6 +76,16 @@ def load_credentials(credentials_file: Optional[Path] = None) -> Credentials:
         client_secret=client_secret,
         offline_token=offline_token,
     )
+
+
+def offline_token_expiry(credentials: Credentials) -> datetime:
+    """When the offline token expires: the "exp" claim of its JWT payload."""
+    try:
+        payload = credentials.offline_token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        return datetime.fromtimestamp(int(claims["exp"]), timezone.utc)
+    except (IndexError, ValueError, TypeError, KeyError) as e:
+        raise CredentialsError(f"Cannot read the offline token expiry: {e!r}") from e
 
 
 def _error_response_detail(response: Optional[requests.Response]) -> str:

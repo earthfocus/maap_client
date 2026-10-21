@@ -588,6 +588,21 @@ def cmd_state_cleanup(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_token(args: argparse.Namespace) -> int:
+    """Handle 'token' command - show when the offline token expires."""
+    from datetime import datetime, timezone
+    from maap_client.auth import load_credentials, offline_token_expiry
+
+    config = MaapConfig.load(args.config) if args.config else MaapConfig.load()
+    expiry = offline_token_expiry(load_credentials(config.credentials_file))
+    days_left = (expiry - datetime.now(timezone.utc)).days
+    if args.days_left:
+        print(days_left)
+    else:
+        print(f"Offline token expires {expiry:%Y-%m-%d %H:%M} UTC ({days_left} days left)")
+    return 0
+
+
 def cmd_config(args: argparse.Namespace) -> int:
     """Handle 'config' command - show loaded configuration."""
     config = MaapConfig.load(args.config) if args.config else MaapConfig.load()
