@@ -1,13 +1,23 @@
 """OAuth2 authentication for MAAP API."""
 
+import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 import requests
 
-from maap_client.constants import DEFAULT_TOKEN_URL, DEFAULT_CREDENTIALS_FILE
-from maap_client.exceptions import AuthenticationError, CredentialsError
+from maap_client.constants import (
+    DEFAULT_CREDENTIALS_FILE,
+    DEFAULT_TOKEN_URL,
+    TOKEN_RETRY_BACKOFF_FACTOR,
+    TOKEN_RETRY_STATUSES,
+    TOKEN_RETRY_TOTAL,
+)
+from maap_client.exceptions import AuthenticationError, AuthServiceUnavailable, CredentialsError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -124,15 +134,24 @@ class TokenManager:
             "scope": "offline_access openid",
         }
 
-        try:
-            response = requests.post(self._token_url, data=data, timeout=30)
-            response.raise_for_status()
-        except requests.RequestException as e:
-            message = f"Failed to refresh token: {e}"
-            detail = _error_response_detail(e.response)
-            if detail:
-                message += f" ({detail})"
-            raise AuthenticationError(message)
+        for attempt in range(TOKEN_RETRY_TOTAL + 1):
+            try:
+                response = requests.post(self._token_url, data=data, timeout=30)
+                response.raise_for_status()
+                break
+            except requests.RequestException as e:
+                message = f"Failed to refresh token: {e}"
+                detail = _error_response_detail(e.response)
+                if detail:
+                    message += f" ({detail})"
+                status = e.response.status_code if e.response is not None else None
+                if status is not None and status not in TOKEN_RETRY_STATUSES:
+                    raise AuthenticationError(message)
+                if attempt == TOKEN_RETRY_TOTAL:
+                    raise AuthServiceUnavailable(message)
+                delay = TOKEN_RETRY_BACKOFF_FACTOR * 2 ** attempt if attempt else 0
+                logger.warning(f"Token refresh retry {attempt + 1}/{TOKEN_RETRY_TOTAL} in {delay} s: {message}")
+                time.sleep(delay)
 
         response_json = response.json()
         access_token = response_json.get("access_token")

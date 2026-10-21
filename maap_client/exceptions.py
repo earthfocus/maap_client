@@ -13,6 +13,12 @@ class AuthenticationError(MaapError):
     pass
 
 
+class AuthServiceUnavailable(AuthenticationError):
+    """MAAP IAM could not be reached or answered 429/5xx: the token may be fine."""
+
+    pass
+
+
 class CredentialsError(MaapError):
     """Missing or invalid credentials."""
 
@@ -87,6 +93,8 @@ def _http_status_from_chain(exc: BaseException) -> int | None:
 
 def classify_exit_code(exc: BaseException) -> int:
     """Map an exception to the CLI exit-code taxonomy."""
+    if isinstance(exc, AuthServiceUnavailable):
+        return EXIT_TRANSIENT
     if isinstance(exc, (AuthenticationError, CredentialsError)):
         return EXIT_AUTH_FATAL
     # A download 403 that survived the token refresh denies that one object

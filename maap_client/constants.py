@@ -67,3 +67,9 @@ STAC_RETRY_ALLOWED_METHODS = ("GET", "POST")
 # Scope, deliberate: these apply to STAC search only. Downloads get one
 # attempt per file (plus the 401/403 token refresh in download.py) and no
 # transient retry loop — retry cadence lives in the wrapper
+
+# Token refresh retries when IAM cannot answer (proxy/connection errors or
+# a busy status), with the STAC cadence: sleeps of 0, 4, 8, 16, 32 s.
+TOKEN_RETRY_TOTAL = 5
+TOKEN_RETRY_BACKOFF_FACTOR = 2
+TOKEN_RETRY_STATUSES = (429, 500, 502, 503, 504)

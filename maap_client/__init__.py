@@ -12,6 +12,7 @@ from maap_client.config import MaapConfig
 from maap_client.constants import DEFAULT_COLLECTIONS, __version__
 from maap_client.exceptions import (
     AuthenticationError,
+    AuthServiceUnavailable,
     InvalidRequestError,
     MaapError,
 )
@@ -40,4 +41,5 @@ __all__ = [
     "MaapError",
     "InvalidRequestError",
     "AuthenticationError",
+    "AuthServiceUnavailable",
 ]
