@@ -1,5 +1,7 @@
 # MAAP Client
 
+[![PyPI](https://img.shields.io/pypi/v/maap-client)](https://pypi.org/project/maap-client/)
+
 A Python client for accessing ESA MAAP satellite data. Provides both a CLI (`maap`) and a Python library for browsing catalogs, searching products, and downloading authenticated HDF5 files. By default, it's configured for EarthCARE data, but supports other missions (Aeolus) through configuration.
 
 ## Table of Contents
@@ -57,7 +59,7 @@ A Python client for accessing ESA MAAP satellite data. Provides both a CLI (`maa
 ## Installation
 
 ```bash
-pip install git+https://github.com/earthfocus/maap_client.git
+pip install maap-client
 ```
 
 Or for development:
@@ -997,6 +999,7 @@ maap catalog build <collection>
 
 ## Links
 
+- PyPI: https://pypi.org/project/maap-client/
 - ESA MAAP Portal: https://portal.maap.eo.esa.int
 - MAAP Catalog: https://catalog.maap.eo.esa.int
 - Token Request: https://portal.maap.eo.esa.int/ini/services/auth/token/90dToken.php

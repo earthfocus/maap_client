@@ -1,16 +1,26 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "maap_client"
+name = "maap-client"
 version = "0.2.1"
 description = "Python client for ESA MAAP EarthCARE satellite data access"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "Bernat"}
+]
+keywords = ["esa", "maap", "earthcare", "aeolus", "stac", "satellite", "remote-sensing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
 dependencies = [
     "requests>=2.28",
@@ -23,6 +33,10 @@ dev = [
     "ruff",
     "black",
 ]
+
+[project.urls]
+Homepage = "https://github.com/earthfocus/maap_client"
+Issues = "https://github.com/earthfocus/maap_client/issues"
 
 [project.scripts]
 maap = "maap_client.cli:main"
