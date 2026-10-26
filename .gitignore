@@ -40,3 +40,6 @@ docs/
 
 # Tests
 tests/
+
+# Local release notes
+RELEASING.md
