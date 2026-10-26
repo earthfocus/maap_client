@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
 
+# Least privilege: build only reads the repo; publish (below) gets just the
+# OIDC token PyPI trusted publishing needs — no API token secret exists.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
