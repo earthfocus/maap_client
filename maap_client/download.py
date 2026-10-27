@@ -193,6 +193,12 @@ class DownloadManager:
                 logger.warning("  Skipping - cannot extract datetime from filename")
                 continue
 
+            try:
+                relpath = local_relpath(url, self._product_dir)
+            except ValueError as e:
+                logger.warning(f"  Skipping - {e}")
+                continue
+
             # The day folder keeps the caller's product_type/baseline (as
             # before); the part below it is the URL's local_relpath.
             output_path = generate_data_path(
@@ -202,7 +208,7 @@ class DownloadManager:
                 product_type=product_type,
                 baseline=baseline,
                 dt=dt,
-                filename=str(local_relpath(url, self._product_dir)),
+                filename=str(relpath),
             )
 
             # Skip if exact file exists

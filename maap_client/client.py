@@ -126,6 +126,10 @@ class MaapClient:
 
     # === VALIDATION ===
 
+    _BIOMASS_FILES_MESSAGE = (
+        "Biomass individual files need --product-dir: names repeat across and within products"
+    )
+
     def _check_download_layout(
         self,
         urls: list[str],
@@ -143,17 +147,20 @@ class MaapClient:
 
         Raises:
             InvalidRequestError: On an individual Biomass file without
-                product_dir, or two different URLs sharing a local path
+                product_dir, a URL with unsafe path segments (``..``), or two
+                different URLs sharing a local path
         """
         if not product_dir and any(
             mission_for_filename(url) is BIOMASS and not is_zip_url(url) for url in urls
         ):
-            raise InvalidRequestError(
-                "Biomass individual files need --product-dir: names repeat across and within products"
-            )
+            raise InvalidRequestError(self._BIOMASS_FILES_MESSAGE)
 
         seen: dict[Path, str] = {}
         for url in dict.fromkeys(urls):
+            try:
+                local_relpath(url, product_dir)
+            except ValueError as e:
+                raise InvalidRequestError(str(e)) from e
             if out_dir:
                 path = out_dir / local_relpath(url, product_dir)
             else:

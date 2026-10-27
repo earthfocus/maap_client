@@ -448,27 +448,35 @@ def local_relpath(url: str, product_dir: bool) -> Path:
         product_dir: If True, place the file inside a folder named after the product
 
     Returns:
-        Relative local path
+        Relative local path (never absolute, never containing ``..``)
+
+    Raises:
+        ValueError: If the URL yields an empty, ``.`` or ``..`` path segment
     """
     path = urlparse(url).path
     parsed = _parse(url)
     product = parsed.product if parsed else split_product_url(path)[0]
 
+    filename = os.path.basename(path)
     if is_zip_url(url):
         name = f"{product}.zip"
-        return Path(product, name) if product_dir else Path(name)
+        segments = [product, name] if product_dir else [name]
+    elif not product_dir:
+        segments = [filename]
+    else:
+        parts = path.split("/")
+        inner = [filename]
+        if product in parts:
+            i = parts.index(product)
+            # empty segments (doubled slashes) are dropped, so the path can
+            # never turn absolute
+            inner = [part for part in parts[i + 2:] if part] or inner
+        segments = [product, *inner]
 
-    filename = os.path.basename(path)
-    if not product_dir:
-        return Path(filename)
-
-    parts = path.split("/")
-    relpath = filename
-    if product in parts:
-        i = parts.index(product)
-        if len(parts) > i + 2:
-            relpath = "/".join(parts[i + 2:])
-    return Path(product, relpath)
+    # ".." or "." would escape (or collapse) the folder the file belongs in
+    if any(part in ("", ".", "..") for part in segments):
+        raise ValueError(f"unsafe local path from URL: {url}")
+    return Path(*segments)
 
 
 def url_to_local_path(
@@ -492,11 +500,15 @@ def url_to_local_path(
 
     Returns:
         Local path or None if the product type, baseline or sensing time
-        cannot be parsed
+        cannot be parsed, or the URL holds unsafe path segments
     """
     info = extract_info(url)
 
     if not (info["sensing_time"] and info["product_type"] and info["baseline"]):
+        return None
+    try:
+        relpath = local_relpath(url, product_dir)
+    except ValueError:
         return None
 
     return generate_data_path(
@@ -506,7 +518,7 @@ def url_to_local_path(
         product_type=info["product_type"],
         baseline=info["baseline"],
         dt=info["sensing_time"],
-        filename=str(local_relpath(url, product_dir)),
+        filename=str(relpath),
     )
 
 
