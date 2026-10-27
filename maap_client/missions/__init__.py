@@ -3,21 +3,26 @@
 import os
 from typing import Mapping, Optional, Sequence
 
-from maap_client.missions.aeolus import AEOLUS
+from maap_client.missions.aeolus import AEOLUS, AeolusName
 from maap_client.missions.base import Mission, ProductName, product_folder, split_product_url
-from maap_client.missions.biomass import BIOMASS
-from maap_client.missions.earthcare import EARTHCARE
-from maap_client.missions.flex import FLEX
+from maap_client.missions.biomass import BIOMASS, BiomassName
+from maap_client.missions.earthcare import EARTHCARE, EarthCAREName
+from maap_client.missions.flex import FLEX, FlexName
 
 MISSIONS: dict[str, Mission] = {m.name: m for m in (EARTHCARE, AEOLUS, BIOMASS, FLEX)}
 
 __all__ = [
     "MISSIONS",
+    "AeolusName",
+    "BiomassName",
+    "EarthCAREName",
+    "FlexName",
     "Mission",
     "ProductName",
     "get_mission",
     "mission_for_collection",
     "mission_for_filename",
+    "parse_product",
     "split_product_url",
 ]
 
@@ -62,3 +67,9 @@ def mission_for_collection(
         if collection in mission.collections or collection in extra.get(mission.name, ()):
             return mission
     return None
+
+
+def parse_product(name_or_url: str) -> Optional[ProductName]:
+    """Parse a product filename or URL with its mission, or None for an unknown prefix."""
+    mission = mission_for_filename(name_or_url)
+    return mission.parse(name_or_url) if mission else None

@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-from maap_client.missions import mission_for_filename, split_product_url
-from maap_client.missions.base import Mission, ProductName
+from maap_client.missions import mission_for_filename, parse_product, split_product_url
+from maap_client.missions.base import Mission
 
 
 logger = logging.getLogger(__name__)
@@ -86,28 +86,9 @@ def generate_registry_path(
     return registry_dir / prefix / mission / collection / product_type / baseline
 
 
-def _parse(uri: str) -> Optional[ProductName]:
-    """Parse a product filename or URL with its mission, or None for an unknown prefix."""
-    mission = mission_for_filename(uri)
-    return mission.parse(uri) if mission else None
-
-
 def extract_sensing_time(filename: str) -> Optional[datetime]:
-    """
-    Extract sensing time (first timestamp) from product filename.
-
-    Supported formats:
-    - Aeolus with ms: _YYYYMMDDTHHMMSSMMM_ (e.g., _20230422T165721033_)
-    - EarthCARE: _YYYYMMDDTHHMMSSZ_ (e.g., _20250908T232505Z_)
-    - Aeolus without ms: _YYYYMMDDTHHMMSS_ (e.g., _20190430T015241_)
-
-    Args:
-        filename: Product filename (or full path - directory is stripped)
-
-    Returns:
-        Sensing datetime or None if not found
-    """
-    parsed = _parse(filename)
+    """Sensing time (first timestamp of the name), or None."""
+    parsed = parse_product(filename)
     return parsed.sensing_time if parsed else None
 
 
@@ -129,194 +110,52 @@ def sort_by_sensing_time(items: list[str], reverse: bool = False) -> list[str]:
 
 
 def extract_creation_time(filename: str) -> Optional[datetime]:
-    """
-    Extract creation time (second timestamp) from EarthCARE filename.
-
-    Example: ECA_EXBA_BM__RAD_2B_20250908T232505Z_20250909T010458Z_07282E.h5
-                                                  ^^^^^^^^^^^^^^^^ creation time
-
-    Aeolus products do not have a creation time encoded in their filename.
-
-    Args:
-        filename: Product filename (or full path - directory is stripped)
-
-    Returns:
-        Creation datetime or None if not found
-    """
-    parsed = _parse(filename)
+    """Creation time of the name, or None where the mission's names carry none."""
+    parsed = parse_product(filename)
     return parsed.creation_time if parsed else None
 
 
 def extract_orbit_frame(filename: str) -> Optional[str]:
-    """
-    Extract orbit+frame as a string from product filename.
-
-    EarthCARE: ECA_EXBA_BM__RAD_2B_20250908T232505Z_20250909T010458Z_07282E.h5
-               Returns: "07282E" (5 digits + frame letter)
-
-    Aeolus: AE_OPER_ALD_U_N_1B_20230422T165721033_005543989_027018_0001.DBL
-            Returns: "027018" (6 digits, no frame letter)
-
-    Args:
-        filename: Product filename (or full path - directory is stripped)
-
-    Returns:
-        Orbit+frame string (e.g., "07282E" or "027018") or None if not found
-    """
-    parsed = _parse(filename)
+    """Legacy orbit+frame string (e.g. "07282E", "027018"), or None."""
+    parsed = parse_product(filename)
     return parsed.orbit_frame if parsed else None
 
 
 def extract_agency(filename: str) -> Optional[str]:
-    """
-    Extract agency code from product filename.
-
-    EarthCARE:
-        ECA_EXBC_BM__RAD_2B_20250908T232505Z_20250909T010458Z_07282E.h5
-             ^^
-           agency = EX (ESA products), JX (JAXA products)
-
-    Aeolus:
-        AE_OPER_ALD_U_N_1B_20230422T165721033_005543989_027018_0001.DBL
-           Returns: "EX" (Aeolus is an ESA mission)
-
-    Args:
-        filename: Product filename (or full path - directory is stripped)
-
-    Returns:
-        Agency string (e.g., "EX", "JX") or None if not found
-    """
-    parsed = _parse(filename)
-    return parsed.agency if parsed else None
+    """Agency code (e.g. "EX", "JX"), or None where the mission's names carry none."""
+    return getattr(parse_product(filename), "agency", None)
 
 
 def extract_file_class(filename: str) -> Optional[str]:
-    """
-    Extract file class from Aeolus filename.
-
-    Aeolus only:
-        AE_OPER_ALD_U_N_1B_20230422T165721033_005543989_027018_0001.DBL
-           ^^^^
-           file_class = OPER
-
-    File classes:
-        - OPER: routine operations
-        - OSVA: operational data acquired at Svalbard
-        - OTRO: operational data acquired at Antarctiva Troll station (used for Aeolus)
-        - RPRO: reprocessing
-        - OFFL: backlog
-        - TEST: internal tests
-
-    Args:
-        filename: Product filename (or full path - directory is stripped)
-
-    Returns:
-        File class string (e.g., "OPER", "RPRO") or None if not Aeolus
-    """
-    parsed = _parse(filename)
-    return parsed.fields.get("file_class") if parsed else None
+    """Aeolus file class (e.g. "OPER", "RPRO"), or None."""
+    return getattr(parse_product(filename), "file_class", None)
 
 
 def extract_duration_ms(filename: str) -> Optional[int]:
-    """
-    Extract sensing duration in milliseconds from Aeolus filename.
-
-    Aeolus only:
-        AE_OPER_ALD_U_N_1B_20230422T165721033_005543989_027018_0001.DBL
-                                              ^^^^^^^^^
-                                              duration = 5543989 ms
-
-    Args:
-        filename: Product filename (or full path - directory is stripped)
-
-    Returns:
-        Duration in milliseconds or None if not Aeolus
-    """
-    parsed = _parse(filename)
-    duration = parsed.fields.get("duration_ms") if parsed else None
-    return int(duration) if duration is not None else None
+    """Aeolus sensing duration in milliseconds, or None."""
+    return getattr(parse_product(filename), "duration_ms", None)
 
 
 def extract_file_version(filename: str) -> Optional[str]:
-    """
-    Extract file version from Aeolus filename.
-
-    Aeolus only:
-        AE_OPER_ALD_U_N_1B_20230422T165721033_005543989_027018_0001.DBL
-                                                               ^^^^
-                                                               version = 0001
-
-    Args:
-        filename: Product filename (or full path - directory is stripped)
-
-    Returns:
-        File version string (e.g., "0001") or None if not Aeolus
-    """
-    parsed = _parse(filename)
-    return parsed.fields.get("file_version") if parsed else None
+    """Aeolus file version as four digits (e.g. "0001"), or None."""
+    version = getattr(parse_product(filename), "file_version", None)
+    return f"{version:04d}" if version is not None else None
 
 
 def extract_baseline(uri: str) -> Optional[str]:
-    """
-    Extract baseline version from product filename or URL path.
-
-    EarthCARE (from filename):
-        ECA_EXBC_BM__RAD_2B_20250908T232505Z_20250909T010458Z_07282E.h5
-              ^^
-            baseline = BC (ECA_EX + baseline)
-
-    Aeolus (from URL path - baseline not in filename):
-        .../ALD_U_N_1B/1B16/2023/04/22/...
-                       ^^^^
-            baseline = 1B16
-
-    Args:
-        uri: Product URL or filename
-
-    Returns:
-        Baseline string (e.g., "BC", "1B16") or None if not found
-    """
-    parsed = _parse(uri)
+    """Baseline from the name or URL path (e.g. "BC", "1B16", "NO_BASELINE"), or None."""
+    parsed = parse_product(uri)
     return parsed.baseline if parsed else None
 
 
 def extract_product(filename: str) -> Optional[str]:
-    """
-    Extract product type from product filename.
-
-    EarthCARE:
-        ECA_EXBC_BM__RAD_2B_20250908T232505Z_20250909T010458Z_07282E.h5
-                 ^^^^^^^^^^
-               product = BM__RAD_2B
-
-    Aeolus:
-        AE_OPER_ALD_U_N_1B_20230422T165721033_005543989_027018_0001.DBL
-                ^^^^^^^^^^
-               product = ALD_U_N_1B
-
-    Args:
-        filename: Product filename (or full path - directory is stripped)
-
-    Returns:
-        Product type string (e.g., "CPR_NOM_1B", "ALD_U_N_1B") or None if not found
-    """
-    parsed = _parse(filename)
+    """Product type (e.g. "CPR_NOM_1B", "ALD_U_N_1B"), or None."""
+    parsed = parse_product(filename)
     return parsed.product_type if parsed else None
 
 
 def extract_mission(filename: str) -> Optional[str]:
-    """
-    Extract mission identifier from filename.
-
-    EarthCARE: ECA_EXBC_BM__RAD_2B_... → "ECA"
-    Aeolus: AE_OPER_ALD_U_N_1B_... → "AE"
-
-    Args:
-        filename: Product filename (or full path - directory is stripped)
-
-    Returns:
-        Mission identifier ("ECA" or "AE") or None if not recognized
-    """
+    """Mission code of the name (e.g. "ECA", "AE"), or None."""
     mission = mission_for_filename(filename)
     return mission.code if mission else None
 
@@ -346,11 +185,11 @@ def extract_info(uri: str) -> dict[str, Any]:
     Returns:
         Dict with extracted metadata (values may be None if parsing fails)
     """
-    parsed = _parse(uri)
+    parsed = parse_product(uri)
     return {
         "filename": os.path.basename(uri),
         "mission": parsed.mission if parsed else None,
-        "agency": parsed.agency if parsed else None,
+        "agency": getattr(parsed, "agency", None),
         "baseline": parsed.baseline if parsed else None,
         "product_type": parsed.product_type if parsed else None,
         "sensing_time": parsed.sensing_time if parsed else None,
@@ -433,9 +272,10 @@ def filter_by_fields(items: list[str], filters: dict[str, list[str]], mission: M
     """
     Filter URLs/paths by the mission filters read from their product names.
 
-    An item is kept when, for every filter, its ProductName.fields value is
-    one of the accepted values (unpadded decimal strings, as the parser gives
-    them). A blank field in the name (e.g. Biomass L2 ``C___``) matches nothing.
+    An item is kept when, for every filter, its ProductName attribute is one
+    of the accepted values (decimal strings, as parse_filter_values gives
+    them, compared as integers). A blank field in the name (e.g. Biomass L2
+    ``C___``) matches nothing.
 
     Args:
         items: List of URLs or paths to filter
@@ -454,14 +294,15 @@ def filter_by_fields(items: list[str], filters: dict[str, list[str]], mission: M
     if unknown:
         raise ValueError(f"{mission.name} has no {', '.join(unknown)} filter")
 
+    accepted = {option: {int(value) for value in values} for option, values in filters.items()}
     result = []
     undocumented: set[str] = set()
     for item in items:
         parsed = mission.parse(item)
-        if not any(parsed.fields.get(spec.field) for spec in specs.values()):
+        if all(getattr(parsed, spec.attribute) is None for spec in specs.values()):
             undocumented.add(parsed.product_type or parsed.product)
             continue
-        if all(parsed.fields.get(specs[option].field) in values for option, values in filters.items()):
+        if all(getattr(parsed, specs[option].attribute) in ints for option, ints in accepted.items()):
             result.append(item)
     if undocumented:
         raise ValueError(
@@ -501,7 +342,7 @@ def local_relpath(url: str, product_dir: bool) -> Path:
         ValueError: If the URL yields an empty, ``.`` or ``..`` path segment
     """
     path = urlparse(url).path
-    parsed = _parse(url)
+    parsed = parse_product(url)
     product = parsed.product if parsed else split_product_url(path)[0]
 
     filename = os.path.basename(path)

@@ -1,5 +1,8 @@
 """Constants for MAAP client."""
 
+# Baseline folder of the products that have none (declared per mission)
+from maap_client.missions.base import NO_BASELINE  # noqa: F401
+
 # Re-exported for compatibility: these sets now live in the EarthCARE mission module.
 from maap_client.missions.earthcare import (  # noqa: F401
     DEDUP_PRODUCTS,

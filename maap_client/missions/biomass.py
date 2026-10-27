@@ -36,12 +36,16 @@ only.
 
 import os
 import re
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 from maap_client.missions.base import (
     FilterSpec,
     Mission,
     ProductName,
+    declared_baseline,
+    match_group,
     parse_timestamp,
     product_folder,
     split_product_url,
@@ -86,7 +90,10 @@ _DOCUMENTED = re.compile(
     r"_\d{2}_[A-Z0-9]{6}$",
     re.IGNORECASE,
 )
-_NO_FIELDS = {k: None for k in ("phase", "global_coverage", "major_cycle", "repeat_cycle", "track", "frame")}
+
+# Verified rule: no MPL_ORBPRE item (BiomassAux, BiomassAuxIOC) has a baseline
+# in its URL, its name or a catalogue `version`.
+NO_BASELINE_PRODUCTS = frozenset({"MPL_ORBPRE"})
 
 
 def _product(url: str) -> str:
@@ -96,21 +103,85 @@ def _product(url: str) -> str:
     return product_folder(url) or split_product_url(url)[0]
 
 
-def _group(pattern: re.Pattern, text: str) -> Optional[str]:
-    match = pattern.search(text)
-    return match.group(1) if match else None
+def _documented(name_or_url: str, key: str) -> Optional[str]:
+    """A field of the documented grammar, or None for other types and blank (``__``) fields."""
+    match = _DOCUMENTED.match(_product(name_or_url))
+    value = match.group(key) if match else None
+    return None if value is None or value.startswith("_") else value
 
 
-def _fields(name: str) -> dict:
-    """Documented grammar fields; identifiers as unpadded decimal strings (`002` -> `2`)."""
-    match = _DOCUMENTED.match(name)
-    if not match:
-        return dict(_NO_FIELDS)
-    values = match.groupdict()
-    return {
-        key: None if value.startswith("_") else (value.upper() if key == "phase" else str(int(value)))
-        for key, value in values.items()
-    }
+def _identifier(name_or_url: str, key: str) -> Optional[int]:
+    value = _documented(name_or_url, key)
+    return int(value) if value is not None else None
+
+
+@dataclass(frozen=True)
+class BiomassName(ProductName):
+    """Biomass product name: ProductName plus the L1/L2a grammar fields (identifiers as int)."""
+
+    phase: Optional[str] = None
+    global_coverage: Optional[int] = None
+    major_cycle: Optional[int] = None
+    repeat_cycle: Optional[int] = None
+    track: Optional[int] = None
+    frame: Optional[int] = None
+
+
+def extract_product_type(name_or_url: str) -> Optional[str]:
+    """Product type, e.g. ``S3_DGM__1S``."""
+    product_type = match_group(_PRODUCT_TYPE, _product(name_or_url))
+    return product_type.upper() if product_type else None
+
+
+def extract_baseline(name_or_url: str) -> Optional[str]:
+    """Baseline, e.g. ``02``; NO_BASELINE for the types that have none."""
+    baseline = match_group(_BASELINE, _product(name_or_url))
+    return declared_baseline(baseline, extract_product_type(name_or_url), NO_BASELINE_PRODUCTS)
+
+
+def extract_sensing_time(name_or_url: str) -> Optional[datetime]:
+    """First timestamp of the name as UTC."""
+    sensing = match_group(_SENSING, _product(name_or_url))
+    return parse_timestamp(sensing.upper(), "%Y%m%dT%H%M%S") if sensing else None
+
+
+def extract_creation_time(name_or_url: str) -> None:
+    """Always None: the compact creation date has no documented encoding."""
+
+
+def extract_orbit(name_or_url: str) -> None:
+    """Always None: Biomass names carry no absolute orbit."""
+
+
+def extract_phase(name_or_url: str) -> Optional[str]:
+    """Mission phase letter, upper-case."""
+    phase = _documented(name_or_url, "phase")
+    return phase.upper() if phase else None
+
+
+def extract_global_coverage(name_or_url: str) -> Optional[int]:
+    """Global coverage identifier (``G``)."""
+    return _identifier(name_or_url, "global_coverage")
+
+
+def extract_major_cycle(name_or_url: str) -> Optional[int]:
+    """Major cycle identifier (``M``)."""
+    return _identifier(name_or_url, "major_cycle")
+
+
+def extract_repeat_cycle(name_or_url: str) -> Optional[int]:
+    """Repeat cycle identifier (``C``)."""
+    return _identifier(name_or_url, "repeat_cycle")
+
+
+def extract_track(name_or_url: str) -> Optional[int]:
+    """Track number (``T``)."""
+    return _identifier(name_or_url, "track")
+
+
+def extract_frame(name_or_url: str) -> Optional[int]:
+    """Frame number (``F``)."""
+    return _identifier(name_or_url, "frame")
 
 
 class _Biomass(Mission):
@@ -132,22 +203,24 @@ class _Biomass(Mission):
     )
     orbit_offline = False
     orbit_frame_suffix = False
+    no_baseline_products = NO_BASELINE_PRODUCTS
 
-    def parse(self, url: str) -> ProductName:
-        name = _product(url)
-        product_type = _group(_PRODUCT_TYPE, name)
-        sensing = _group(_SENSING, name)
-        return ProductName(
+    def parse(self, url: str) -> BiomassName:
+        return BiomassName(
             mission=self.code,
-            product=name,
+            product=_product(url),
             filename=os.path.basename(url),
-            product_type=product_type.upper() if product_type else None,
-            baseline=_group(_BASELINE, name),
-            agency=None,
-            sensing_time=parse_timestamp(sensing.upper(), "%Y%m%dT%H%M%S") if sensing else None,
-            creation_time=None,
-            orbit_frame=None,
-            fields=_fields(name),
+            product_type=extract_product_type(url),
+            baseline=extract_baseline(url),
+            sensing_time=extract_sensing_time(url),
+            creation_time=extract_creation_time(url),
+            orbit=extract_orbit(url),
+            phase=extract_phase(url),
+            global_coverage=extract_global_coverage(url),
+            major_cycle=extract_major_cycle(url),
+            repeat_cycle=extract_repeat_cycle(url),
+            track=extract_track(url),
+            frame=extract_frame(url),
         )
 
     def data_url(self, filename: str) -> Optional[str]:

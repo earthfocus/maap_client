@@ -19,17 +19,26 @@ note for those (ESA-EOPG-EOEP-TN-0015) is not published.
 sensing_time is the first timestamp of the name, which equals the item's
 start_datetime for every product type of every fixture item.
 
-Not supported: FLEXL2AuxProductsInternal items have no baseline in their URL
-and no documented name grammar, so their baseline is None (never guessed) and
-they are rejected as unparseable downstream. FLEX downloads are not validated
-(MAAP answers 403 without access).
+The FLEXL2AuxProductsInternal types listed in NO_BASELINE_PRODUCTS have no
+baseline in their URL and no documented name grammar: their baseline is
+NO_BASELINE (the trailing ``_01`` of their names is never read as one). FLEX
+downloads are not validated (MAAP answers 403 without access).
 """
 
 import os
 import re
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
-from maap_client.missions.base import Mission, ProductName, parse_timestamp, split_product_url
+from maap_client.missions.base import (
+    Mission,
+    ProductName,
+    declared_baseline,
+    match_group,
+    parse_timestamp,
+    split_product_url,
+)
 
 COLLECTIONS = (
     "FLEXL0AncProductsInternal",
@@ -77,7 +86,14 @@ _L2 = re.compile(
     rf"_(?P<baseline>\d{{2}}){_TAIL}",
     re.IGNORECASE,
 )
-_FIELDS = ("duration_s", "cycle", "relative_orbit", "anx_seconds", "tile")
+
+# Verified rule: no item of these types (FLEXL2AuxProductsInternal, AUX_CCCRAD
+# also FLEXTestAuxProducts) has a baseline in its URL or a catalogue `version`;
+# their names end in `_01`, but no document says that is the baseline.
+NO_BASELINE_PRODUCTS = frozenset({
+    "AUX_CCCRAD", "AUX_DVAERR", "AUX_MACV2_", "AUX_OLISRF", "AUX_REFCEN",
+    "AUX_SIFCOV", "AUX_SLISRF", "AUX_UTMTIL", "AUX_V_TEMP",
+})
 
 _DATA_ROOT = "https://catalog.maap.eo.esa.int/data/flex-pdgs-01/FLEX"
 
@@ -87,30 +103,93 @@ def _documented(name: str) -> Optional[re.Match]:
     return _L1C.match(name) or _L2.match(name)
 
 
-def _group(pattern: re.Pattern, text: str) -> Optional[str]:
-    match = pattern.search(text)
-    return match.group(1) if match else None
-
-
 def _type(name: str) -> Optional[str]:
-    product_type = _group(_PRODUCT_TYPE, name)
+    product_type = match_group(_PRODUCT_TYPE, name)
     if product_type:
         return product_type.upper()
     short = _L2_SHORT_TYPE.match(name)
     return f"{short.group(1)}__{short.group(2)}".upper() if short else None
 
 
-def _time(value: Optional[str]):
+def _time(value: Optional[str]) -> Optional[datetime]:
     return parse_timestamp(value.upper(), "%Y%m%dT%H%M%S") if value else None
 
 
-def _fields(match: Optional[re.Match]) -> dict:
-    """Documented grammar fields; identifiers as unpadded decimal strings (`005` -> `5`)."""
-    values = match.groupdict() if match else {}
-    return {
-        key: (values[key].upper() if key == "tile" else str(int(values[key]))) if values.get(key) else None
-        for key in _FIELDS
-    }
+def _name(name_or_url: str) -> str:
+    return FLEX.product_name(name_or_url)
+
+
+def _documented_field(name_or_url: str, key: str) -> Optional[str]:
+    """A field of the L1C or L2 grammar, or None for other types and fields of the other grammar."""
+    match = _documented(_name(name_or_url))
+    return match.groupdict().get(key) if match else None
+
+
+def _identifier(name_or_url: str, key: str) -> Optional[int]:
+    value = _documented_field(name_or_url, key)
+    return int(value) if value is not None else None
+
+
+@dataclass(frozen=True)
+class FlexName(ProductName):
+    """FLEX product name: ProductName plus the L1C/L2 grammar fields."""
+
+    duration_s: Optional[int] = None
+    cycle: Optional[int] = None
+    relative_orbit: Optional[int] = None
+    anx_seconds: Optional[int] = None
+    tile: Optional[str] = None  # MGRS tile (L2)
+
+
+def extract_product_type(name_or_url: str) -> Optional[str]:
+    """Product type, e.g. ``L1C_FLXSYN``; the documented ``l2_`` is read as ``L2__``."""
+    return _type(_name(name_or_url))
+
+
+def extract_baseline(name_or_url: str) -> Optional[str]:
+    """Baseline from the URL path, else from an L1C/L2 name; NO_BASELINE for types without one."""
+    baseline = match_group(_URL_BASELINE, name_or_url) or _documented_field(name_or_url, "baseline")
+    return declared_baseline(baseline, extract_product_type(name_or_url), NO_BASELINE_PRODUCTS)
+
+
+def extract_sensing_time(name_or_url: str) -> Optional[datetime]:
+    """First timestamp of the name as UTC."""
+    return _time(match_group(_SENSING, _name(name_or_url)))
+
+
+def extract_creation_time(name_or_url: str) -> Optional[datetime]:
+    """Creation timestamp of an L1C/L2 name as UTC."""
+    return _time(_documented_field(name_or_url, "creation"))
+
+
+def extract_orbit(name_or_url: str) -> None:
+    """Always None: FLEX names carry no absolute orbit."""
+
+
+def extract_duration_s(name_or_url: str) -> Optional[int]:
+    """Duration in seconds (L1C)."""
+    return _identifier(name_or_url, "duration_s")
+
+
+def extract_cycle(name_or_url: str) -> Optional[int]:
+    """Cycle number (L1C, L2)."""
+    return _identifier(name_or_url, "cycle")
+
+
+def extract_relative_orbit(name_or_url: str) -> Optional[int]:
+    """Relative orbit number (L1C, L2)."""
+    return _identifier(name_or_url, "relative_orbit")
+
+
+def extract_anx_seconds(name_or_url: str) -> Optional[int]:
+    """Seconds from the ascending node (L1C)."""
+    return _identifier(name_or_url, "anx_seconds")
+
+
+def extract_tile(name_or_url: str) -> Optional[str]:
+    """MGRS tile, upper-case (L2)."""
+    tile = _documented_field(name_or_url, "tile")
+    return tile.upper() if tile else None
 
 
 class _Flex(Mission):
@@ -125,24 +204,23 @@ class _Flex(Mission):
     default_formats = ("zip",)
     orbit_offline = False
     orbit_frame_suffix = False
+    no_baseline_products = NO_BASELINE_PRODUCTS
 
-    def parse(self, url: str) -> ProductName:
-        name = self.product_name(url)
-        documented = _documented(name)
-        baseline = _group(_URL_BASELINE, url)
-        if baseline is None and documented:
-            baseline = documented.group("baseline")
-        return ProductName(
+    def parse(self, url: str) -> FlexName:
+        return FlexName(
             mission=self.code,
             product=split_product_url(url)[0],
             filename=os.path.basename(url),
-            product_type=_type(name),
-            baseline=baseline,
-            agency=None,
-            sensing_time=_time(_group(_SENSING, name)),
-            creation_time=_time(documented.group("creation")) if documented else None,
-            orbit_frame=None,
-            fields=_fields(documented),
+            product_type=extract_product_type(url),
+            baseline=extract_baseline(url),
+            sensing_time=extract_sensing_time(url),
+            creation_time=extract_creation_time(url),
+            orbit=extract_orbit(url),
+            duration_s=extract_duration_s(url),
+            cycle=extract_cycle(url),
+            relative_orbit=extract_relative_orbit(url),
+            anx_seconds=extract_anx_seconds(url),
+            tile=extract_tile(url),
         )
 
     def data_url(self, filename: str) -> Optional[str]:

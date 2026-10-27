@@ -2,34 +2,41 @@
 
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Mapping, Optional
+from typing import Optional
+
+# Baseline of the products that have none (declared per mission in
+# Mission.no_baseline_products); distinct from None, a baseline not read.
+NO_BASELINE = "NO_BASELINE"
 
 
 @dataclass(frozen=True)
 class ProductName:
-    """Metadata read from a product filename or URL."""
+    """Metadata read from a product filename or URL: the fields every mission can have."""
 
     mission: str  # "ECA" | "AE" | "BIO" | "FLX"
     product: str  # product directory name (or file stem fallback)
     filename: str  # basename of the URL path
     product_type: Optional[str] = None
     baseline: Optional[str] = None
-    agency: Optional[str] = None
     sensing_time: Optional[datetime] = None
     creation_time: Optional[datetime] = None
-    orbit_frame: Optional[str] = None
-    fields: Mapping[str, Optional[str]] = field(default_factory=dict)  # mission extras
+    orbit: Optional[int] = None  # absolute orbit, where the name carries it
+
+    @property
+    def orbit_frame(self) -> Optional[str]:
+        """Legacy orbit+frame string (e.g. ``07282E``), or None for missions without one."""
+        return None
 
 
 @dataclass(frozen=True)
 class FilterSpec:
-    """A mission filter: CLI/API option, STAC queryable and ProductName.fields key."""
+    """A mission filter: CLI/API option, STAC queryable and ProductName attribute."""
 
     option: str  # "track" | "frame" | "repeat_cycle" | "major_cycle"
     queryable: str  # e.g. "track", "eofeos:repeat_cycle_id"
-    field: str  # key in ProductName.fields, for offline (registry) filtering
+    attribute: str  # int attribute of the mission's ProductName, for offline (registry) filtering
 
 
 def parse_filter_values(value: str) -> list[str]:
@@ -85,6 +92,21 @@ def product_folder(path: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+def match_group(pattern: re.Pattern, text: str) -> Optional[str]:
+    """First group of the first match of pattern in text, or None."""
+    match = pattern.search(text)
+    return match.group(1) if match else None
+
+
+def declared_baseline(
+    baseline: Optional[str], product_type: Optional[str], no_baseline: frozenset[str]
+) -> Optional[str]:
+    """The baseline read; if none, NO_BASELINE for a type declared without one, else None."""
+    if baseline is None and product_type in no_baseline:
+        return NO_BASELINE
+    return baseline
+
+
 def parse_timestamp(value: str, fmt: str) -> Optional[datetime]:
     """
     Parse a timestamp of a product name as UTC.
@@ -114,6 +136,7 @@ class Mission:
     orbit_frame_suffix: bool
     dedup_products: frozenset[str] = frozenset()
     no_orbit_products: frozenset[str] = frozenset()
+    no_baseline_products: frozenset[str] = frozenset()
 
     def available_filters(self) -> tuple[str, ...]:
         """Filter options of the mission: orbit, frame letters where orbits carry them, then its filters."""

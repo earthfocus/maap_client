@@ -20,9 +20,17 @@ No creation timestamp is documented, so creation_time is always None.
 
 import os
 import re
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
-from maap_client.missions.base import Mission, ProductName, parse_timestamp, split_product_url
+from maap_client.missions.base import (
+    Mission,
+    ProductName,
+    match_group,
+    parse_timestamp,
+    split_product_url,
+)
 
 COLLECTIONS = (
     "AeolusBaseline16Products10",
@@ -49,18 +57,78 @@ _DURATION = re.compile(r"_\d{8}T\d{9}_(\d{9})_\d{6}_\d{4}\.[A-Z]{3}$", re.IGNORE
 _VERSION = re.compile(r"_(\d{4})\.[A-Z]{3}$", re.IGNORECASE)
 
 
-def _group(pattern: re.Pattern, text: str) -> Optional[str]:
-    match = pattern.search(text)
-    return match.group(1) if match else None
+@dataclass(frozen=True)
+class AeolusName(ProductName):
+    """Aeolus product name: ProductName plus file class, duration and file version."""
+
+    file_class: Optional[str] = None  # OPER, RPRO, ...
+    duration_ms: Optional[int] = None
+    file_version: Optional[int] = None
+
+    @property
+    def agency(self) -> str:
+        """Agency code: Aeolus is an ESA mission, so always EX."""
+        return "EX"
+
+    @property
+    def orbit_frame(self) -> Optional[str]:
+        """Orbit as 6 digits, e.g. ``027018`` (Aeolus has no frames)."""
+        return f"{self.orbit:06d}" if self.orbit is not None else None
 
 
-def _baseline(url: str, product_type: Optional[str]) -> Optional[str]:
+def _name(name_or_url: str) -> str:
+    return AEOLUS.product_name(name_or_url)
+
+
+def extract_product_type(name_or_url: str) -> Optional[str]:
+    """File type, e.g. ``ALD_U_N_1B``."""
+    return match_group(_PRODUCT_TYPE, _name(name_or_url))
+
+
+def extract_baseline(name_or_url: str) -> Optional[str]:
+    """Baseline from the archive path, e.g. ``1B16``; None for a bare filename."""
+    product_type = extract_product_type(name_or_url)
     if product_type is None:
         return None
-    for match in _BASELINE_PATH.finditer(url):
+    for match in _BASELINE_PATH.finditer(name_or_url):
         if match.group("type").upper() == product_type:
             return match.group("baseline")
     return None
+
+
+def extract_sensing_time(name_or_url: str) -> Optional[datetime]:
+    """First timestamp of the name as UTC, with milliseconds where the name has them."""
+    sensing = match_group(_SENSING, _name(name_or_url))
+    if not sensing:
+        return None
+    return parse_timestamp(sensing, "%Y%m%dT%H%M%S%f" if len(sensing) > 15 else "%Y%m%dT%H%M%S")
+
+
+def extract_creation_time(name_or_url: str) -> None:
+    """Always None: Aeolus names carry no documented creation time."""
+
+
+def extract_orbit(name_or_url: str) -> Optional[int]:
+    """Absolute orbit number, for names with duration and orbit."""
+    orbit = match_group(_ORBIT, _name(name_or_url))
+    return int(orbit) if orbit else None
+
+
+def extract_file_class(name_or_url: str) -> Optional[str]:
+    """File class, e.g. ``OPER``."""
+    return match_group(_FILE_CLASS, _name(name_or_url))
+
+
+def extract_duration_ms(name_or_url: str) -> Optional[int]:
+    """Sensing duration in milliseconds."""
+    duration = match_group(_DURATION, _name(name_or_url))
+    return int(duration) if duration else None
+
+
+def extract_file_version(name_or_url: str) -> Optional[int]:
+    """File version, e.g. 1 for ``_0001``."""
+    version = match_group(_VERSION, _name(name_or_url))
+    return int(version) if version else None
 
 
 class _Aeolus(Mission):
@@ -74,26 +142,19 @@ class _Aeolus(Mission):
     orbit_offline = True
     orbit_frame_suffix = False
 
-    def parse(self, url: str) -> ProductName:
-        name = self.product_name(url)
-        product_type = _group(_PRODUCT_TYPE, name)
-        sensing = _group(_SENSING, name)
-        # Aeolus is an ESA mission: the agency is always EX
-        return ProductName(
+    def parse(self, url: str) -> AeolusName:
+        return AeolusName(
             mission=self.code,
             product=split_product_url(url)[0],
             filename=os.path.basename(url),
-            product_type=product_type,
-            baseline=_baseline(url, product_type),
-            agency="EX",
-            sensing_time=parse_timestamp(sensing, "%Y%m%dT%H%M%S%f" if sensing and len(sensing) > 15 else "%Y%m%dT%H%M%S") if sensing else None,
-            creation_time=None,
-            orbit_frame=_group(_ORBIT, name),
-            fields={
-                "file_class": _group(_FILE_CLASS, name),
-                "duration_ms": _group(_DURATION, name),
-                "file_version": _group(_VERSION, name),
-            },
+            product_type=extract_product_type(url),
+            baseline=extract_baseline(url),
+            sensing_time=extract_sensing_time(url),
+            creation_time=extract_creation_time(url),
+            orbit=extract_orbit(url),
+            file_class=extract_file_class(url),
+            duration_ms=extract_duration_ms(url),
+            file_version=extract_file_version(url),
         )
 
     def data_url(self, filename: str) -> Optional[str]:

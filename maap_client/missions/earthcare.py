@@ -19,9 +19,17 @@ and tests rely on it (legacy). Special values 00000000T000000 and
 
 import os
 import re
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
-from maap_client.missions.base import Mission, ProductName, parse_timestamp, split_product_url
+from maap_client.missions.base import (
+    Mission,
+    ProductName,
+    match_group,
+    parse_timestamp,
+    split_product_url,
+)
 
 # Root of the MAAP archive serving EarthCARE products over HTTPS. The layout
 # below it is keyed entirely by the filename (see EarthCARE.data_url).
@@ -58,9 +66,64 @@ _BASELINE = re.compile(r"^ECA_[A-Z]{2}([A-Z]{2})_")
 _PRODUCT_TYPE = re.compile(r"^ECA_[A-Z]{4}_(.+?)_\d{8}T\d{6}Z_")
 
 
-def _group(pattern: re.Pattern, filename: str) -> Optional[str]:
-    match = pattern.search(filename)
-    return match.group(1) if match else None
+
+
+@dataclass(frozen=True)
+class EarthCAREName(ProductName):
+    """EarthCARE product name: ProductName plus agency and frame letter."""
+
+    agency: Optional[str] = None  # EX = ESA, JX = JAXA
+    frame: Optional[str] = None  # frame letter A-H
+
+    @property
+    def orbit_frame(self) -> Optional[str]:
+        """Orbit (5 digits) and frame letter, e.g. ``07282E``."""
+        if self.orbit is None or self.frame is None:
+            return None
+        return f"{self.orbit:05d}{self.frame}"
+
+
+def _name(name_or_url: str) -> str:
+    return EARTHCARE.product_name(name_or_url)
+
+
+def extract_product_type(name_or_url: str) -> Optional[str]:
+    """Product type, e.g. ``BM__RAD_2B``."""
+    return match_group(_PRODUCT_TYPE, _name(name_or_url))
+
+
+def extract_baseline(name_or_url: str) -> Optional[str]:
+    """Baseline (the two letters after the agency), e.g. ``BC``."""
+    return match_group(_BASELINE, _name(name_or_url))
+
+
+def extract_agency(name_or_url: str) -> Optional[str]:
+    """Agency code: EX (ESA) or JX (JAXA)."""
+    return match_group(_AGENCY, _name(name_or_url))
+
+
+def extract_sensing_time(name_or_url: str) -> Optional[datetime]:
+    """First timestamp of the name as UTC."""
+    sensing = match_group(_SENSING, _name(name_or_url))
+    return parse_timestamp(sensing, "%Y%m%dT%H%M%S") if sensing else None
+
+
+def extract_creation_time(name_or_url: str) -> Optional[datetime]:
+    """Second timestamp of the name as UTC."""
+    creation = match_group(_CREATION, _name(name_or_url))
+    return parse_timestamp(creation, "%Y%m%dT%H%M%SZ") if creation else None
+
+
+def extract_orbit(name_or_url: str) -> Optional[int]:
+    """Absolute orbit number."""
+    orbit = match_group(_ORBIT_FRAME, _name(name_or_url))
+    return int(orbit) if orbit else None
+
+
+def extract_frame(name_or_url: str) -> Optional[str]:
+    """Frame letter (A-H), upper-case."""
+    match = _ORBIT_FRAME.search(_name(name_or_url))
+    return match.group(2).upper() if match else None
 
 
 class _EarthCARE(Mission):
@@ -76,21 +139,18 @@ class _EarthCARE(Mission):
     dedup_products = DEDUP_PRODUCTS
     no_orbit_products = NO_ORBIT_PRODUCTS
 
-    def parse(self, url: str) -> ProductName:
-        name = self.product_name(url)
-        sensing = _group(_SENSING, name)
-        creation = _group(_CREATION, name)
-        orbit_frame = _ORBIT_FRAME.search(name)
-        return ProductName(
+    def parse(self, url: str) -> EarthCAREName:
+        return EarthCAREName(
             mission=self.code,
             product=split_product_url(url)[0],
             filename=os.path.basename(url),
-            product_type=_group(_PRODUCT_TYPE, name),
-            baseline=_group(_BASELINE, name),
-            agency=_group(_AGENCY, name),
-            sensing_time=parse_timestamp(sensing, "%Y%m%dT%H%M%S") if sensing else None,
-            creation_time=parse_timestamp(creation, "%Y%m%dT%H%M%SZ") if creation else None,
-            orbit_frame=f"{orbit_frame.group(1)}{orbit_frame.group(2).upper()}" if orbit_frame else None,
+            product_type=extract_product_type(url),
+            baseline=extract_baseline(url),
+            sensing_time=extract_sensing_time(url),
+            creation_time=extract_creation_time(url),
+            orbit=extract_orbit(url),
+            agency=extract_agency(url),
+            frame=extract_frame(url),
         )
 
     def data_url(self, filename: str) -> Optional[str]:
