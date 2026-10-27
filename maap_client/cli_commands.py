@@ -32,12 +32,22 @@ def cmd_catalog_update(args: argparse.Namespace) -> int:
 
     collections = [args.collection] if args.collection else None
     out_dir = args.out_dir if hasattr(args, 'out_dir') and args.out_dir else None
-    results = client.update_catalogs(collections=collections, force=True, out_dir=out_dir)
+    failures: list[tuple[str, str]] = []
+    results = client.update_catalogs(
+        collections=collections, force=True, out_dir=out_dir, failures_out=failures
+    )
 
     for collection, path in results.items():
         print(f"{path}")
 
     print(f"Updated {len(results)} catalog(s)")
+
+    if failures:
+        print(f"{len(failures)} collection(s) failed:", file=sys.stderr)
+        for coll, err in failures:
+            print(f"  {coll}: {err}", file=sys.stderr)
+        print("Re-run the same command to retry the failed collections.", file=sys.stderr)
+        return EXIT_TRANSIENT
 
     return 0
 

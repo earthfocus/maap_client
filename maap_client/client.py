@@ -87,6 +87,7 @@ class MaapClient:
             self._catalog = CatalogQueryablesManager(
                 catalog_url=self._config.catalog_url,
                 catalog_dir=self._config.catalog_dir,
+                collections=self.list_collections(),
             )
         return self._catalog
 
@@ -347,18 +348,27 @@ class MaapClient:
         collections: Optional[list[str]] = None,
         force: bool = False,
         out_dir: Optional[Path] = None,
+        failures_out: Optional[list[tuple[str, str]]] = None,
     ) -> dict[str, Path]:
         """
         Download/update catalog queryables.
+
+        Collections default to the configured mission's. failures_out, if given,
+        is appended with (collection, error) for each collection that failed.
         """
         self._config.ensure_directories()
         if out_dir:
             manager = CatalogQueryablesManager(
                 catalog_url=self._config.catalog_url,
                 catalog_dir=out_dir,
+                collections=self.list_collections(),
             )
-            return manager.download(collections, force)
-        return self.catalog.download(collections, force)
+        else:
+            manager = self.catalog
+        results = manager.download(collections, force)
+        if failures_out is not None:
+            failures_out.extend(manager.last_failures)
+        return results
 
     def list_collections(self) -> list[str]:
         """List all known MAAP collections from config."""

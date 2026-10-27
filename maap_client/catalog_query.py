@@ -58,6 +58,7 @@ class CatalogQueryablesManager(CatalogManager):
         self,
         catalog_url: str = DEFAULT_CATALOG_URL,
         catalog_dir: Optional[Path] = None,
+        collections: Optional[list[str]] = None,
     ):
         """
         Initialize catalog manager.
@@ -65,9 +66,12 @@ class CatalogQueryablesManager(CatalogManager):
         Args:
             catalog_url: Base URL for MAAP catalog
             catalog_dir: Directory for storing queryables JSON files
+            collections: Collections used when none are given (default: EarthCARE)
         """
         super().__init__(catalog_dir)
         self._catalog_url = catalog_url.rstrip("/")
+        self._collections = list(collections) if collections is not None else DEFAULT_COLLECTIONS.copy()
+        self.last_failures: list[tuple[str, str]] = []
 
     def fetch(self, collection: str) -> dict[str, Any]:
         """Fetch raw queryables JSON schema directly from MAAP STAC API."""
@@ -86,10 +90,16 @@ class CatalogQueryablesManager(CatalogManager):
         collections: Optional[list[str]] = None,
         force: bool = False,
     ) -> dict[str, Path]:
-        """Download queryables for collections."""
-        if collections is None:
-            collections = DEFAULT_COLLECTIONS
+        """
+        Download queryables for collections.
 
+        A collection whose queryables cannot be fetched is logged and recorded in
+        ``self.last_failures`` as (collection, error); the others are still downloaded.
+        """
+        if collections is None:
+            collections = self._collections
+
+        self.last_failures = []
         results = {}
 
         for collection in collections:
@@ -100,7 +110,11 @@ class CatalogQueryablesManager(CatalogManager):
                 results[collection] = path
                 continue
 
-            data = self.fetch(collection)
+            try:
+                data = self.fetch(collection)
+            except CatalogError as e:
+                self.last_failures.append((collection, str(e)))
+                continue
             catalog = CatalogQueryables.from_dict(data)
             catalog.collection = collection
             results[collection] = self.save(catalog)
@@ -141,7 +155,7 @@ class CatalogQueryablesManager(CatalogManager):
     def list_downloaded(self) -> list[str]:
         """List collections that have local queryables files."""
         downloaded = []
-        for collection in DEFAULT_COLLECTIONS:
+        for collection in self._collections:
             if self.get_path(collection).exists():
                 downloaded.append(collection)
         return downloaded
