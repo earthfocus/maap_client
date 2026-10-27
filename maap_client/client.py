@@ -597,8 +597,9 @@ class MaapClient:
         # Group URLs by baseline
         urls_by_baseline: dict[str, list[str]] = {}
         for url in urls:
-            filename = os.path.basename(url)
-            bl = extract_baseline(filename) or "UNKNOWN"
+            # parsed from the URL: Aeolus, Biomass and FLEX file names do not
+            # all carry the baseline
+            bl = extract_baseline(url) or "UNKNOWN"
             urls_by_baseline.setdefault(bl, []).append(url)
 
         total_new_count = 0
