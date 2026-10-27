@@ -5,18 +5,19 @@ import os
 import sys
 from pathlib import Path
 
-from maap_client import MaapConfig, InvalidRequestError
+from maap_client import MaapClient, MaapConfig, InvalidRequestError
 from maap_client.cli_helpers import (
     get_client,
     load_config,
+    mission_client,
     report_failed_days,
     resolve_date_args,
     validate_download_filter_args,
     validate_time_args,
 )
 from maap_client.exceptions import classify_exit_code, EXIT_NON_TRANSIENT, EXIT_TRANSIENT
-from maap_client.mission_select import write_active_mission
-from maap_client.missions import MISSIONS, get_mission
+from maap_client.mission_select import resolve_mission, write_active_mission
+from maap_client.missions import MISSIONS, get_mission, mission_for_collection
 from maap_client.utils import to_zulu
 
 
@@ -508,8 +509,9 @@ def cmd_state_mark(args: argparse.Namespace) -> int:
     from pathlib import Path
     from maap_client.paths import extract_info
 
-    client = get_client(args)
-    collections = client.config.collections
+    # The collection in each path decides its mission, whatever the active mission
+    config = MaapConfig.load(getattr(args, "config", None))
+    extra_collections = config.extra_collections()
 
     # Collect paths to mark
     items = []
@@ -527,8 +529,8 @@ def cmd_state_mark(args: argparse.Namespace) -> int:
         print("No paths provided", file=sys.stderr)
         return EXIT_NON_TRANSIENT
 
-    # Group items by (collection, product, baseline)
-    items_by_key: dict[tuple[str, str, str], list[str]] = {}
+    # Group items by (mission, collection, product, baseline)
+    items_by_key: dict[tuple[str, str, str, str], list[str]] = {}
 
     for item in items:
         info = extract_info(item)
@@ -536,17 +538,18 @@ def cmd_state_mark(args: argparse.Namespace) -> int:
             print(f"Error: cannot parse path: {item}", file=sys.stderr)
             return EXIT_NON_TRANSIENT
 
-        # Extract collection from path parts
+        # Extract collection from path parts (a collection of any mission)
         collection = None
         for part in Path(item).parts:
-            if part in collections:
+            if mission_for_collection(part, extra_collections):
                 collection = part
                 break
         if collection is None:
             print(f"Error: cannot extract collection from path: {item}", file=sys.stderr)
             return EXIT_NON_TRANSIENT
 
-        key = (collection, info["product_type"], info["baseline"])
+        mission, _ = resolve_mission(collection, [], getattr(args, "mission", None), config)
+        key = (mission.name, collection, info["product_type"], info["baseline"])
 
         if key not in items_by_key:
             items_by_key[key] = []
@@ -556,8 +559,11 @@ def cmd_state_mark(args: argparse.Namespace) -> int:
     marked = 0
     failed = 0
 
-    for (collection, product, baseline), paths in items_by_key.items():
-        tracker = client.get_tracker(collection, product, baseline)
+    clients: dict[str, MaapClient] = {}
+    for (mission_name, collection, product, baseline), paths in items_by_key.items():
+        if mission_name not in clients:
+            clients[mission_name] = mission_client(args, mission_name)
+        tracker = clients[mission_name].get_tracker(collection, product, baseline)
 
         for path in paths:
             if tracker.mark(path):
@@ -616,9 +622,10 @@ def cmd_config(args: argparse.Namespace) -> int:
     print(f"credentials_file:  {config.credentials_file}")
     print(f"catalog_url:       {config.catalog_url}")
     print(f"token_url:         {config.token_url}")
-    print(f"mission:           {config.mission} ({source})")
+    print(f"mission:           {config.mission}")
     print(f"mission_start:     {config.mission_start}")
     print(f"mission_end:       {config.mission_end}")
+    print(f"mission_source:    {source}")
     print(f"default_formats:   {', '.join(config.default_formats)}")
 
     # Show config file location

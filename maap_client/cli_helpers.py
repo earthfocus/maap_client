@@ -50,15 +50,22 @@ def load_config(args: argparse.Namespace) -> tuple[MaapConfig, str]:
     return MaapConfig.load(config_path, mission=mission.name), source
 
 
+def _client(args: argparse.Namespace, config: MaapConfig) -> MaapClient:
+    """Create MaapClient from a config, with the CLI overrides applied."""
+    if getattr(args, "data_dir", None):
+        config.data_dir = args.data_dir
+    return MaapClient(config)
+
+
 def get_client(args: argparse.Namespace) -> MaapClient:
     """Create MaapClient from parsed arguments."""
     config, _ = load_config(args)
+    return _client(args, config)
 
-    # Override with CLI args
-    if args.data_dir:
-        config.data_dir = args.data_dir
 
-    return MaapClient(config)
+def mission_client(args: argparse.Namespace, mission: str) -> MaapClient:
+    """Create MaapClient for a mission the command already determined."""
+    return _client(args, MaapConfig.load(getattr(args, "config", None), mission=mission))
 
 
 def resolve_date_args(args: argparse.Namespace) -> tuple[Optional[datetime], Optional[datetime]]:
