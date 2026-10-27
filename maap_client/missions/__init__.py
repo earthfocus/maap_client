@@ -7,8 +7,9 @@ from maap_client.missions.aeolus import AEOLUS
 from maap_client.missions.base import Mission, ProductName, split_product_url
 from maap_client.missions.biomass import BIOMASS
 from maap_client.missions.earthcare import EARTHCARE
+from maap_client.missions.flex import FLEX
 
-MISSIONS: dict[str, Mission] = {m.name: m for m in (EARTHCARE, AEOLUS, BIOMASS)}
+MISSIONS: dict[str, Mission] = {m.name: m for m in (EARTHCARE, AEOLUS, BIOMASS, FLEX)}
 
 __all__ = [
     "MISSIONS",
