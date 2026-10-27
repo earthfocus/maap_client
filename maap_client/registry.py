@@ -1,6 +1,5 @@
 """Registry file path management and low-level operations."""
 
-import os
 import re
 from datetime import date, datetime
 from pathlib import Path
@@ -303,8 +302,9 @@ class Registry:
         # Group URLs by sensing date
         urls_by_date: dict[date, list[str]] = {}
         for url in urls:
-            filename = os.path.basename(url)
-            dt = extract_sensing_time(filename)
+            # parsed from the URL: Biomass internal files (e.g. schema/*.xsd)
+            # are not named after their product
+            dt = extract_sensing_time(url)
             if dt is None:
                 continue
             sensing_date = dt.date()
