@@ -115,8 +115,9 @@ class _Biomass(Mission):
     code = "BIO"
     prefix = "BIO_"
     collections = COLLECTIONS
-    # the earliest fixture items are simulated data of early 2017
-    start = "2017-01-01T00:00:00Z"
+    # earliest start_datetime among the catalogue items (an AUX_PP0 validity
+    # start), rounded down to the day
+    start = "2010-01-01T00:00:00Z"
     end = "2045-12-31T23:59:59Z"
     default_formats = ("zip",)
     orbit_offline = False
