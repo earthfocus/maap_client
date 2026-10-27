@@ -7,7 +7,7 @@ from typing import Optional, Sequence
 from maap_client.config import MaapConfig
 from maap_client.constants import DEFAULT_MISSION
 from maap_client.exceptions import InvalidRequestError
-from maap_client.missions import Mission, get_mission, mission_for_filename
+from maap_client.missions import Mission, get_mission, mission_for_collection, mission_for_filename
 
 # Persisted by 'maap mission use'; expanded at call time so tests can redirect it.
 ACTIVE_MISSION_FILE = Path("~/.maap/active_mission")
@@ -57,9 +57,8 @@ def resolve_mission(
     inferred: Optional[Mission] = None
     source = ""
     if collection:
-        name = config.collection_mission(collection)
-        if name:
-            inferred, source = get_mission(name), "collection"
+        inferred = mission_for_collection(collection, config.extra_collections())
+        source = "collection"
 
     # URLs that no mission recognises are left out of the inference
     url_missions = {m.name: m for m in map(mission_for_filename, urls) if m is not None}

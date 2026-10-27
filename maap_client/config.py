@@ -18,10 +18,19 @@ from maap_client.constants import (
     DEFAULT_REGISTRY_DIR,
     DEFAULT_CREDENTIALS_FILE,
 )
-from maap_client.missions import MISSIONS, get_mission, mission_for_collection
+from maap_client.exceptions import InvalidRequestError
+from maap_client.missions import MISSIONS, get_mission
 
 # Keys of a legacy [mission] section read as overrides of the named mission.
 LEGACY_MISSION_KEYS = ("start", "end", "collections", "collections_extend")
+
+
+def _config_mission(name: str, where: str) -> str:
+    """Canonical name of a mission named in config.toml; an unknown name is an invalid request."""
+    try:
+        return get_mission(name).name
+    except ValueError as e:
+        raise InvalidRequestError(f"{e} (config.toml {where})") from e
 
 
 @dataclass
@@ -70,18 +79,15 @@ class MaapConfig:
                 collections.append(collection)
         return collections
 
-    def collection_mission(self, collection: str) -> Optional[str]:
+    def extra_collections(self) -> dict[str, list[str]]:
         """
-        Name of the mission owning a collection, or None when no mission knows it.
-
-        The effective (configured) lists decide first; a profile collection
-        trimmed from the config still belongs to its profile's mission.
+        Collections the config names for each mission (``collections`` and
+        ``collections_extend``), the ``extra`` of ``missions.mission_for_collection``.
         """
-        for name in MISSIONS:
-            if collection in self.effective_collections(name):
-                return name
-        profile = mission_for_collection(collection)
-        return profile.name if profile else None
+        return {
+            name: [*(overrides.get("collections") or ()), *(overrides.get("collections_extend") or ())]
+            for name, overrides in self.mission_overrides.items()
+        }
 
     def apply_mission(self, mission: str) -> None:
         """Set the mission settings from its profile and the config overrides."""
@@ -95,12 +101,17 @@ class MaapConfig:
         self.default_formats = (default_format,) if default_format else profile.default_formats
 
     def _check_collections_unique(self) -> None:
-        """A collection belongs to exactly one mission; raise ValueError otherwise."""
+        """
+        A collection belongs to exactly one mission (its profile or the config
+        naming it); raise InvalidRequestError otherwise, so that
+        ``mission_for_collection`` is unambiguous.
+        """
+        extra = self.extra_collections()
         owners: dict[str, str] = {}
-        for name in MISSIONS:
-            for collection in self.effective_collections(name):
+        for name, profile in MISSIONS.items():
+            for collection in dict.fromkeys([*profile.collections, *extra.get(name, ())]):
                 if collection in owners:
-                    raise ValueError(
+                    raise InvalidRequestError(
                         f"Collection '{collection}' is listed in missions {owners[collection]} "
                         f"and {name}; a collection belongs to one mission"
                     )
@@ -172,7 +183,7 @@ class MaapConfig:
 
         # Legacy [mission] section: overrides of the named mission, which is also the default
         if legacy := data.get("mission"):
-            name = get_mission(legacy.get("name") or DEFAULT_MISSION).name
+            name = _config_mission(legacy.get("name") or DEFAULT_MISSION, "[mission] name")
             config.mission_overrides[name] = {
                 key: legacy[key] for key in LEGACY_MISSION_KEYS if key in legacy
             }
@@ -181,10 +192,10 @@ class MaapConfig:
 
         # [missions.X] tables
         for key, table in (data.get("missions") or {}).items():
-            config.mission_overrides.setdefault(get_mission(key).name, {}).update(table)
+            config.mission_overrides.setdefault(_config_mission(key, f"[missions.{key}]"), {}).update(table)
 
         if default_mission := data.get("default_mission"):
-            config.default_mission = get_mission(default_mission).name
+            config.default_mission = _config_mission(default_mission, "default_mission")
 
         config._check_collections_unique()
         config.apply_mission(mission or config.default_mission or DEFAULT_MISSION)
