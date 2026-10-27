@@ -37,6 +37,11 @@ class DownloadError(MaapError):
     def __init__(self, url: str, message: str, status_code: int | None = None):
         self.url = url
         self.status_code = status_code
+        if status_code == 403:
+            message += (
+                " — the account may lack download access to this collection (e.g. FLEX),"
+                " or the object is missing"
+            )
         super().__init__(f"Download failed for {url}: {message}")
 
 

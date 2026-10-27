@@ -10,12 +10,13 @@ import requests
 
 from maap_client.auth import TokenManager, get_auth_headers
 from maap_client.constants import DEFAULT_CHUNK_SIZE, DEFAULT_MISSION
-from maap_client.missions.earthcare import DEDUP_PRODUCTS
+from maap_client.missions.earthcare import EARTHCARE
 from maap_client.exceptions import BatchDownloadAborted, DownloadError
 from maap_client.paths import (
     extract_orbit_frame,
     extract_sensing_time,
     generate_data_path,
+    local_relpath,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ class DownloadManager:
             data_dir: Base directory for downloads
             mission: Mission name for path generation
             chunk_size: Download chunk size in bytes
-            product_dir: If True, wrap each file in a subdirectory named after the file stem
+            product_dir: If True, place each file inside a folder named after its product
         """
         self._token_manager = token_manager
         self._data_dir = data_dir
@@ -185,12 +186,15 @@ class DownloadManager:
             # Determine output path
             parsed = urlparse(url)
             filename = os.path.basename(parsed.path)
-            dt = extract_sensing_time(filename)
+            # from the URL: Biomass internal files are not named after their product
+            dt = extract_sensing_time(url)
 
             if dt is None:
                 logger.warning("  Skipping - cannot extract datetime from filename")
                 continue
 
+            # The day folder keeps the caller's product_type/baseline (as
+            # before); the part below it is the URL's local_relpath.
             output_path = generate_data_path(
                 data_dir=self._data_dir,
                 mission=self._mission,
@@ -198,8 +202,7 @@ class DownloadManager:
                 product_type=product_type,
                 baseline=baseline,
                 dt=dt,
-                filename=filename,
-                product_dir=self._product_dir,
+                filename=str(local_relpath(url, self._product_dir)),
             )
 
             # Skip if exact file exists
@@ -216,7 +219,7 @@ class DownloadManager:
             # For DEDUP_PRODUCTS, skip if a different version of this granule
             # already exists (same sensing_time + orbit_frame, different stem).
             # Checks any extension so h5 and hdr stay on the same version.
-            if skip_existing and product_type in DEDUP_PRODUCTS:
+            if skip_existing and product_type in EARTHCARE.dedup_products:
                 orbit_frame = extract_orbit_frame(filename)
                 sensing_str = dt.strftime("%Y%m%dT%H%M%SZ")
                 pattern = f"*_{sensing_str}_*_{orbit_frame}.*" if orbit_frame else f"*_{sensing_str}_*.*"

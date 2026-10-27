@@ -21,12 +21,16 @@ from maap_client.exceptions import (
 )
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
+from maap_client.missions import BIOMASS, mission_for_filename
 from maap_client.paths import (
     extract_baseline,
     extract_product,
     extract_sensing_time,
     filter_by_orbit_frame,
+    is_zip_url,
+    local_relpath,
     sort_by_sensing_time,
+    url_to_local_path,
 )
 from maap_client.registry import Registry
 from maap_client.types import DownloadResult, SearchResult, SyncResult
@@ -121,6 +125,48 @@ class MaapClient:
         )
 
     # === VALIDATION ===
+
+    def _check_download_layout(
+        self,
+        urls: list[str],
+        product_dir: bool,
+        collection: str,
+        out_dir: Optional[Path] = None,
+    ) -> None:
+        """
+        Reject a batch whose files cannot each get their own local path.
+
+        Individual Biomass files need product_dir (their names repeat across
+        and within products); a zip does not. As a defensive check, two
+        different URLs mapping to one local path fail the run instead of one
+        of them being skipped as already downloaded.
+
+        Raises:
+            InvalidRequestError: On an individual Biomass file without
+                product_dir, or two different URLs sharing a local path
+        """
+        if not product_dir and any(
+            mission_for_filename(url) is BIOMASS and not is_zip_url(url) for url in urls
+        ):
+            raise InvalidRequestError(
+                "Biomass individual files need --product-dir: names repeat across and within products"
+            )
+
+        seen: dict[Path, str] = {}
+        for url in dict.fromkeys(urls):
+            if out_dir:
+                path = out_dir / local_relpath(url, product_dir)
+            else:
+                path = url_to_local_path(
+                    url, self._config.data_dir, self._config.mission, collection, product_dir
+                )
+            if path is None:
+                continue
+            if path in seen:
+                raise InvalidRequestError(
+                    f"Two URLs map to the same local path {path}: {seen[path]} and {url}"
+                )
+            seen[path] = url
 
     @staticmethod
     def _validate_time_range(
@@ -699,7 +745,11 @@ class MaapClient:
             skip_existing: Skip files that already exist
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
-            product_dir: If True, wrap each file in a subdirectory named after the file stem
+            product_dir: If True, place each file inside a folder named after its product
+
+        Raises:
+            InvalidRequestError: On individual Biomass files without product_dir,
+                                or two different URLs sharing a local path
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
@@ -710,6 +760,8 @@ class MaapClient:
         if not urls:
             logger.info("No URLs to download")
             return result
+
+        self._check_download_layout(urls, product_dir, collection, out_dir)
 
         if reverse:
             urls = sort_by_sensing_time(urls, reverse=True)
@@ -735,11 +787,7 @@ class MaapClient:
             for i, url in enumerate(urls, 1):
                 parsed_url = urlparse(url)
                 filename = os.path.basename(parsed_url.path)
-                if product_dir:
-                    stem = Path(filename).stem
-                    output_path = out_dir / stem / filename
-                else:
-                    output_path = out_dir / filename
+                output_path = out_dir / local_relpath(url, product_dir)
 
                 if skip_existing and output_path.exists():
                     logger.info(f"[{i:>{len(str(total_urls))}}/{total_urls}] Already exists: {filename}")
@@ -765,12 +813,14 @@ class MaapClient:
         urls_by_key: dict[tuple[str, str], list[str]] = {}
         for url in urls:
             filename = os.path.basename(url)
-            product = extract_product(filename)
-            baseline = extract_baseline(url) # need to pass url to allow baseline extraction for Aeolus
+            # parsed from the URL: Aeolus keeps the baseline in the path, and
+            # Biomass internal files are not named after their product
+            product = extract_product(url)
+            baseline = extract_baseline(url)
             if not product or not baseline:
                 result.permanent_errors.append(f"cannot parse product/baseline from {filename}")
                 continue
-            if extract_sensing_time(filename) is None:
+            if extract_sensing_time(url) is None:
                 # batch_download would silently skip it; a retry cannot fix the name.
                 result.permanent_errors.append(f"cannot parse filename (no sensing time): {filename}")
                 continue
@@ -1073,6 +1123,8 @@ class MaapClient:
 
                 logger.info(f"Found {len(urls)} URLs, {len(pending)} pending, downloading {len(to_download)}")
 
+                self._check_download_layout(to_download, product_dir, collection)
+
                 # Download with state tracking
                 self._config.ensure_directories()
                 downloader = self._get_downloader(product_dir=product_dir)
@@ -1095,10 +1147,11 @@ class MaapClient:
                         result.errors.append(f"{url}: download failed")
 
                 logger.info(f"Downloaded {len(downloaded)} files for {bl.upper()}")
-            except (AuthenticationError, CredentialsError, BatchDownloadAborted):
-                # Auth failures doom every remaining baseline identically, and
-                # an abort was explicitly requested by the caller: propagate so
-                # callers can classify instead of parsing stringified errors.
+            except (AuthenticationError, CredentialsError, BatchDownloadAborted, InvalidRequestError):
+                # Auth failures doom every remaining baseline identically, an
+                # abort was explicitly requested by the caller, and a rejected
+                # layout is the same for every baseline: propagate so callers
+                # can classify instead of parsing stringified errors.
                 raise
             except Exception as e:
                 result.errors.append(f"{bl.upper()}: {e}")

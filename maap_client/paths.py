@@ -10,8 +10,9 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlparse
 
-from maap_client.missions import mission_for_filename
+from maap_client.missions import mission_for_filename, split_product_url
 from maap_client.missions.base import ProductName
 
 
@@ -423,6 +424,53 @@ def filter_by_orbit_frame(
     return result
 
 
+def is_zip_url(url: str) -> bool:
+    """True for a whole-product archive URL (the `product` asset, served by /data/zipper/)."""
+    return "/data/zipper/" in urlparse(url).path
+
+
+def local_relpath(url: str, product_dir: bool) -> Path:
+    """
+    Path of a downloaded file relative to its day folder.
+
+    - individual file: ``<filename>``, or with product_dir
+      ``<PRODUCT>/<internal relative path>``
+    - zip: ``<PRODUCT>.zip``, or with product_dir ``<PRODUCT>/<PRODUCT>.zip``
+
+    Archive URLs are ``.../<PRODUCT>/<root>/<internal relative path>`` where
+    ``<root>`` is the product's own top directory (the product name again, or
+    for some Biomass aux products a name with another creation date). The
+    product comes from the mission parser; without a recognisable layout (e.g.
+    a bare filename) the internal relative path is the filename.
+
+    Args:
+        url: Product file URL (or bare filename)
+        product_dir: If True, place the file inside a folder named after the product
+
+    Returns:
+        Relative local path
+    """
+    path = urlparse(url).path
+    parsed = _parse(url)
+    product = parsed.product if parsed else split_product_url(path)[0]
+
+    if is_zip_url(url):
+        name = f"{product}.zip"
+        return Path(product, name) if product_dir else Path(name)
+
+    filename = os.path.basename(path)
+    if not product_dir:
+        return Path(filename)
+
+    parts = path.split("/")
+    relpath = filename
+    if product in parts:
+        i = parts.index(product)
+        if len(parts) > i + 2:
+            relpath = "/".join(parts[i + 2:])
+    return Path(product, relpath)
+
+
 def url_to_local_path(
     url: str,
     data_dir: Path,
@@ -431,21 +479,24 @@ def url_to_local_path(
     product_dir: bool = False,
 ) -> Optional[Path]:
     """
-    Convert a product URL to the expected local file path.
+    Convert a product URL to the expected local file path:
+    ``data_dir/mission/collection/product_type/baseline/yyyy/mm/dd/`` plus
+    ``local_relpath(url, product_dir)``.
 
     Args:
         url: Product URL
         data_dir: Base data directory
         mission: Mission name
         collection: Collection name
-        product_dir: If True, wrap file in a subdirectory named after the file stem
+        product_dir: If True, place the file inside a folder named after the product
 
     Returns:
-        Local path or None if URL cannot be parsed
+        Local path or None if the product type, baseline or sensing time
+        cannot be parsed
     """
     info = extract_info(url)
 
-    if not info["sensing_time"]:
+    if not (info["sensing_time"] and info["product_type"] and info["baseline"]):
         return None
 
     return generate_data_path(
@@ -455,8 +506,7 @@ def url_to_local_path(
         product_type=info["product_type"],
         baseline=info["baseline"],
         dt=info["sensing_time"],
-        filename=info["filename"],
-        product_dir=product_dir,
+        filename=str(local_relpath(url, product_dir)),
     )
 
 
