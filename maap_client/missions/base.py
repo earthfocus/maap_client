@@ -1,6 +1,7 @@
 """Shared types and helpers for mission modules (stdlib only)."""
 
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Mapping, Optional
@@ -72,6 +73,18 @@ def split_product_url(url: str) -> tuple[str, str]:
     return os.path.splitext(basename)[0], basename
 
 
+# Verified rule: archive URLs (.../YYYY/MM/DD/<P>/<P>/...) and local paths
+# downloaded with --product-dir (.../YYYY/MM/DD/<P>/...) hold the product
+# folder right after the YYYY/MM/DD day folders.
+_DAY_FOLDER = re.compile(r"/\d{4}/\d{2}/\d{2}/([^/]+)/")
+
+
+def product_folder(path: str) -> Optional[str]:
+    """Folder right after the YYYY/MM/DD day folders of a URL or local path, or None."""
+    match = _DAY_FOLDER.search(path)
+    return match.group(1) if match else None
+
+
 def parse_timestamp(value: str, fmt: str) -> Optional[datetime]:
     """
     Parse a timestamp of a product name as UTC.
@@ -113,14 +126,17 @@ class Mission:
 
     def product_name(self, url: str) -> str:
         """
-        Name to parse the product fields from: the basename when it is a
-        product name of this mission, else the product directory of the URL
-        (some enclosures are named differently, e.g. ``L1A_<start>__<stop>.nc``).
+        Name to parse the product fields from: the first of the basename, the
+        product directory of an archive URL and the product folder of a local
+        path that is a product name of this mission (some enclosures are
+        named differently, e.g. ``L1A_<start>__<stop>.nc``); else the product
+        directory of the URL.
         """
-        basename = os.path.basename(url)
-        if basename.upper().startswith(self.prefix.upper()):
-            return basename
-        return split_product_url(url)[0]
+        product = split_product_url(url)[0]
+        for candidate in (os.path.basename(url), product, product_folder(url)):
+            if candidate and candidate.upper().startswith(self.prefix.upper()):
+                return candidate
+        return product
 
     def data_url(self, filename: str) -> Optional[str]:
         """Rebuild the download URL from a filename, or None when not derivable."""

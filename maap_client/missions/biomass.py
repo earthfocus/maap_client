@@ -38,7 +38,14 @@ import os
 import re
 from typing import Optional
 
-from maap_client.missions.base import FilterSpec, Mission, ProductName, parse_timestamp, split_product_url
+from maap_client.missions.base import (
+    FilterSpec,
+    Mission,
+    ProductName,
+    parse_timestamp,
+    product_folder,
+    split_product_url,
+)
 
 COLLECTIONS = (
     "BiomassLevel0",
@@ -82,15 +89,11 @@ _DOCUMENTED = re.compile(
 _NO_FIELDS = {k: None for k in ("phase", "global_coverage", "major_cycle", "repeat_cycle", "track", "frame")}
 
 
-# Verified rule: the product directory is the segment after the YYYY/MM/DD
-# folders. Some aux enclosures sit in an inner directory with another compact
-# creation date, so the repeated-name anchor alone would pick the wrong one.
-_PRODUCT_DIR = re.compile(r"/\d{4}/\d{2}/\d{2}/([^/]+)/")
-
-
 def _product(url: str) -> str:
-    match = _PRODUCT_DIR.search(url)
-    return match.group(1) if match else split_product_url(url)[0]
+    # Verified rule: the product directory is the segment after the YYYY/MM/DD
+    # folders. Some aux enclosures sit in an inner directory with another compact
+    # creation date, so the repeated-name anchor alone would pick the wrong one.
+    return product_folder(url) or split_product_url(url)[0]
 
 
 def _group(pattern: re.Pattern, text: str) -> Optional[str]:
