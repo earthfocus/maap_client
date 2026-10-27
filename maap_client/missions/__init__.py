@@ -51,12 +51,13 @@ def mission_for_filename(name_or_url: str) -> Optional[Mission]:
 
 
 def mission_for_collection(
-    collection: str, extra: Mapping[str, Sequence[str]] = {}
+    collection: str, extra: Optional[Mapping[str, Sequence[str]]] = None
 ) -> Optional[Mission]:
     """
     Mission owning a collection: its profile collections plus ``extra``
     (mission name -> additional collections, e.g. from the config).
     """
+    extra = extra or {}
     for mission in MISSIONS.values():
         if collection in mission.collections or collection in extra.get(mission.name, ()):
             return mission

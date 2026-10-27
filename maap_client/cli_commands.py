@@ -692,7 +692,11 @@ def cmd_mission_use(args: argparse.Namespace) -> int:
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NON_TRANSIENT
-    write_active_mission(name)
+    try:
+        write_active_mission(name)
+    except OSError as e:
+        print(f"Error: cannot save the active mission: {e}", file=sys.stderr)
+        return EXIT_NON_TRANSIENT
     print(f"Active mission: {name}")
     env_mission = os.environ.get("MAAP_MISSION")
     if env_mission and env_mission.lower() != name.lower():

@@ -30,8 +30,8 @@ The compact creation date has no documented encoding, so creation_time is
 always None. M, C, T and F are identifiers (integers), never times.
 
 The T/F/C/M/G/phase fields are extracted only for the types the documents
-define (L1a/b/c, L2a, L2b); the other types get type, baseline and
-sensing_time only.
+define (L1a/b/c, L2a); the other types get type, baseline and sensing_time
+only.
 """
 
 import os

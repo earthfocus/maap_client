@@ -358,6 +358,7 @@ def extract_info(uri: str) -> dict[str, Any]:
         "orbit_frame": parsed.orbit_frame if parsed else None,
     }
 
+
 def filter_by_sensing_time(
     items: list[str],
     start: Optional[datetime] = None,
@@ -598,7 +599,6 @@ def extract_collection(path: str | Path) -> Optional[str]:
         return None
     collection = parts[-len(tail) - 1]
     return None if collection == path.anchor else collection
-
 
 
 def filename_to_url(filename: str) -> Optional[str]:

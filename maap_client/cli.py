@@ -353,7 +353,7 @@ Notes:
     )
     output_group.add_argument(
         "--product-dir", action="store_true",
-        help="Save each file in a subdirectory named after the file stem"
+        help="Put each product's files in a folder named after the product, keeping its internal sub-folders"
     )
 
     # Other options group
@@ -433,7 +433,7 @@ Notes:
     )
     output_group.add_argument(
         "--product-dir", action="store_true",
-        help="Save each file in a subdirectory named after the file stem"
+        help="Put each product's files in a folder named after the product, keeping its internal sub-folders"
     )
 
     # Other options group
@@ -500,7 +500,7 @@ Notes:
     )
     sync_parser.add_argument(
         "--product-dir", action="store_true",
-        help="Save each file in a subdirectory named after the file stem"
+        help="Put each product's files in a folder named after the product, keeping its internal sub-folders"
     )
     sync_parser.add_argument(
         "--newest-first", action="store_true",
