@@ -743,7 +743,7 @@ class MaapSearcher:
                     bl_str = f"({baseline.upper()})"
                 elif urls:
                     baselines_found = sorted(set(
-                        extract_baseline(os.path.basename(url)) or "?"
+                        extract_baseline(url) or "?"
                         for url in urls
                     ))
                     bl_str = f"({', '.join(baselines_found)})"

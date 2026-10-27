@@ -765,7 +765,7 @@ class MaapClient:
                 urls = sort_by_sensing_time(urls, reverse=True)
             # Extract baselines from results
             baselines_found = list(set(
-                extract_baseline(os.path.basename(url)) or "UNKNOWN"
+                extract_baseline(url) or "UNKNOWN"
                 for url in urls
             ))
             return SearchResult(
@@ -807,7 +807,7 @@ class MaapClient:
 
         # Extract baselines from results
         baselines_found = list(set(
-            extract_baseline(os.path.basename(url)) or "UNKNOWN"
+            extract_baseline(url) or "UNKNOWN"
             for url in urls
         ))
 
