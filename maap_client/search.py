@@ -54,12 +54,11 @@ from maap_client.constants import (
 )
 from maap_client.exceptions import AuthenticationError, CredentialsError
 from maap_client.missions.earthcare import NO_ORBIT_PRODUCTS
+from maap_client.filters import filter_by_sensing_time, sort_by_sensing_time
 from maap_client.paths import (
     extract_sensing_time,
     extract_baseline,
     extract_info,
-    filter_by_sensing_time,
-    sort_by_sensing_time,
 )
 from maap_client.types import GranuleInfo
 from maap_client.utils import format_time_range, normalize_time_range, parse_datetime, to_stac_datetime

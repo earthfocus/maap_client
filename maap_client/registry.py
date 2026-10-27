@@ -5,8 +5,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
+from maap_client.filters import filter_by_sensing_time
 from maap_client.paths import (
-    filter_by_sensing_time,
     generate_registry_path,
     extract_sensing_time,
     url_to_local_path,

@@ -19,26 +19,29 @@ from maap_client.exceptions import (
     CredentialsError,
     InvalidRequestError,
 )
+from maap_client.filters import (
+    filter_by_fields,
+    filter_by_orbit_frame,
+    normalize_frames,
+    resolve_orbit_frames,
+    sort_by_sensing_time,
+    validate_time_range,
+)
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
-from maap_client.missions import BIOMASS, Mission, get_mission, mission_for_filename
+from maap_client.missions import BIOMASS, Mission, get_mission, mission_for_filename, parse_product
 from maap_client.missions.earthcare import EARTHCARE
 from maap_client.missions.base import parse_filter_values
 from maap_client.paths import (
     extract_baseline,
-    extract_product,
-    extract_sensing_time,
-    filter_by_fields,
-    filter_by_orbit_frame,
     is_zip_url,
     local_relpath,
-    sort_by_sensing_time,
     url_to_local_path,
 )
 from maap_client.registry import Registry
 from maap_client.types import DownloadResult, SearchResult, SyncResult
 from maap_client.utils import normalize_time_range as _normalize_time_range
-from maap_client.utils import has_orbit_letter, parse_datetime, parse_frames, parse_orbit, timezone_is_aware, to_zulu
+from maap_client.utils import has_orbit_letter, parse_datetime, to_zulu
 
 logger = logging.getLogger(__name__)
 
@@ -200,95 +203,6 @@ class MaapClient:
                     f"Two URLs map to the same local path {path}: {seen[path]} and {url}"
                 )
             seen[path] = url
-
-    @staticmethod
-    def _validate_time_range(
-        start: Optional[datetime],
-        end: Optional[datetime],
-        orbit: Optional[str] = None,
-    ) -> None:
-        """
-        Validate time parameters. Called by methods with time/orbit args.
-
-        Args:
-            start: Start datetime
-            end: End datetime
-            orbit: Orbit+frame string
-
-        Raises:
-            InvalidRequestError: If validation fails
-        """
-        # Timezone awareness (prevents subtle bugs from naive datetimes)
-        if start is not None and not timezone_is_aware(start):
-            raise InvalidRequestError(
-                "'start' must be timezone-aware (e.g., datetime(..., tzinfo=timezone.utc))."
-            )
-        if end is not None and not timezone_is_aware(end):
-            raise InvalidRequestError(
-                "'end' must be timezone-aware (e.g., datetime(..., tzinfo=timezone.utc))."
-            )
-
-        # Mutual exclusivity
-        if orbit and (start or end):
-            raise InvalidRequestError(
-                "Cannot combine 'orbit' with 'start'/'end'. "
-                "Use orbit for orbit-based search, or start/end for time-based."
-            )
-
-        # Logical order
-        if start and end and start > end:
-            raise InvalidRequestError(
-                f"'start' must be before 'end' (got {start} > {end})."
-            )
-
-    @staticmethod
-    def _normalize_frames(frames: Optional[list[str]]) -> Optional[list[str]]:
-        """
-        Validate and canonicalize a frames list (Python API entry point).
-
-        CLI callers already get canonical uppercase letters from `frames_arg`;
-        this normalizes frames passed directly via the Python API.
-
-        Returns:
-            None if frames is None/empty, otherwise the uppercased, validated list.
-
-        Raises:
-            InvalidRequestError: If any entry is not a single letter A-H.
-        """
-        if not frames:
-            return None
-        try:
-            return parse_frames(",".join(frames))
-        except ValueError as e:
-            raise InvalidRequestError(str(e)) from e
-
-    @staticmethod
-    def _resolve_orbit_frames(
-        orbit: Optional[str],
-        frames: Optional[list[str]],
-    ) -> tuple[Optional[int], Optional[list[str]]]:
-        """
-        Parse a dual-form orbit spec and merge with a frames list.
-
-        '01525E' -> (1525, ['E']); '1525' -> (1525, frames).
-
-        Raises:
-            InvalidRequestError: If the orbit is malformed, or it includes a
-                                 frame letter while frames is also given.
-        """
-        frames = MaapClient._normalize_frames(frames)
-        if not orbit:
-            return None, frames
-        try:
-            orbit_num, orbit_letter = parse_orbit(orbit)
-        except ValueError as e:
-            raise InvalidRequestError(str(e)) from e
-        if orbit_letter and frames:
-            raise InvalidRequestError(
-                f"orbit '{orbit.strip()}' already includes a frame letter; "
-                f"use orbit '{orbit_num}' together with the frames list instead"
-            )
-        return orbit_num, [orbit_letter] if orbit_letter else frames
 
     def _resolve_filters(
         self,
@@ -645,7 +559,7 @@ class MaapClient:
             List of URLs
         """
         # Validate time range
-        self._validate_time_range(start, end)
+        validate_time_range(start, end)
 
         registry_dir = self._config.registry_dir
 
@@ -739,11 +653,11 @@ class MaapClient:
             SearchResult with urls and metadata
         """
         # Validate parameters
-        self._validate_time_range(start, end, orbit)
+        validate_time_range(start, end, orbit)
         extra = self._queryables(self._resolve_filters(orbit, frames, filters))
 
         # Orbit-based search
-        orbit_num, resolved_frames = self._resolve_orbit_frames(orbit, frames)
+        orbit_num, resolved_frames = resolve_orbit_frames(orbit, frames)
         if orbit_num is not None:
             queryables = self.catalog.load(collection)
             if queryables and not queryables.supports_orbit():
@@ -917,12 +831,13 @@ class MaapClient:
             filename = os.path.basename(url)
             # parsed from the URL: Aeolus keeps the baseline in the path, and
             # Biomass internal files are not named after their product
-            product = extract_product(url)
-            baseline = extract_baseline(url)
+            parsed = parse_product(url)
+            product = parsed.product_type if parsed else None
+            baseline = parsed.baseline if parsed else None
             if not product or not baseline:
                 result.permanent_errors.append(f"cannot parse product/baseline from {filename}")
                 continue
-            if extract_sensing_time(url) is None:
+            if parsed.sensing_time is None:
                 # batch_download would silently skip it; a retry cannot fix the name.
                 result.permanent_errors.append(f"cannot parse filename (no sensing time): {filename}")
                 continue
@@ -1025,7 +940,7 @@ class MaapClient:
             start=start,
             end=end,
         )
-        orbit_num, resolved_frames = self._resolve_orbit_frames(orbit, frames)
+        orbit_num, resolved_frames = resolve_orbit_frames(orbit, frames)
         if orbit_num is not None and self.mission is not EARTHCARE:
             # Aeolus carries the orbit only in some names (L0/L1 ms timestamps):
             # reject the others instead of silently dropping them. EarthCARE
@@ -1194,10 +1109,10 @@ class MaapClient:
             SyncResult with stats and tracker for post-sync operations
         """
         # Validate time range
-        self._validate_time_range(start, end)
+        validate_time_range(start, end)
         self._check_biomass_format(format, product_dir)
         extra = self._queryables(self._resolve_filters(None, frames, filters))
-        frames = self._normalize_frames(frames)
+        frames = normalize_frames(frames)
 
         # Default time range: last 3 days
         now = datetime.now(timezone.utc).replace(microsecond=0)

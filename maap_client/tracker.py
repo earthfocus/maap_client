@@ -6,7 +6,8 @@ from typing import Optional
 import logging
 import os
 
-from maap_client.paths import extract_sensing_time, filter_by_sensing_time, url_to_local_path
+from maap_client.filters import filter_by_sensing_time
+from maap_client.paths import extract_sensing_time, url_to_local_path
 from maap_client.registry import Registry
 
 logger = logging.getLogger(__name__)

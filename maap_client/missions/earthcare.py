@@ -66,8 +66,6 @@ _BASELINE = re.compile(r"^ECA_[A-Z]{2}([A-Z]{2})_")
 _PRODUCT_TYPE = re.compile(r"^ECA_[A-Z]{4}_(.+?)_\d{8}T\d{6}Z_")
 
 
-
-
 @dataclass(frozen=True)
 class EarthCAREName(ProductName):
     """EarthCARE product name: ProductName plus agency and frame letter."""

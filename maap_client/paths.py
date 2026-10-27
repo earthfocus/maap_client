@@ -1,8 +1,8 @@
 """Path generation utilities for MAAP data organization.
 
-This module depends only on the stdlib and the stdlib-only
-maap_client.missions package, so it can be used independently in other
-contexts.
+This module holds the on-disk layout and the filename/URL dispatchers over
+the mission parsers. The filtering helpers live in maap_client.filters and
+are re-exported here.
 """
 
 import logging
@@ -12,8 +12,14 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
 
+from maap_client.filters import (  # noqa: F401  (re-exported)
+    filter_by_fields,
+    filter_by_orbit_frame,
+    filter_by_sensing_time,
+    sort_by_sensing_time,
+)
 from maap_client.missions import mission_for_filename, parse_product, split_product_url
-from maap_client.missions.base import Mission
+from maap_client.missions.base import product_folder
 
 
 logger = logging.getLogger(__name__)
@@ -45,9 +51,9 @@ def generate_data_path(
         dt: Datetime for the file
         filename: Filename, or a relative path below the day folder (e.g.
                   ``local_relpath(url, product_dir)``)
-        product_dir: Kept for compatibility: if True, wrap ``filename`` in a
-                     subdirectory named after its stem. Leave False when
-                     ``filename`` is already a ``local_relpath``.
+        product_dir: Legacy and unused by the package (downloads pass a
+                     ``local_relpath`` as filename): if True, wrap ``filename``
+                     in a subdirectory named after its stem.
 
     Returns:
         Full path for the file
@@ -90,23 +96,6 @@ def extract_sensing_time(filename: str) -> Optional[datetime]:
     """Sensing time (first timestamp of the name), or None."""
     parsed = parse_product(filename)
     return parsed.sensing_time if parsed else None
-
-
-def sort_by_sensing_time(items: list[str], reverse: bool = False) -> list[str]:
-    """
-    Sort URLs/paths by their sensing time. Items with no extractable
-    sensing time are appended at the end regardless of order.
-    """
-    with_dt: list[tuple[datetime, str]] = []
-    without_dt: list[str] = []
-    for item in items:
-        dt = extract_sensing_time(item)
-        if dt is None:
-            without_dt.append(item)
-        else:
-            with_dt.append((dt, item))
-    with_dt.sort(key=lambda x: x[0], reverse=reverse)
-    return [item for _, item in with_dt] + without_dt
 
 
 def extract_creation_time(filename: str) -> Optional[datetime]:
@@ -196,120 +185,6 @@ def extract_info(uri: str) -> dict[str, Any]:
         "creation_time": parsed.creation_time if parsed else None,
         "orbit_frame": parsed.orbit_frame if parsed else None,
     }
-
-
-def filter_by_sensing_time(
-    items: list[str],
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-) -> list[str]:
-    """
-    Filter URLs/paths by sensing time within [start, end].
-
-    Items where sensing_time cannot be extracted are dropped.
-
-    Args:
-        items: List of URLs or paths to filter
-        start: Optional start datetime (inclusive). None means no lower bound.
-        end: Optional end datetime (inclusive). None means no upper bound.
-
-    Returns:
-        Filtered list of items with valid sensing times within range
-    """
-    if start is None and end is None:
-        return items
-    result = []
-    for item in items:
-        sensing_time = extract_sensing_time(item)
-        if sensing_time is None:
-            continue
-        if (start is None or start <= sensing_time) and (end is None or sensing_time <= end):
-            result.append(item)
-    return result
-
-
-def filter_by_orbit_frame(
-    items: list[str],
-    orbit: Optional[int] = None,
-    frames: Optional[list[str]] = None,
-) -> list[str]:
-    """
-    Filter URLs/paths by orbit number and/or frame letters (from filename).
-
-    Items where orbit/frame cannot be extracted are dropped, mirroring
-    filter_by_sensing_time. Frame letters must be uppercase (canonical
-    form from parse_frames).
-
-    Args:
-        items: List of URLs or paths to filter
-        orbit: Optional orbit number to match. None means no orbit constraint.
-        frames: Optional list of frame letters to match. None/empty means
-                no frame constraint.
-
-    Returns:
-        Filtered list of items
-    """
-    if orbit is None and not frames:
-        return items
-    result = []
-    for item in items:
-        orbit_frame = extract_orbit_frame(item)
-        if orbit_frame is None:
-            continue
-        if orbit_frame[-1].isalpha():
-            item_orbit, item_frame = int(orbit_frame[:-1]), orbit_frame[-1]
-        else:
-            item_orbit, item_frame = int(orbit_frame), None
-        if orbit is not None and item_orbit != orbit:
-            continue
-        if frames and item_frame not in frames:
-            continue
-        result.append(item)
-    return result
-
-
-def filter_by_fields(items: list[str], filters: dict[str, list[str]], mission: Mission) -> list[str]:
-    """
-    Filter URLs/paths by the mission filters read from their product names.
-
-    An item is kept when, for every filter, its ProductName attribute is one
-    of the accepted values (decimal strings, as parse_filter_values gives
-    them, compared as integers). A blank field in the name (e.g. Biomass L2
-    ``C___``) matches nothing.
-
-    Args:
-        items: List of URLs or paths to filter
-        filters: Filter option (e.g. "track") -> accepted values
-        mission: Mission whose filters and parser apply
-
-    Raises:
-        ValueError: If a filter is not one of the mission's, or some items'
-            product names carry none of the mission's filter fields
-            (undocumented grammar); the message names those product types.
-    """
-    if not filters:
-        return items
-    specs = {spec.option: spec for spec in mission.filters}
-    unknown = [option for option in filters if option not in specs]
-    if unknown:
-        raise ValueError(f"{mission.name} has no {', '.join(unknown)} filter")
-
-    accepted = {option: {int(value) for value in values} for option, values in filters.items()}
-    result = []
-    undocumented: set[str] = set()
-    for item in items:
-        parsed = mission.parse(item)
-        if all(getattr(parsed, spec.attribute) is None for spec in specs.values()):
-            undocumented.add(parsed.product_type or parsed.product)
-            continue
-        if all(getattr(parsed, specs[option].attribute) in ints for option, ints in accepted.items()):
-            result.append(item)
-    if undocumented:
-        raise ValueError(
-            f"Cannot filter by {', '.join(filters)} offline: the product names of "
-            f"{', '.join(sorted(undocumented))} do not carry these fields; use search instead"
-        )
-    return result
 
 
 def is_zip_url(url: str) -> bool:
@@ -416,7 +291,7 @@ def extract_collection(path: str | Path) -> Optional[str]:
 
     Inverse of ``generate_data_path``: the directory above
     ``{product_type}/{baseline}/{yyyy}/{mm}/{dd}`` (optionally followed by the
-    ``{stem}`` product directory), all checked against the filename.
+    product directory and its sub-folders), all checked against the filename.
 
     Args:
         path: Local path of a product file laid out by ``generate_data_path``
@@ -432,10 +307,13 @@ def extract_collection(path: str | Path) -> Optional[str]:
     if not (product_type and baseline and dt):
         return None
 
-    parts = path.parent.parts
-    if parts and parts[-1] == path.stem:
-        parts = parts[:-1]
     tail = (product_type, baseline, f"{dt.year:04d}", f"{dt.month:02d}", f"{dt.day:02d}")
+    parts = path.parent.parts
+    if product_folder(path.as_posix()):
+        # product directory (and any sub-folders) below the day folder
+        day_end = next((i for i in range(len(tail), len(parts)) if parts[i - len(tail):i] == tail), None)
+        if day_end is not None:
+            parts = parts[:day_end]
     if len(parts) <= len(tail) or parts[-len(tail):] != tail:
         return None
     collection = parts[-len(tail) - 1]
