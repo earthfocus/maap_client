@@ -20,8 +20,8 @@ with text-file tracking for unattended pipelines. It supports EarthCARE, Aeolus,
 |---------|----------------|--------|
 | EarthCARE | `h5` (then `eof`, `dbl`) | MAAP offline token |
 | Aeolus | `dbl` (then `nc`, `bufr`, `eef`) | MAAP offline token |
-| Biomass | `zip` (whole product) | MAAP offline token; `BiomassAuxRest` is restricted |
-| FLEX | `zip` (whole product) | Download access must be requested from ESA |
+| Biomass | `zip` (whole product) | MAAP offline token; `BiomassAuxRest` is restricted; L2b [not supported yet](EXAMPLES.md#not-supported-yet) |
+| FLEX | `zip` (whole product) | Download access must be requested from ESA; downloads [not yet validated](EXAMPLES.md#not-supported-yet) |
 
 The default format applies only when no `--format` is given. See
 [what is not supported yet](EXAMPLES.md#not-supported-yet) for current limitations.

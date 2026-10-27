@@ -311,6 +311,9 @@ maap download EarthCAREXMETL1DProducts10_MAAP AUX_MET_1D --registry --orbit 0152
   baseline are read.
 - Registries saved by older versions under baseline `UNKNOWN` stay next to the new
   real-baseline folders; `download --registry` reads both.
+- Unlike older versions, `--registry-save` now registers a day whose search returns as
+  many URLs as the day already holds but different ones (e.g. another format); older
+  versions skipped such a day.
 
 ```bash
 maap get AeolusBaseline16Products10 ALD_U_N_1B --date 2023-04-30            # .DBL files

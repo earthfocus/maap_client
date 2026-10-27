@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "maap-client"
 version = "0.2.1"
-description = "Python client for ESA MAAP EarthCARE satellite data access"
+description = "Python client for ESA MAAP satellite data access (EarthCARE, Aeolus, Biomass, FLEX)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
