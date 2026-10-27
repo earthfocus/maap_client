@@ -51,7 +51,8 @@ NO_ORBIT_PRODUCTS = frozenset({"AUX_MET_1D"})
 
 _SENSING = re.compile(r"_(\d{8}T\d{6})Z?_")
 _CREATION = re.compile(r"_\d{8}T\d{6}Z_(\d{8}T\d{6}Z)_")
-_ORBIT_FRAME = re.compile(r"_(\d{5})([A-Z])\.[a-zA-Z0-9]+$", re.IGNORECASE)
+# The extension is optional: zip (product) URLs end in the bare product name
+_ORBIT_FRAME = re.compile(r"_(\d{5})([A-Z])(?:\.[a-zA-Z0-9]+)?$", re.IGNORECASE)
 _AGENCY = re.compile(r"^ECA_([A-Z]{2})[A-Z]{2}_")
 _BASELINE = re.compile(r"^ECA_[A-Z]{2}([A-Z]{2})_")
 _PRODUCT_TYPE = re.compile(r"^ECA_[A-Z]{4}_(.+?)_\d{8}T\d{6}Z_")

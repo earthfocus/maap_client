@@ -43,7 +43,8 @@ _PRODUCT_TYPE = re.compile(r"^AE_[A-Z]{4}_([A-Z0-9_]{10})_\d{8}T\d{6}")
 # equals the item's `version` where the catalogue has one (aux products
 # without version use the literal `NNAA`).
 _BASELINE_PATH = re.compile(r"/(?P<type>[A-Z0-9_]{10})/(?P<baseline>[A-Za-z0-9]{2,4})/\d{4}/\d{2}/\d{2}/", re.IGNORECASE)
-_ORBIT = re.compile(r"_(\d{6})_\d{4}\.[A-Z]{3}$", re.IGNORECASE)
+# The extension is optional: zip (product) URLs end in the bare product name
+_ORBIT = re.compile(r"_(\d{6})_\d{4}(?:\.[A-Z]{3})?$", re.IGNORECASE)
 _DURATION = re.compile(r"_\d{8}T\d{9}_(\d{9})_\d{6}_\d{4}\.[A-Z]{3}$", re.IGNORECASE)
 _VERSION = re.compile(r"_(\d{4})\.[A-Z]{3}$", re.IGNORECASE)
 
