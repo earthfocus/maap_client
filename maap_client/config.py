@@ -2,7 +2,8 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+import logging
 import os
 
 from maap_client.constants import (
@@ -21,8 +22,12 @@ from maap_client.constants import (
 from maap_client.exceptions import InvalidRequestError
 from maap_client.missions import MISSIONS, get_mission
 
+logger = logging.getLogger(__name__)
+
 # Keys of a legacy [mission] section read as overrides of the named mission.
 LEGACY_MISSION_KEYS = ("start", "end", "collections", "collections_extend")
+# Keys of a [missions.X] table.
+MISSION_KEYS = (*LEGACY_MISSION_KEYS, "default_format")
 
 
 def _config_mission(name: str, where: str) -> str:
@@ -31,6 +36,23 @@ def _config_mission(name: str, where: str) -> str:
         return get_mission(name).name
     except ValueError as e:
         raise InvalidRequestError(f"{e} (config.toml {where})") from e
+
+
+def _config_formats(value: Any, where: str) -> tuple[str, ...]:
+    """
+    Format tokens of a ``default_format`` (a string or a list of strings),
+    normalised like ``--format`` (``" .H5 "`` -> ``"h5"``); anything else, or
+    an empty token, is an invalid request.
+    """
+    values = [value] if isinstance(value, str) else value
+    if not isinstance(values, list) or not all(isinstance(v, str) for v in values):
+        raise InvalidRequestError(
+            f"default_format must be a string or a list of strings (config.toml {where})"
+        )
+    formats = tuple(v.strip().lower().lstrip(".") for v in values)
+    if not all(formats):
+        raise InvalidRequestError(f"default_format has an empty format (config.toml {where})")
+    return formats
 
 
 @dataclass
@@ -97,8 +119,7 @@ class MaapConfig:
         self.mission_start = overrides.get("start") or profile.start
         self.mission_end = overrides.get("end") or profile.end
         self.collections = self.effective_collections(profile.name)
-        default_format = overrides.get("default_format")
-        self.default_formats = (default_format,) if default_format else profile.default_formats
+        self.default_formats = overrides.get("default_format") or profile.default_formats
 
     def _check_collections_unique(self) -> None:
         """
@@ -192,7 +213,16 @@ class MaapConfig:
 
         # [missions.X] tables
         for key, table in (data.get("missions") or {}).items():
-            config.mission_overrides.setdefault(_config_mission(key, f"[missions.{key}]"), {}).update(table)
+            where = f"[missions.{key}]"
+            overrides = dict(table)
+            for unknown in sorted(set(overrides) - set(MISSION_KEYS)):
+                logger.warning(
+                    f"Ignoring unknown key '{unknown}' in config.toml {where} "
+                    f"(allowed: {', '.join(MISSION_KEYS)})"
+                )
+            if "default_format" in overrides:
+                overrides["default_format"] = _config_formats(overrides["default_format"], where)
+            config.mission_overrides.setdefault(_config_mission(key, where), {}).update(overrides)
 
         if default_mission := data.get("default_mission"):
             config.default_mission = _config_mission(default_mission, "default_mission")

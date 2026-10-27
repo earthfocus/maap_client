@@ -92,7 +92,8 @@ start = "2025-01-01T00:00:00Z"
 end = "2045-12-31T23:59:59Z"
 collections = ["BiomassLevel1b", "BiomassAux"]   # replace the profile collections
 # collections_extend = ["BiomassNewCollection"]  # or add to them
-default_format = "zip"                           # one format, used when no --format is given
+default_format = "zip"                           # used when no --format is given; or a
+                                                 # priority list, e.g. ["tiff", "zip"]
 ```
 
 Every collection belongs to one mission: a collection listed in two missions, or an
