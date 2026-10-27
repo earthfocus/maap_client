@@ -60,6 +60,18 @@ def non_empty_string(value: str) -> str:
     return value
 
 
+def add_mission_option(parser: argparse.ArgumentParser) -> None:
+    """
+    Accept --mission after a sub-command too. SUPPRESS leaves the top-level
+    value in place when the sub-command copy is not given; when given, it wins.
+    """
+    parser.add_argument(
+        "--mission",
+        default=argparse.SUPPRESS,
+        help="Mission when the collection or URLs do not decide it (same as the top-level --mission)",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build and return the argument parser."""
     parser = argparse.ArgumentParser(
@@ -124,6 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Refresh from API to get latest products/baselines",
     )
+    add_mission_option(list_parser)
     list_parser.set_defaults(func=cmd_list)
 
     # --- catalog subcommand (manage catalogs) ---
@@ -145,6 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
     catalog_update.add_argument(
         "--out-dir", "-o", type=Path, help="Output directory"
     )
+    add_mission_option(catalog_update)
     catalog_update.set_defaults(func=cmd_catalog_update)
 
     catalog_build = catalog_sub.add_parser(
@@ -180,6 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--out-dir", "-o", type=Path, help="Output directory"
     )
 
+    add_mission_option(catalog_build)
     catalog_build.set_defaults(func=cmd_catalog_build)
 
     # --- search subcommand (unified: time-based or orbit-based) ---
@@ -256,6 +271,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--newest-first", action="store_true",
         help="Return URLs sorted newest-first by sensing time",
     )
+    add_mission_option(search_parser)
     search_parser.set_defaults(func=cmd_search)
 
     # --- download subcommand ---
@@ -341,6 +357,7 @@ Notes:
         "--newest-first", action="store_true",
         help="Download newest sensing times first",
     )
+    add_mission_option(download_parser)
     download_parser.set_defaults(func=cmd_download)
 
     # --- get subcommand ---
@@ -420,6 +437,7 @@ Notes:
         "--newest-first", action="store_true",
         help="Search and download newest sensing times first",
     )
+    add_mission_option(get_parser)
     get_parser.set_defaults(func=cmd_get)
 
     # --- sync subcommand ---
@@ -473,6 +491,7 @@ Notes:
         "--newest-first", action="store_true",
         help="Search and download newest sensing times first",
     )
+    add_mission_option(sync_parser)
     sync_parser.set_defaults(func=cmd_sync)
 
     # --- state subcommand ---
@@ -495,6 +514,7 @@ Notes:
     state_show_time.add_argument("--date", help="Single date (YYYY-MM-DD) or exact datetime (YYYY-MM-DDTHH:MM:SSZ)")
     state_show_time.add_argument("--start", "-s", help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)")
     state_show.add_argument("--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)")
+    add_mission_option(state_show)
     state_show.set_defaults(func=cmd_state_show)
 
     state_pending = state_sub.add_parser(
@@ -515,6 +535,7 @@ Notes:
     state_pending_time.add_argument("--date", help="Single date (YYYY-MM-DD) or exact datetime (YYYY-MM-DDTHH:MM:SSZ)")
     state_pending_time.add_argument("--start", "-s", help="Start datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)")
     state_pending.add_argument("--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)")
+    add_mission_option(state_pending)
     state_pending.set_defaults(func=cmd_state_pending)
 
     state_mark = state_sub.add_parser(
@@ -524,6 +545,7 @@ Notes:
     )
     state_mark.add_argument("paths", nargs="*", help="Local file paths to mark")
     state_mark.add_argument("--file", "-f", type=Path, help="File with paths to mark")
+    add_mission_option(state_mark)
     state_mark.set_defaults(func=cmd_state_mark)
 
     state_cleanup = state_sub.add_parser(
@@ -535,6 +557,7 @@ Notes:
     state_cleanup.add_argument("product", type=non_empty_string, help="Product type")
     state_cleanup.add_argument("baseline", type=non_empty_string, help="Baseline version")
     state_cleanup.add_argument("--dry-run", action="store_true", help="Show what would be deleted")
+    add_mission_option(state_cleanup)
     state_cleanup.set_defaults(func=cmd_state_cleanup)
 
     # --- config subcommand ---
@@ -543,6 +566,7 @@ Notes:
         help="Show loaded configuration",
         description="Show the currently loaded configuration including all paths and settings.",
     )
+    add_mission_option(config_parser)
     config_parser.set_defaults(func=cmd_config)
 
     # --- mission subcommand ---
@@ -558,6 +582,7 @@ Notes:
         help="List missions, marking the active one",
         description="List the known missions; the active one is marked with where the choice came from.",
     )
+    add_mission_option(mission_list)
     mission_list.set_defaults(func=cmd_mission_list)
 
     mission_use = mission_sub.add_parser(
@@ -574,6 +599,7 @@ Notes:
         description="Show the effective profile of a mission: dates, default formats, filters, collections.",
     )
     mission_show.add_argument("name", nargs="?", default=None, help="Mission name (default: active mission)")
+    add_mission_option(mission_show)
     mission_show.set_defaults(func=cmd_mission_show)
 
     # --- token subcommand ---
