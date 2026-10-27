@@ -5,9 +5,10 @@ from typing import Mapping, Optional, Sequence
 
 from maap_client.missions.aeolus import AEOLUS
 from maap_client.missions.base import Mission, ProductName, split_product_url
+from maap_client.missions.biomass import BIOMASS
 from maap_client.missions.earthcare import EARTHCARE
 
-MISSIONS: dict[str, Mission] = {m.name: m for m in (EARTHCARE, AEOLUS)}
+MISSIONS: dict[str, Mission] = {m.name: m for m in (EARTHCARE, AEOLUS, BIOMASS)}
 
 __all__ = [
     "MISSIONS",
