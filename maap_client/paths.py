@@ -13,7 +13,7 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 from maap_client.missions import mission_for_filename, split_product_url
-from maap_client.missions.base import ProductName
+from maap_client.missions.base import Mission, ProductName
 
 
 logger = logging.getLogger(__name__)
@@ -425,6 +425,48 @@ def filter_by_orbit_frame(
         if frames and item_frame not in frames:
             continue
         result.append(item)
+    return result
+
+
+def filter_by_fields(items: list[str], filters: dict[str, list[str]], mission: Mission) -> list[str]:
+    """
+    Filter URLs/paths by the mission filters read from their product names.
+
+    An item is kept when, for every filter, its ProductName.fields value is
+    one of the accepted values (unpadded decimal strings, as the parser gives
+    them). A blank field in the name (e.g. Biomass L2 ``C___``) matches nothing.
+
+    Args:
+        items: List of URLs or paths to filter
+        filters: Filter option (e.g. "track") -> accepted values
+        mission: Mission whose filters and parser apply
+
+    Raises:
+        ValueError: If a filter is not one of the mission's, or some items'
+            product names carry none of the mission's filter fields
+            (undocumented grammar); the message names those product types.
+    """
+    if not filters:
+        return items
+    specs = {spec.option: spec for spec in mission.filters}
+    unknown = [option for option in filters if option not in specs]
+    if unknown:
+        raise ValueError(f"{mission.name} has no {', '.join(unknown)} filter")
+
+    result = []
+    undocumented: set[str] = set()
+    for item in items:
+        parsed = mission.parse(item)
+        if not any(parsed.fields.get(spec.field) for spec in specs.values()):
+            undocumented.add(parsed.product_type or parsed.product)
+            continue
+        if all(parsed.fields.get(specs[option].field) in values for option, values in filters.items()):
+            result.append(item)
+    if undocumented:
+        raise ValueError(
+            f"Cannot filter by {', '.join(filters)} offline: the product names of "
+            f"{', '.join(sorted(undocumented))} do not carry these fields; use search instead"
+        )
     return result
 
 

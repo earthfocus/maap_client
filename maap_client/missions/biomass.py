@@ -38,7 +38,7 @@ import os
 import re
 from typing import Optional
 
-from maap_client.missions.base import Mission, ProductName, parse_timestamp, split_product_url
+from maap_client.missions.base import FilterSpec, Mission, ProductName, parse_timestamp, split_product_url
 
 COLLECTIONS = (
     "BiomassLevel0",
@@ -120,6 +120,13 @@ class _Biomass(Mission):
     start = "2010-01-01T00:00:00Z"
     end = "2045-12-31T23:59:59Z"
     default_formats = ("zip",)
+    # MAAP queryables; offline values come from the T/F/C/M fields of the name
+    filters = (
+        FilterSpec("track", "track", "track"),
+        FilterSpec("frame", "frame", "frame"),
+        FilterSpec("repeat_cycle", "eofeos:repeat_cycle_id", "repeat_cycle"),
+        FilterSpec("major_cycle", "eofeos:major_cycle_id", "major_cycle"),
+    )
     orbit_offline = False
     orbit_frame_suffix = False
 

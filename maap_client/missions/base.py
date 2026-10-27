@@ -22,6 +22,37 @@ class ProductName:
     fields: Mapping[str, Optional[str]] = field(default_factory=dict)  # mission extras
 
 
+@dataclass(frozen=True)
+class FilterSpec:
+    """A mission filter: CLI/API option, STAC queryable and ProductName.fields key."""
+
+    option: str  # "track" | "frame" | "repeat_cycle" | "major_cycle"
+    queryable: str  # e.g. "track", "eofeos:repeat_cycle_id"
+    field: str  # key in ProductName.fields, for offline (registry) filtering
+
+
+def parse_filter_values(value: str) -> list[str]:
+    """
+    Parse a comma list of non-negative integers into unpadded decimal strings.
+
+    Example: "002, 12" -> ["2", "12"]. MAAP matches these queryables only
+    unpadded ('2' matches, '002' finds nothing). Duplicates are removed,
+    first-seen order is kept.
+
+    Raises:
+        ValueError: If any entry is not a non-negative integer.
+    """
+    values: list[str] = []
+    for part in value.split(","):
+        token = part.strip()
+        if not token.isdecimal():
+            raise ValueError(f"invalid value '{token}': must be non-negative integers")
+        unpadded = str(int(token))
+        if unpadded not in values:
+            values.append(unpadded)
+    return values
+
+
 def split_product_url(url: str) -> tuple[str, str]:
     """
     Split a product URL into (product, relative path inside the product).
@@ -65,11 +96,16 @@ class Mission:
     start: str
     end: str
     default_formats: tuple[str, ...]
-    filters: tuple = ()
+    filters: tuple[FilterSpec, ...] = ()
     orbit_offline: bool
     orbit_frame_suffix: bool
     dedup_products: frozenset[str] = frozenset()
     no_orbit_products: frozenset[str] = frozenset()
+
+    def available_filters(self) -> tuple[str, ...]:
+        """Filter options of the mission: orbit, frame letters where orbits carry them, then its filters."""
+        letters = ("frame",) if self.orbit_frame_suffix else ()
+        return ("orbit",) + letters + tuple(spec.option for spec in self.filters)
 
     def parse(self, url: str) -> ProductName:
         """Parse a product filename or URL."""

@@ -264,8 +264,14 @@ class MaapSearcher:
         baseline: Optional[str] = None,
         orbit: Optional[int] = None,
         frames: Optional[list[str]] = None,
+        extra: Optional[dict[str, list[str]]] = None,
     ) -> str:
-        """Build a CQL2-text filter string for MAAP STAC searches."""
+        """
+        Build a CQL2-text filter string for MAAP STAC searches.
+
+        extra maps mission queryables to accepted values; names with a
+        namespace (``eofeos:repeat_cycle_id``) are double-quoted.
+        """
         parts = [f"productType = '{product_type}'"]
         if baseline:
             parts.append(f"productVersion = '{baseline}'")
@@ -277,6 +283,15 @@ class MaapSearcher:
             else:
                 frame_list = ", ".join(f"'{f}'" for f in frames)
                 parts.append(f"frame IN ({frame_list})")
+        for queryable, values in (extra or {}).items():
+            if not values:
+                continue
+            name = f'"{queryable}"' if ":" in queryable else queryable
+            if len(values) == 1:
+                parts.append(f"{name} = '{values[0]}'")
+            else:
+                value_list = ", ".join(f"'{v}'" for v in values)
+                parts.append(f"{name} IN ({value_list})")
         return " AND ".join(parts)
 
     def _clean_search_results(
@@ -536,6 +551,7 @@ class MaapSearcher:
         reverse: bool = False,
         frames: Optional[list[str]] = None,
         on_day: Optional[Callable[[list[str]], None]] = None,
+        extra: Optional[dict[str, list[str]]] = None,
     ) -> list[str]:
         """
         Search for download URLs for matching products.
@@ -548,6 +564,7 @@ class MaapSearcher:
             frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
             on_day: Called with each day's URLs as found (day-by-day path only).
                 Durability hook for incremental persistence.
+            extra: Mission queryables -> accepted values (see _build_filter).
 
         Returns:
             List of product URLs
@@ -563,7 +580,7 @@ class MaapSearcher:
             if verbose:
                 bl_str = f"/{baseline}" if baseline else ""
                 logger.info(f"Searching {collection} {product_type}{bl_str}{format_time_range(start, end)}...")
-            filter_str = self._build_filter(product_type, baseline=baseline, frames=frames)
+            filter_str = self._build_filter(product_type, baseline=baseline, frames=frames, extra=extra)
             datetime_arg = (start, end)
             search = self.client.search(
                 collections=[collection],
@@ -592,6 +609,7 @@ class MaapSearcher:
                 format=format,
                 reverse=reverse,
                 frames=frames,
+                extra=extra,
             ):
                 urls.extend(day_urls)
                 if on_day and day_urls:
@@ -613,6 +631,7 @@ class MaapSearcher:
         max_items: int = 100,
         verbose: bool = False,
         format: Optional[str] = None,
+        extra: Optional[dict[str, list[str]]] = None,
     ) -> list[str]:
         """
         Search for product URLs by orbit number, optionally restricted to frames.
@@ -621,6 +640,7 @@ class MaapSearcher:
             orbit: Absolute orbit number (e.g. 1525)
             frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
                     None searches all frames of the orbit.
+            extra: Mission queryables -> accepted values (see _build_filter).
 
         Returns:
             List of product URLs matching the orbit (and frames, if given)
@@ -638,7 +658,7 @@ class MaapSearcher:
             frames_str = f" frames {','.join(frames)}" if frames else ""
             logger.info(f"Searching {collection} {product_type}{bl_str} orbit {orbit}{frames_str}...")
 
-        filter_str = self._build_filter(product_type, baseline=baseline, orbit=orbit, frames=frames)
+        filter_str = self._build_filter(product_type, baseline=baseline, orbit=orbit, frames=frames, extra=extra)
         logger.debug(f"Searching with filter: {filter_str}")
 
         search = self.client.search(
@@ -668,6 +688,7 @@ class MaapSearcher:
         format: Optional[str] = None,
         reverse: bool = False,
         frames: Optional[list[str]] = None,
+        extra: Optional[dict[str, list[str]]] = None,
     ) -> Iterator[list[str]]:
         """
         Generator that searches day-by-day over a time range.
@@ -680,6 +701,7 @@ class MaapSearcher:
         Args:
             reverse: If True, iterate days from end to start (newest first).
             frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
+            extra: Mission queryables -> accepted values (see _build_filter).
 
         Yields:
             List of URLs for each day in the range
@@ -695,7 +717,7 @@ class MaapSearcher:
             day_ranges.reverse()
         for i, (day_start, day_end) in enumerate(day_ranges):
             datetime_arg = to_stac_datetime(day_start, day_end)
-            filter_str = self._build_filter(product_type, baseline=baseline, frames=frames)
+            filter_str = self._build_filter(product_type, baseline=baseline, frames=frames, extra=extra)
             try:
                 search = self.client.search(
                     collections=[collection],
@@ -742,7 +764,7 @@ class MaapSearcher:
             self.last_failed_days = []
             for day_start, day_end in failed_ranges:
                 datetime_arg = to_stac_datetime(day_start, day_end)
-                filter_str = self._build_filter(product_type, baseline=baseline, frames=frames)
+                filter_str = self._build_filter(product_type, baseline=baseline, frames=frames, extra=extra)
                 try:
                     search = self.client.search(
                         collections=[collection],

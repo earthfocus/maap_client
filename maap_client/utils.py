@@ -147,3 +147,9 @@ def parse_orbit(value: str) -> tuple[int, Optional[str]]:
             f"(e.g. '1525' or '01525E')"
         )
     return int(orbit_str), frame
+
+
+def has_orbit_letter(value: str) -> bool:
+    """True for an orbit spec of digits followed by one letter ('01525E', '1525X')."""
+    orbit_str = value.strip()
+    return orbit_str[:-1].isdigit() and orbit_str[-1:].isalpha()

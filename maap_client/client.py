@@ -21,11 +21,13 @@ from maap_client.exceptions import (
 )
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
-from maap_client.missions import BIOMASS, mission_for_filename
+from maap_client.missions import BIOMASS, Mission, get_mission, mission_for_filename
+from maap_client.missions.base import parse_filter_values
 from maap_client.paths import (
     extract_baseline,
     extract_product,
     extract_sensing_time,
+    filter_by_fields,
     filter_by_orbit_frame,
     is_zip_url,
     local_relpath,
@@ -35,7 +37,7 @@ from maap_client.paths import (
 from maap_client.registry import Registry
 from maap_client.types import DownloadResult, SearchResult, SyncResult
 from maap_client.utils import normalize_time_range as _normalize_time_range
-from maap_client.utils import parse_datetime, parse_frames, parse_orbit, timezone_is_aware, to_zulu
+from maap_client.utils import has_orbit_letter, parse_datetime, parse_frames, parse_orbit, timezone_is_aware, to_zulu
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,11 @@ class MaapClient:
     def config(self) -> MaapConfig:
         """Get current configuration."""
         return self._config
+
+    @property
+    def mission(self) -> Mission:
+        """Profile of the configured mission."""
+        return get_mission(self._config.mission)
 
     @property
     def catalog(self) -> CatalogQueryablesManager:
@@ -279,6 +286,58 @@ class MaapClient:
                 f"use orbit '{orbit_num}' together with the frames list instead"
             )
         return orbit_num, [orbit_letter] if orbit_letter else frames
+
+    def _resolve_filters(
+        self,
+        orbit: Optional[str],
+        frames: Optional[list[str]],
+        filters: Optional[dict[str, list]],
+    ) -> Optional[dict[str, list[str]]]:
+        """
+        Check orbit, frames and filters against the mission's closed filter list.
+
+        Frame letters (as a list or an orbit suffix) exist only where orbits
+        carry them (EarthCARE); other missions take their own filters.
+
+        Returns:
+            None when no filter is given, else filter option -> unpadded values.
+
+        Raises:
+            InvalidRequestError: On a filter the mission does not have, a
+                malformed value, frame letters or an orbit letter on a mission
+                without them.
+        """
+        if not (orbit or frames or filters):
+            return None
+        mission = self.mission
+        available = ", ".join(mission.available_filters())
+        if not mission.orbit_frame_suffix:
+            if frames:
+                raise InvalidRequestError(f"{mission.name} has no frame letters; available filters: {available}")
+            if orbit and has_orbit_letter(orbit):
+                raise InvalidRequestError(f"{mission.name} orbits take no frame letter: '{orbit.strip()}'")
+        if not filters:
+            return None
+        options = {spec.option for spec in mission.filters}
+        resolved: dict[str, list[str]] = {}
+        for option, values in filters.items():
+            if option not in options:
+                raise InvalidRequestError(f"{mission.name} has no {option}; available filters: {available}")
+            if isinstance(values, (str, int)):
+                values = [values]
+            if not values:
+                continue
+            try:
+                resolved[option] = parse_filter_values(",".join(str(v) for v in values))
+            except ValueError as e:
+                raise InvalidRequestError(f"{option}: {e}") from e
+        return resolved or None
+
+    def _queryables(self, filters: Optional[dict[str, list[str]]]) -> Optional[dict[str, list[str]]]:
+        """Map resolved filters (option -> values) to STAC queryables -> values."""
+        if not filters:
+            return None
+        return {spec.queryable: filters[spec.option] for spec in self.mission.filters if spec.option in filters}
 
     # === CATALOG OPERATIONS ===
 
@@ -627,6 +686,7 @@ class MaapClient:
         reverse: bool = False,
         frames: Optional[list[str]] = None,
         on_day: Optional[Callable[[list[str]], None]] = None,
+        filters: Optional[dict[str, list[str]]] = None,
     ) -> SearchResult:
         """
         Search for product URLs.
@@ -653,17 +713,21 @@ class MaapClient:
                    a frame letter, frames must be omitted
             on_day: Called with each day's URLs as found (day-by-day path only).
                    Durability hook for incremental persistence.
+            filters: Mission filters, option -> values (e.g. Biomass
+                   {'track': ['2'], 'repeat_cycle': ['1']}); see Mission.filters
 
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end,
                                 or datetimes are not timezone-aware, or orbit already
-                                includes a frame letter while frames is also given
+                                includes a frame letter while frames is also given,
+                                or a filter is not one of the mission's
 
         Returns:
             SearchResult with urls and metadata
         """
         # Validate parameters
         self._validate_time_range(start, end, orbit)
+        extra = self._queryables(self._resolve_filters(orbit, frames, filters))
 
         # Orbit-based search
         orbit_num, resolved_frames = self._resolve_orbit_frames(orbit, frames)
@@ -683,6 +747,7 @@ class MaapClient:
                 max_items=max_items,
                 verbose=verbose,
                 format=format,
+                extra=extra,
             )
             if reverse:
                 urls = sort_by_sensing_time(urls, reverse=True)
@@ -725,6 +790,7 @@ class MaapClient:
             reverse=reverse,
             frames=resolved_frames,
             on_day=on_day,
+            extra=extra,
         )
 
         # Extract baselines from results
@@ -898,6 +964,7 @@ class MaapClient:
         reverse: bool = False,
         orbit: Optional[str] = None,
         frames: Optional[list[str]] = None,
+        filters: Optional[dict[str, list[str]]] = None,
     ) -> DownloadResult:
         """
         Download files from registry.
@@ -918,15 +985,25 @@ class MaapClient:
                   '01525E'); if it already includes a frame letter, frames must
                   be omitted
             frames: Optional frame letters to filter registry URLs by
+            filters: Mission filters (option -> values) matched against the
+                  product names of the registry URLs
 
         Raises:
             InvalidRequestError: If start > end, datetimes not timezone-aware, or
                                 orbit already includes a frame letter while frames
-                                is also given
+                                is also given, or orbit is given for a mission whose
+                                names carry no absolute orbit, or a filter is not one
+                                of the mission's or cannot be read from the names
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
         """
+        filters = self._resolve_filters(orbit, frames, filters)
+        if orbit and not self.mission.orbit_offline:
+            raise InvalidRequestError(
+                f"{self.mission.name} product names carry no absolute orbit: "
+                f"orbit filtering only works with search"
+            )
         # Validate time range (done inside load_from_registry)
         urls = self.load_from_registry(
             collection=collection,
@@ -940,6 +1017,13 @@ class MaapClient:
             total = len(urls)
             urls = filter_by_orbit_frame(urls, orbit=orbit_num, frames=resolved_frames)
             logger.info(f"{len(urls)} of {total} registry URLs match the orbit/frame filter")
+        if filters:
+            total = len(urls)
+            try:
+                urls = filter_by_fields(urls, filters, self.mission)
+            except ValueError as e:
+                raise InvalidRequestError(str(e)) from e
+            logger.info(f"{len(urls)} of {total} registry URLs match the {', '.join(filters)} filter")
         return self.download(
             urls=urls,
             collection=collection,
@@ -968,6 +1052,7 @@ class MaapClient:
         product_dir: bool = False,
         reverse: bool = False,
         frames: Optional[list[str]] = None,
+        filters: Optional[dict[str, list[str]]] = None,
     ) -> DownloadResult:
         """
         Search + download in one step.
@@ -989,11 +1074,13 @@ class MaapClient:
             verbose: Print progress messages
             format: 'zip', 'all' or a file extension (default: the mission's format priority list)
             frames: Optional frame letters to restrict the search to
+            filters: Mission filters, option -> values (see search())
 
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end,
                                 or orbit already includes a frame letter while
-                                frames is also given, or Biomass individual files
+                                frames is also given, or a filter is not one of
+                                the mission's, or Biomass individual files
                                 are asked for without product_dir (before any search)
 
         Returns:
@@ -1014,6 +1101,7 @@ class MaapClient:
             format=format,
             reverse=reverse,
             frames=frames,
+            filters=filters,
         )
 
         # Download (URLs are already ordered by search; no need to sort again)
@@ -1043,6 +1131,7 @@ class MaapClient:
         reverse: bool = False,
         frames: Optional[list[str]] = None,
         max_consecutive_failures: Optional[int] = None,
+        filters: Optional[dict[str, list[str]]] = None,
     ) -> SyncResult:
         """
         Incremental sync: search + download + state tracking.
@@ -1065,10 +1154,13 @@ class MaapClient:
             frames: Optional frame letters to restrict the sync to (state is
                    per-URL, so filtered syncs are safe)
             max_consecutive_failures: Forwarded to batch_download; abort a baseline's batch after this many consecutive failures (None = never).
+            filters: Mission filters, option -> values (see search()); state is
+                   per-URL, so filtered syncs are safe
 
         Raises:
             InvalidRequestError: If start > end or datetimes not timezone-aware,
-                                or Biomass individual files are asked for
+                                or a filter is not one of the mission's, or
+                                Biomass individual files are asked for
                                 without product_dir (before any search)
 
         Returns:
@@ -1077,6 +1169,7 @@ class MaapClient:
         # Validate time range
         self._validate_time_range(start, end)
         self._check_biomass_format(format, product_dir)
+        extra = self._queryables(self._resolve_filters(None, frames, filters))
         frames = self._normalize_frames(frames)
 
         # Default time range: last 3 days
@@ -1129,6 +1222,7 @@ class MaapClient:
                     format=format,
                     reverse=reverse,
                     frames=frames,
+                    extra=extra,
                 ):
                     if day_urls:
                         tracker.add_urls(day_urls)

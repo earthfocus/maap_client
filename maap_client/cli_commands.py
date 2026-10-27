@@ -10,8 +10,10 @@ from maap_client.cli_helpers import (
     get_client,
     load_config,
     mission_client,
+    option_flag,
     report_failed_days,
     resolve_date_args,
+    resolve_filter_args,
     validate_download_filter_args,
     validate_time_args,
 )
@@ -168,6 +170,11 @@ def cmd_list(args: argparse.Namespace) -> int:
 def cmd_search(args: argparse.Namespace) -> int:
     """Handle 'search' command (unified: time-based or orbit-based)."""
     client = get_client(args)
+    try:
+        frames, filters = resolve_filter_args(args, client)
+    except InvalidRequestError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return EXIT_NON_TRANSIENT
 
     # Validate arguments
     validation_error = validate_time_args(args)
@@ -205,7 +212,8 @@ def cmd_search(args: argparse.Namespace) -> int:
             start=start,
             end=end,
             orbit=orbit,
-            frames=getattr(args, 'frame', None),
+            frames=frames,
+            filters=filters,
             use_catalog=use_catalog,
             max_items=args.max_items,
             verbose=getattr(args, 'verbose', 0) >= 1,
@@ -267,6 +275,11 @@ def cmd_download(args: argparse.Namespace) -> int:
     if filter_error:
         print(f"Error: {filter_error}", file=sys.stderr)
         return EXIT_NON_TRANSIENT
+    try:
+        frames, filters = resolve_filter_args(args, client)
+    except InvalidRequestError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return EXIT_NON_TRANSIENT
 
     # Validate time arguments (only when using --registry with time filters)
     if args.registry:
@@ -289,7 +302,8 @@ def cmd_download(args: argparse.Namespace) -> int:
                 start=start,
                 end=end,
                 orbit=getattr(args, 'orbit', None),
-                frames=getattr(args, 'frame', None),
+                frames=frames,
+                filters=filters,
                 out_dir=args.out_dir,
                 dry_run=args.dry_run,
                 verbose=getattr(args, 'verbose', 0) >= 1,
@@ -358,6 +372,11 @@ def cmd_download(args: argparse.Namespace) -> int:
 def cmd_get(args: argparse.Namespace) -> int:
     """Handle 'get' command (search + download in one step)."""
     client = get_client(args)
+    try:
+        frames, filters = resolve_filter_args(args, client)
+    except InvalidRequestError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return EXIT_NON_TRANSIENT
 
     # Validate arguments
     validation_error = validate_time_args(args)
@@ -376,7 +395,8 @@ def cmd_get(args: argparse.Namespace) -> int:
             start=start,
             end=end,
             orbit=orbit,
-            frames=getattr(args, 'frame', None),
+            frames=frames,
+            filters=filters,
             out_dir=getattr(args, 'out_dir', None),
             max_items=args.max_items,
             dry_run=getattr(args, 'dry_run', False),
@@ -415,6 +435,11 @@ def cmd_sync(args: argparse.Namespace) -> int:
         return EXIT_NON_TRANSIENT
 
     client = get_client(args)
+    try:
+        frames, filters = resolve_filter_args(args, client)
+    except InvalidRequestError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return EXIT_NON_TRANSIENT
     # --out-dir overrides the data directory (and -d/--data-dir)
     if args.out_dir:
         client.config.data_dir = args.out_dir
@@ -430,7 +455,8 @@ def cmd_sync(args: argparse.Namespace) -> int:
             baseline=args.baseline,
             start=start,
             end=end,
-            frames=getattr(args, 'frame', None),
+            frames=frames,
+            filters=filters,
             max_items=args.max_items,
             verbose=getattr(args, 'verbose', 0) >= 1,
             format=getattr(args, 'format', None),
@@ -675,7 +701,7 @@ def cmd_mission_show(args: argparse.Namespace) -> int:
         config = MaapConfig.load(args.config, mission=name)
     else:
         config, _ = load_config(args)
-    filters = ", ".join(str(f) for f in get_mission(config.mission).filters) or "none"
+    filters = ", ".join(map(option_flag, get_mission(config.mission).available_filters()))
 
     print(f"mission:           {config.mission}")
     print(f"mission_start:     {config.mission_start}")
