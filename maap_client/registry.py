@@ -289,7 +289,7 @@ class Registry:
         """
         Save URLs to date-partitioned files with deduplication.
 
-        Groups URLs by sensing date, handles skip-if-same-count optimization,
+        Groups URLs by sensing date, skips (touches) days already fully registered,
         merges with existing URLs, and computes local paths.
 
         Args:
@@ -319,17 +319,6 @@ class Registry:
         for sensing_date, date_urls in urls_by_date.items():
             url_file = self.url_file_for_date(sensing_date)
 
-            # Skip if file exists with same count - just touch mtime
-            if url_file.exists():
-                existing_count = self.count_lines(url_file)
-                if existing_count == len(date_urls):
-                    self.touch(url_file)
-                    files_written.append(url_file)
-                    continue
-
-            # Ensure directory exists
-            self.ensure_dir(url_file)
-
             # Load existing URLs (if file exists)
             existing: set[str] = set()
             existing_lines: dict[str, str] = {}  # url -> full line
@@ -337,6 +326,17 @@ class Registry:
                 for first, second in self.read_pairs(url_file):
                     existing.add(first)
                     existing_lines[first] = f"{first}|{second}" if second else first
+
+            # Skip if every URL is already registered - just touch mtime. A
+            # same line count is not enough: another format of the same
+            # products (zip after xml) has as many URLs.
+            if url_file.exists() and all(u in existing for u in date_urls):
+                self.touch(url_file)
+                files_written.append(url_file)
+                continue
+
+            # Ensure directory exists
+            self.ensure_dir(url_file)
 
             # Merge and count new URLs
             new_urls = [u for u in date_urls if u not in existing]
