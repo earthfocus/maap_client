@@ -22,6 +22,7 @@ from maap_client.exceptions import (
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
 from maap_client.missions import BIOMASS, Mission, get_mission, mission_for_filename
+from maap_client.missions.earthcare import EARTHCARE
 from maap_client.missions.base import parse_filter_values
 from maap_client.paths import (
     extract_baseline,
@@ -1013,6 +1014,20 @@ class MaapClient:
             end=end,
         )
         orbit_num, resolved_frames = self._resolve_orbit_frames(orbit, frames)
+        if orbit_num is not None and self.mission is not EARTHCARE:
+            # Aeolus carries the orbit only in some names (L0/L1 ms timestamps):
+            # reject the others instead of silently dropping them. EarthCARE
+            # keeps dropping orbit-less names (AUX_CC*, AUX_ORBPRE, MPL_ORBSCT).
+            orbitless = sorted({
+                parsed.product_type or parsed.product
+                for parsed in map(self.mission.parse, urls)
+                if parsed.orbit_frame is None
+            })
+            if orbitless:
+                raise InvalidRequestError(
+                    f"Cannot filter by orbit offline: the product names of {', '.join(orbitless)} "
+                    f"do not carry the orbit; use search instead"
+                )
         if orbit_num is not None or resolved_frames:
             total = len(urls)
             urls = filter_by_orbit_frame(urls, orbit=orbit_num, frames=resolved_frames)
