@@ -18,6 +18,10 @@ from maap_client.constants import (
     DEFAULT_REGISTRY_DIR,
     DEFAULT_CREDENTIALS_FILE,
 )
+from maap_client.missions import MISSIONS, get_mission, mission_for_collection
+
+# Keys of a legacy [mission] section read as overrides of the named mission.
+LEGACY_MISSION_KEYS = ("start", "end", "collections", "collections_extend")
 
 
 @dataclass
@@ -47,6 +51,61 @@ class MaapConfig:
     # Known collections
     collections: list[str] = field(default_factory=lambda: DEFAULT_COLLECTIONS.copy())
 
+    # Formats tried in order when no --format is given
+    default_formats: tuple[str, ...] = get_mission(DEFAULT_MISSION).default_formats
+
+    # Mission chosen in config.toml (default_mission or legacy [mission].name)
+    default_mission: Optional[str] = None
+
+    # Parsed [missions.X] tables (and a legacy [mission] section), by canonical mission name
+    mission_overrides: dict[str, dict] = field(default_factory=dict)
+
+    def effective_collections(self, mission: str) -> list[str]:
+        """Collections of a mission: its profile, replaced or extended by the config."""
+        profile = get_mission(mission)
+        overrides = self.mission_overrides.get(profile.name, {})
+        collections = list(overrides.get("collections") or profile.collections)
+        for collection in overrides.get("collections_extend") or ():
+            if collection not in collections:
+                collections.append(collection)
+        return collections
+
+    def collection_mission(self, collection: str) -> Optional[str]:
+        """
+        Name of the mission owning a collection, or None when no mission knows it.
+
+        The effective (configured) lists decide first; a profile collection
+        trimmed from the config still belongs to its profile's mission.
+        """
+        for name in MISSIONS:
+            if collection in self.effective_collections(name):
+                return name
+        profile = mission_for_collection(collection)
+        return profile.name if profile else None
+
+    def apply_mission(self, mission: str) -> None:
+        """Set the mission settings from its profile and the config overrides."""
+        profile = get_mission(mission)
+        overrides = self.mission_overrides.get(profile.name, {})
+        self.mission = profile.name
+        self.mission_start = overrides.get("start") or profile.start
+        self.mission_end = overrides.get("end") or profile.end
+        self.collections = self.effective_collections(profile.name)
+        default_format = overrides.get("default_format")
+        self.default_formats = (default_format,) if default_format else profile.default_formats
+
+    def _check_collections_unique(self) -> None:
+        """A collection belongs to exactly one mission; raise ValueError otherwise."""
+        owners: dict[str, str] = {}
+        for name in MISSIONS:
+            for collection in self.effective_collections(name):
+                if collection in owners:
+                    raise ValueError(
+                        f"Collection '{collection}' is listed in missions {owners[collection]} "
+                        f"and {name}; a collection belongs to one mission"
+                    )
+                owners[collection] = name
+
     @classmethod
     def from_env(cls) -> "MaapConfig":
         """Load configuration from environment variables."""
@@ -72,8 +131,13 @@ class MaapConfig:
         return config
 
     @classmethod
-    def from_file(cls, config_path: Path) -> "MaapConfig":
-        """Load configuration from TOML file."""
+    def from_file(cls, config_path: Path, mission: Optional[str] = None) -> "MaapConfig":
+        """
+        Load configuration from TOML file.
+
+        The mission settings come from the profile of ``mission`` (or the
+        configured default mission, else EarthCARE) with its overrides applied.
+        """
         try:
             import tomllib
         except ImportError:
@@ -81,11 +145,10 @@ class MaapConfig:
 
         config = cls()
 
-        if not config_path.exists():
-            return config
-
-        with open(config_path, "rb") as f:
-            data = tomllib.load(f)
+        data = {}
+        if config_path.exists():
+            with open(config_path, "rb") as f:
+                data = tomllib.load(f)
 
         # Parse paths section
         if paths := data.get("paths"):
@@ -107,42 +170,43 @@ class MaapConfig:
             if token_url := api.get("token_url"):
                 config.token_url = token_url
 
-        # Parse mission section
-        if mission := data.get("mission"):
-            if name := mission.get("name"):
-                config.mission = name
-            if start := mission.get("start"):
-                config.mission_start = start
-            if end := mission.get("end"):
-                config.mission_end = end
-            # collections: replace entire list
-            if collections := mission.get("collections"):
-                config.collections = list(collections)
-            # collections_extend: add to existing list
-            if collections_extend := mission.get("collections_extend"):
-                for c in collections_extend:
-                    if c not in config.collections:
-                        config.collections.append(c)
+        # Legacy [mission] section: overrides of the named mission, which is also the default
+        if legacy := data.get("mission"):
+            name = get_mission(legacy.get("name") or DEFAULT_MISSION).name
+            config.mission_overrides[name] = {
+                key: legacy[key] for key in LEGACY_MISSION_KEYS if key in legacy
+            }
+            if legacy.get("name"):
+                config.default_mission = name
+
+        # [missions.X] tables
+        for key, table in (data.get("missions") or {}).items():
+            config.mission_overrides.setdefault(get_mission(key).name, {}).update(table)
+
+        if default_mission := data.get("default_mission"):
+            config.default_mission = get_mission(default_mission).name
+
+        config._check_collections_unique()
+        config.apply_mission(mission or config.default_mission or DEFAULT_MISSION)
 
         return config
 
     @classmethod
-    def load(cls, config_path: Optional[Path] = None) -> "MaapConfig":
+    def load(cls, config_path: Optional[Path] = None, mission: Optional[str] = None) -> "MaapConfig":
         """
         Load configuration with priority:
         1. Environment variables
         2. Config file (if provided or default exists)
         3. Defaults
-        """
-        # Start with defaults
-        config = cls()
 
-        # Try to load from file
+        Mission settings come from the profile of ``mission`` (or the
+        configured default mission, else EarthCARE) and its config overrides;
+        MAAP_MISSION_START/END apply on top.
+        """
         if config_path is None:
             config_path = Path("~/.maap/config.toml").expanduser()
 
-        if config_path.exists():
-            config = cls.from_file(config_path)
+        config = cls.from_file(config_path, mission)
 
         # Override with environment variables
         env_config = cls.from_env()

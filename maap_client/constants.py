@@ -1,7 +1,11 @@
 """Constants for MAAP client."""
 
 # Re-exported for compatibility: these sets now live in the EarthCARE mission module.
-from maap_client.missions.earthcare import DEDUP_PRODUCTS, NO_ORBIT_PRODUCTS  # noqa: F401
+from maap_client.missions.earthcare import (  # noqa: F401
+    DEDUP_PRODUCTS,
+    EARTHCARE,
+    NO_ORBIT_PRODUCTS,
+)
 
 __version__ = "0.2.1"
 
@@ -10,35 +14,12 @@ DEFAULT_CATALOG_URL = "https://catalog.maap.eo.esa.int/catalogue"
 DEFAULT_TOKEN_URL = "https://iam.maap.eo.esa.int/realms/esa-maap/protocol/openid-connect/token"
 
 # Mission info (defaults - can be overridden in config.toml)
-DEFAULT_MISSION = "EarthCARE"
-DEFAULT_MISSION_START = "2024-05-28T00:00:00Z"
-DEFAULT_MISSION_END = "2045-12-31T23:59:59Z"
+DEFAULT_MISSION = EARTHCARE.name
+DEFAULT_MISSION_START = EARTHCARE.start
+DEFAULT_MISSION_END = EARTHCARE.end
 
-# All known MAAP collections (defaults - can be extended in config.toml)
-DEFAULT_COLLECTIONS = [
-    # EarthCARE
-    "EarthCAREL0L1Products_MAAP",
-    "EarthCAREL1InstChecked_MAAP",
-    "EarthCAREL1Validated_MAAP",
-    "EarthCAREL2InstChecked_MAAP",
-    "EarthCAREL2Products_MAAP",
-    "EarthCAREL2Validated_MAAP",
-    "EarthCAREAuxiliary_MAAP",
-    "EarthCAREOrbitData_MAAP",
-    "EarthCAREXMETL1DProducts10_MAAP",
-    "JAXAL2InstChecked_MAAP",
-    "JAXAL2Products_MAAP",
-    "JAXAL2Validated_MAAP",
-]
-
-# DEFAULT_COLLECTIONS = [
-#     # Aeolus
-#     "AeolusL1BProducts",
-#     "AeolusL2AProducts",
-#     "AeolusL2BProducts",
-#     "AeolusL2CProducts",
-#     "AeolusAuxProducts",
-# ]
+# Collections of the default mission (can be extended in config.toml)
+DEFAULT_COLLECTIONS = list(EARTHCARE.collections)
 
 # Default directories (under ~/.maap/ so pip installs work from any directory)
 DEFAULT_DATA_DIR = "~/.maap/data"

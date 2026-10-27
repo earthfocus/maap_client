@@ -2,6 +2,13 @@
 # Copy this file to ~/.maap/config.toml to customize settings
 # Without this file, all data is stored under ~/.maap/ by default
 
+# Top-level keys must come before any [table].
+# Mission used when the collection or URLs do not decide it, after --mission,
+# MAAP_MISSION and 'maap mission use' (default: EarthCARE).
+# A legacy [mission] section (name/start/end/collections/collections_extend)
+# is still read as the overrides of the named mission and as default_mission.
+default_mission = "EarthCARE"
+
 [paths]
 data_dir = "/data/earthcare/maap-client/data"
 catalog_dir = "/data/earthcare/maap-client/catalogs"
@@ -13,22 +20,14 @@ credentials_file = "~/.maap/credentials.txt"
 catalog_url = "https://catalog.maap.eo.esa.int/catalogue"
 token_url = "https://iam.maap.eo.esa.int/realms/esa-maap/protocol/openid-connect/token"
 
-[mission]
-name = "EarthCARE"
+# Optional per-mission overrides of the built-in profiles ('maap mission show <name>').
+[missions.EarthCARE]
 start = "2024-05-28T00:00:00Z"
 end = "2045-12-31T23:59:59Z"
 
-#[mission]
-#name = "Aeolus"
+#[missions.Aeolus]
 #start = "2018-08-22T00:00:00Z"
 #end = "2023-07-28T23:59:59Z"
-
-# Uncomment to add Aeolus collections to the default EarthCARE collections
-#collections = [
-#    # Aeolus
-#    "AeolusL1BProducts",
-#    "AeolusL2AProducts",
-#    "AeolusL2BProducts",
-#    "AeolusL2CProducts",
-#    "AeolusAuxProducts",
-#]    
+#collections = ["AeolusL2CProducts10"]           # replace the profile collections
+#collections_extend = ["AeolusNewCollection"]    # or add to them
+#default_format = "nc"                           # format used when no --format is given

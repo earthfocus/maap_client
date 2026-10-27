@@ -21,6 +21,9 @@ from maap_client.cli_commands import (
     cmd_state_mark,
     cmd_state_cleanup,
     cmd_config,
+    cmd_mission_list,
+    cmd_mission_show,
+    cmd_mission_use,
     cmd_token,
 )
 
@@ -79,6 +82,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--data-dir",
         type=Path,
         help="Data directory (overrides config)",
+    )
+    parser.add_argument(
+        "--mission",
+        help="Mission (EarthCARE, Aeolus, Biomass, FLEX) when the collection or URLs "
+             "do not decide it (default: MAAP_MISSION, 'maap mission use', config, EarthCARE)",
     )
     parser.add_argument(
         "-v",
@@ -536,6 +544,37 @@ Notes:
         description="Show the currently loaded configuration including all paths and settings.",
     )
     config_parser.set_defaults(func=cmd_config)
+
+    # --- mission subcommand ---
+    mission_parser = subparsers.add_parser(
+        "mission",
+        help="List, select or show missions",
+        description="List the known missions, persist the active one, or show a mission profile.",
+    )
+    mission_sub = mission_parser.add_subparsers(dest="mission_cmd", required=True)
+
+    mission_list = mission_sub.add_parser(
+        "list",
+        help="List missions, marking the active one",
+        description="List the known missions; the active one is marked with where the choice came from.",
+    )
+    mission_list.set_defaults(func=cmd_mission_list)
+
+    mission_use = mission_sub.add_parser(
+        "use",
+        help="Persist the active mission",
+        description="Persist the mission used by commands whose collection or URLs do not decide it.",
+    )
+    mission_use.add_argument("name", type=non_empty_string, help="Mission name")
+    mission_use.set_defaults(func=cmd_mission_use)
+
+    mission_show = mission_sub.add_parser(
+        "show",
+        help="Show a mission profile",
+        description="Show the effective profile of a mission: dates, default formats, filters, collections.",
+    )
+    mission_show.add_argument("name", nargs="?", default=None, help="Mission name (default: active mission)")
+    mission_show.set_defaults(func=cmd_mission_show)
 
     # --- token subcommand ---
     token_parser = subparsers.add_parser(

@@ -10,12 +10,49 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from maap_client import MaapClient, MaapConfig
+from maap_client.mission_select import resolve_mission
+from maap_client.registry import read_pairs_file
 from maap_client.utils import parse_datetime, parse_frames, parse_orbit
+
+
+def input_urls(args: argparse.Namespace) -> list[str]:
+    """
+    URLs a 'download' command was given (--url or the --url-file contents).
+
+    Other commands' --url-file is an output file. A missing or unreadable
+    file yields no URLs; cmd_download reports it.
+    """
+    if getattr(args, "command", None) != "download":
+        return []
+    if getattr(args, "url", None):
+        return [args.url]
+    url_file = getattr(args, "url_file", None)
+    if url_file:
+        try:
+            return [url for url, _ in read_pairs_file(url_file)]
+        except OSError:
+            return []
+    return []
+
+
+def load_config(args: argparse.Namespace) -> tuple[MaapConfig, str]:
+    """
+    Load the configuration of the mission a command works on.
+
+    Returns (config, source) where source says how the mission was chosen
+    (see mission_select.resolve_mission).
+    """
+    config_path = getattr(args, "config", None)
+    base = MaapConfig.load(config_path)
+    mission, source = resolve_mission(
+        getattr(args, "collection", None), input_urls(args), getattr(args, "mission", None), base
+    )
+    return MaapConfig.load(config_path, mission=mission.name), source
 
 
 def get_client(args: argparse.Namespace) -> MaapClient:
     """Create MaapClient from parsed arguments."""
-    config = MaapConfig.load(args.config) if args.config else MaapConfig.load()
+    config, _ = load_config(args)
 
     # Override with CLI args
     if args.data_dir:

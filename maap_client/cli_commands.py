@@ -1,18 +1,22 @@
 """CLI command handlers for MAAP client."""
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
-from maap_client import MaapClient, MaapConfig, InvalidRequestError
+from maap_client import MaapConfig, InvalidRequestError
 from maap_client.cli_helpers import (
     get_client,
+    load_config,
     report_failed_days,
     resolve_date_args,
     validate_download_filter_args,
     validate_time_args,
 )
 from maap_client.exceptions import classify_exit_code, EXIT_NON_TRANSIENT, EXIT_TRANSIENT
+from maap_client.mission_select import write_active_mission
+from maap_client.missions import MISSIONS, get_mission
 from maap_client.utils import to_zulu
 
 
@@ -409,13 +413,10 @@ def cmd_sync(args: argparse.Namespace) -> int:
         print(f"Error: {validation_error}", file=sys.stderr)
         return EXIT_NON_TRANSIENT
 
-    # Handle --out-dir override
+    client = get_client(args)
+    # --out-dir overrides the data directory (and -d/--data-dir)
     if args.out_dir:
-        config = MaapConfig.load(args.config) if args.config else MaapConfig.load()
-        config.data_dir = args.out_dir
-        client = MaapClient(config)
-    else:
-        client = get_client(args)
+        client.config.data_dir = args.out_dir
 
     # Calculate time range
     start, end = resolve_date_args(args)
@@ -605,7 +606,7 @@ def cmd_token(args: argparse.Namespace) -> int:
 
 def cmd_config(args: argparse.Namespace) -> int:
     """Handle 'config' command - show loaded configuration."""
-    config = MaapConfig.load(args.config) if args.config else MaapConfig.load()
+    config, source = load_config(args)
 
     print("Loaded configuration:")
     print(f"data_dir:          {config.data_dir}")
@@ -615,9 +616,10 @@ def cmd_config(args: argparse.Namespace) -> int:
     print(f"credentials_file:  {config.credentials_file}")
     print(f"catalog_url:       {config.catalog_url}")
     print(f"token_url:         {config.token_url}")
-    print(f"mission:           {config.mission}")
+    print(f"mission:           {config.mission} ({source})")
     print(f"mission_start:     {config.mission_start}")
     print(f"mission_end:       {config.mission_end}")
+    print(f"default_formats:   {', '.join(config.default_formats)}")
 
     # Show config file location
     config_path = Path("~/.maap/config.toml").expanduser()
@@ -626,4 +628,54 @@ def cmd_config(args: argparse.Namespace) -> int:
     else:
         print("\nConfig file: not found (using defaults)")
 
+    return 0
+
+
+def cmd_mission_list(args: argparse.Namespace) -> int:
+    """Handle 'mission list' - known missions, marking the active one and its source."""
+    config, source = load_config(args)
+    for name in MISSIONS:
+        if name == config.mission:
+            print(f"* {name} ({source})")
+        else:
+            print(f"  {name}")
+    return 0
+
+
+def cmd_mission_use(args: argparse.Namespace) -> int:
+    """Handle 'mission use NAME' - persist the active mission."""
+    try:
+        name = get_mission(args.name).name
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return EXIT_NON_TRANSIENT
+    write_active_mission(name)
+    print(f"Active mission: {name}")
+    env_mission = os.environ.get("MAAP_MISSION")
+    if env_mission and env_mission.lower() != name.lower():
+        print(f"Note: MAAP_MISSION={env_mission} takes precedence in this environment", file=sys.stderr)
+    return 0
+
+
+def cmd_mission_show(args: argparse.Namespace) -> int:
+    """Handle 'mission show [NAME]' - effective profile of a mission."""
+    if args.name:
+        try:
+            name = get_mission(args.name).name
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return EXIT_NON_TRANSIENT
+        config = MaapConfig.load(args.config, mission=name)
+    else:
+        config, _ = load_config(args)
+    filters = ", ".join(str(f) for f in get_mission(config.mission).filters) or "none"
+
+    print(f"mission:           {config.mission}")
+    print(f"mission_start:     {config.mission_start}")
+    print(f"mission_end:       {config.mission_end}")
+    print(f"default_formats:   {', '.join(config.default_formats)}")
+    print(f"filters:           {filters}")
+    print("collections:")
+    for collection in config.collections:
+        print(f"  {collection}")
     return 0
