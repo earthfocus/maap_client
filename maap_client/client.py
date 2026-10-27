@@ -130,6 +130,22 @@ class MaapClient:
         "Biomass individual files need --product-dir: names repeat across and within products"
     )
 
+    def _check_biomass_format(self, format: Optional[str], product_dir: bool) -> None:
+        """
+        Reject individual Biomass files without product_dir before any search.
+
+        The effective format is the explicit one, else the configured default
+        list; anything but ``zip`` selects individual files.
+
+        Raises:
+            InvalidRequestError: Biomass, a non-zip format and no product_dir
+        """
+        if product_dir or self._config.mission != BIOMASS.name:
+            return
+        formats = (format.strip().lower().lstrip("."),) if format else self._config.default_formats
+        if any(f != "zip" for f in formats):
+            raise InvalidRequestError(self._BIOMASS_FILES_MESSAGE)
+
     def _check_download_layout(
         self,
         urls: list[str],
@@ -977,11 +993,14 @@ class MaapClient:
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end,
                                 or orbit already includes a frame letter while
-                                frames is also given
+                                frames is also given, or Biomass individual files
+                                are asked for without product_dir (before any search)
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
         """
+        self._check_biomass_format(format, product_dir)
+
         # Search (validation happens inside search())
         search_result = self.search(
             collection=collection,
@@ -1048,13 +1067,16 @@ class MaapClient:
             max_consecutive_failures: Forwarded to batch_download; abort a baseline's batch after this many consecutive failures (None = never).
 
         Raises:
-            InvalidRequestError: If start > end or datetimes not timezone-aware
+            InvalidRequestError: If start > end or datetimes not timezone-aware,
+                                or Biomass individual files are asked for
+                                without product_dir (before any search)
 
         Returns:
             SyncResult with stats and tracker for post-sync operations
         """
         # Validate time range
         self._validate_time_range(start, end)
+        self._check_biomass_format(format, product_dir)
         frames = self._normalize_frames(frames)
 
         # Default time range: last 3 days
