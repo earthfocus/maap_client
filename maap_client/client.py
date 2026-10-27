@@ -86,6 +86,7 @@ class MaapClient:
                 catalog_url=self._config.catalog_url,
                 mission_start=self._config.mission_start,
                 mission_end=self._config.mission_end,
+                default_formats=self._config.default_formats,
             )
         return self._searcher
 
@@ -577,7 +578,7 @@ class MaapClient:
             use_catalog: Use cached catalog bounds for optimization
             max_items: Maximum items to return
             verbose: Show progress during search
-            format: File format to search for ('h5' or 'hdr', default: 'h5')
+            format: 'zip', 'all' or a file extension (default: the mission's format priority list)
             frames: Optional frame letters to restrict results to (works for both
                    time-based and orbit-based search); if orbit already includes
                    a frame letter, frames must be omitted
@@ -913,7 +914,7 @@ class MaapClient:
             max_items: Maximum items to get
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
-            format: File format to search for ('h5' or 'hdr', default: 'h5')
+            format: 'zip', 'all' or a file extension (default: the mission's format priority list)
             frames: Optional frame letters to restrict the search to
 
         Raises:
@@ -984,7 +985,7 @@ class MaapClient:
             end: Optional end datetime (defaults to now)
             max_items: Maximum items to sync
             verbose: Print progress messages
-            format: File format to search for ('h5' or 'hdr', default: 'h5')
+            format: 'zip', 'all' or a file extension (default: the mission's format priority list)
             frames: Optional frame letters to restrict the sync to (state is
                    per-URL, so filtered syncs are safe)
             max_consecutive_failures: Forwarded to batch_download; abort a baseline's batch after this many consecutive failures (None = never).

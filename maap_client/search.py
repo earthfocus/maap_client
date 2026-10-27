@@ -37,7 +37,7 @@ Assumptions:
 import logging
 import os
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Callable, Iterator, Literal, Optional
+from typing import Any, Callable, Iterator, Literal, Mapping, Optional, Sequence
 
 from pystac_client import Client
 from pystac_client.stac_api_io import StacApiIO
@@ -65,6 +65,34 @@ from maap_client.types import GranuleInfo
 from maap_client.utils import format_time_range, normalize_time_range, parse_datetime, to_stac_datetime
 
 logger = logging.getLogger(__name__)
+
+# How many skipped item ids the missing-format warning lists.
+MISSING_FORMAT_IDS_SHOWN = 5
+
+
+def select_asset_urls(assets: Mapping[str, str], formats: Sequence[str]) -> list[str]:
+    """Pick the asset hrefs of one STAC item for a format priority list.
+
+    The first token of formats that matches anything wins: 'zip' selects the
+    'product' asset, 'all' every 'enclosure_*' asset, any other token every
+    'enclosure_*' asset whose href extension equals it (case-insensitive).
+    There is no fallback to another file: no match returns [].
+
+    Args:
+        assets: Asset key -> href of the item.
+        formats: Format tokens in priority order.
+    """
+    enclosures = [href for key, href in assets.items() if key.startswith("enclosure")]
+    for token in formats:
+        if token == "zip":
+            selected = [assets["product"]] if "product" in assets else []
+        elif token == "all":
+            selected = enclosures
+        else:
+            selected = [h for h in enclosures if os.path.splitext(h)[1].lstrip(".").lower() == token]
+        if selected:
+            return selected
+    return []
 
 
 class LoggingRetry(Retry):
@@ -97,6 +125,7 @@ class MaapSearcher:
         catalog_url: Optional[str] = None,
         mission_start: Optional[str] = None,
         mission_end: Optional[str] = None,
+        default_formats: tuple[str, ...] = ("h5", "eof", "dbl"),
     ):
         """Initialize MAAP searcher.
 
@@ -106,13 +135,17 @@ class MaapSearcher:
                 root with a load-balancer 503.
             mission_start: Mission start datetime (ISO 8601). Defaults to DEFAULT_MISSION_START.
             mission_end: Mission end datetime (ISO 8601). Defaults to DEFAULT_MISSION_END.
+            default_formats: Format priority list used when a search gives no explicit format.
         """
+        self._default_formats = default_formats
         self._catalog_url = (catalog_url or DEFAULT_CATALOG_URL).rstrip("/") + "/"
         self._mission_start = mission_start or DEFAULT_MISSION_START
         self._mission_end = mission_end or DEFAULT_MISSION_END
         self._client: Optional[Client] = None
         # Days skipped by the last day-by-day search, as (date, error) tuples.
         self.last_failed_days: list[tuple[date, str]] = []
+        # Ids of items skipped by the last search because no asset matched the format.
+        self.last_missing_format: list[str] = []
 
     @property
     def client(self) -> Client:
@@ -185,34 +218,40 @@ class MaapSearcher:
         mission_end = parse_datetime(self._mission_end)
         return normalize_time_range(start, end, mission_start, mission_end)
 
-    @staticmethod
-    def _extract_enclosures(search, format: Optional[str] = None) -> list[str]:
-        """Extract enclosure URLs from STAC search results.
+    def _formats(self, format: Optional[str]) -> tuple[str, ...]:
+        """Format priority list for a search: the explicit format alone, else the mission default."""
+        if format:
+            return (format.strip().lower().lstrip("."),)
+        return self._default_formats
 
-        Args:
-            search: STAC search results
-            format: Preferred file format ('h5' or 'hdr'). Defaults to 'h5'.
+    def _extract_enclosures(self, search, format: Optional[str] = None) -> list[str]:
+        """Extract the asset URLs selected by the format from STAC search results.
+
+        Items with no asset matching the format are skipped and recorded in
+        last_missing_format.
         """
-        if format == "hdr":
-            priority = ("enclosure_hdr",)
-        else:
-            priority = ("enclosure_h5",)
-
+        formats = self._formats(format)
         urls = []
         for item in search.items():
-            url = None
-            for key in priority:
-                if key in item.assets:
-                    url = item.assets[key].href
-                    break
+            assets = {key: asset.href for key, asset in item.assets.items()}
+            selected = select_asset_urls(assets, formats)
+            if selected:
+                urls.extend(selected)
             else:
-                for key in item.assets:
-                    if key.startswith("enclosure"):
-                        url = item.assets[key].href
-                        break
-            if url:
-                urls.append(url)
+                self.last_missing_format.append(item.id)
         return urls
+
+    def _warn_missing_format(self) -> None:
+        """Log one warning summarising the items skipped by the last search."""
+        if not self.last_missing_format:
+            return
+        shown = ", ".join(self.last_missing_format[:MISSING_FORMAT_IDS_SHOWN])
+        more = len(self.last_missing_format) - MISSING_FORMAT_IDS_SHOWN
+        suffix = f", ... (+{more} more)" if more > 0 else ""
+        logger.warning(
+            f"Skipped {len(self.last_missing_format)} item(s) with no asset in the requested "
+            f"format: {shown}{suffix}"
+        )
 
     @staticmethod
     def _sort_urls(urls: list[str]) -> list[str]:
@@ -299,6 +338,7 @@ class MaapSearcher:
                 logger.info("  EXISTS")
             return True
 
+        self.last_missing_format = []
         urls = self._clean_search_results(search, start, end)
         result = len(urls) >= 1
         if verbose:
@@ -513,6 +553,7 @@ class MaapSearcher:
             List of product URLs
         """
         self.last_failed_days = []
+        self.last_missing_format = []
         start, end = self._resolve_time_range(start, end)
 
         period_days = (end - start).days
@@ -535,6 +576,7 @@ class MaapSearcher:
             urls = self._clean_search_results(search, start, end, format=format)
             if verbose:
                 logger.info(f"  found {len(urls)}")
+            self._warn_missing_format()
 
         # Day-by-day for large ranges (more efficient)
         else:
@@ -607,7 +649,9 @@ class MaapSearcher:
             max_items=max_items,
         )
 
+        self.last_missing_format = []
         urls = self._clean_search_results(search, format=format)
+        self._warn_missing_format()
         if verbose:
             logger.info(f"  found {len(urls)}")
         return urls
@@ -642,6 +686,7 @@ class MaapSearcher:
         """
         start, end = self._resolve_time_range(start, end)
         self.last_failed_days = []
+        self.last_missing_format = []
         failed_ranges: list[tuple[datetime, datetime]] = []
         total_days = (end.date() - start.date()).days + 1
 
@@ -716,3 +761,5 @@ class MaapSearcher:
                     continue
                 logger.info(f"Recovered day {day_start.date().isoformat()}")
                 yield urls
+
+        self._warn_missing_format()

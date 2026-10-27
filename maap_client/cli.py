@@ -263,9 +263,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     other_group.add_argument(
         "--format",
-        choices=["h5", "hdr"],
         default=None,
-        help="File format to search for (default: h5)",
+        help="zip, all, or a file extension; default per mission",
     )
     other_group.add_argument(
         "--newest-first", action="store_true",
@@ -429,9 +428,8 @@ Notes:
     )
     other_group.add_argument(
         "--format",
-        choices=["h5", "hdr"],
         default=None,
-        help="File format to search for (default: h5)",
+        help="zip, all, or a file extension; default per mission",
     )
     other_group.add_argument(
         "--newest-first", action="store_true",
@@ -479,9 +477,8 @@ Notes:
     )
     sync_parser.add_argument(
         "--format",
-        choices=["h5", "hdr"],
         default=None,
-        help="File format to search for (default: h5)",
+        help="zip, all, or a file extension; default per mission",
     )
     sync_parser.add_argument(
         "--product-dir", action="store_true",
