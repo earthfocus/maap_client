@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [
     {name = "Bernat"}
 ]
-keywords = ["esa", "maap", "earthcare", "aeolus", "stac", "satellite", "remote-sensing"]
+keywords = ["esa", "maap", "earthcare", "aeolus", "biomass", "flex", "stac", "satellite", "remote-sensing"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",

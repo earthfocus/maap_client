@@ -1,85 +1,46 @@
 # MAAP Client
 
+<p>
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/earthcare.png" alt="EarthCARE" height="120">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/aeolus.png" alt="Aeolus" height="120">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/biomass.png" alt="Biomass" height="120">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/flex.png" alt="FLEX" height="120">
+</p>
+
+Mission patches © ESA
+
 [![PyPI](https://img.shields.io/pypi/v/maap-client?label=PyPI)](https://pypi.org/project/maap-client/)
 
-A Python client for accessing ESA MAAP satellite data. Provides both a CLI (`maap`) and a Python library for browsing catalogs, searching products, and downloading authenticated HDF5 files. By default, it's configured for EarthCARE data, but supports other missions (Aeolus) through configuration.
+A Python client for ESA MAAP satellite data, with a CLI (`maap`) and a Python library.
+It browses the MAAP catalogue, searches products by date, orbit or mission-specific
+filters, and downloads them with your MAAP credentials into a predictable dated layout,
+with text-file tracking for unattended pipelines. It supports EarthCARE, Aeolus, Biomass and FLEX.
 
-## Table of Contents
+| Mission | Default format | Access |
+|---------|----------------|--------|
+| EarthCARE | `h5` (then `eof`, `dbl`) | MAAP offline token |
+| Aeolus | `dbl` (then `nc`, `bufr`, `eef`) | MAAP offline token |
+| Biomass | `zip` (whole product) | MAAP offline token; `BiomassAuxRest` is restricted |
+| FLEX | `zip` (whole product) | Download access must be requested from ESA |
 
-- [Installation](#installation)
-- [Setup](#setup)
-  - [Get Credentials](#get-credentials)
-- [Configuration](#configuration)
-  - [Priority](#priority)
-  - [Environment Variables](#environment-variables)
-  - [Config File](#config-file)
-- [Quickstart](#quickstart)
-  - [1. Find Available Data](#1-find-available-data)
-  - [2. Search for Files](#2-search-for-files)
-  - [3. Download Files](#3-download-files)
-- [Core Concepts](#core-concepts)
-  - [Catalogs](#catalogs)
-  - [Registry](#registry)
-  - [Data Organization](#data-organization)
-  - [Time Filtering](#time-filtering)
-  - [Reliability](#reliability)
-- [Workflows](#workflows)
-  - [Direct Download (get)](#direct-download-get)
-  - [Two-Step Workflow (search + download)](#two-step-workflow-search--download)
-  - [Incremental Sync](#incremental-sync)
-- [Common Tasks](#common-tasks)
-  - [Download One Day of Data](#download-one-day-of-data)
-  - [Download a Specific Orbit/Frame](#download-a-specific-orbitframe)
-  - [Sync Recent Data](#sync-recent-data)
-  - [Build Catalog Cache](#build-catalog-cache)
-  - [Check Pending Downloads](#check-pending-downloads)
-  - [Mark Files as Processed](#mark-files-as-processed)
-- [Python API](#python-api)
-  - [Basic Usage](#basic-usage)
-  - [Search with Result Types](#search-with-result-types)
-  - [Download with Result Types](#download-with-result-types)
-  - [Day-by-Day Search](#day-by-day-search)
-  - [Sync Workflow](#sync-workflow)
-  - [State Tracking](#state-tracking)
-- [CLI Reference](#cli-reference)
-  - [Commands Overview](#commands-overview)
-  - [Search Options](#search-options)
-  - [Download Options](#download-options)
-  - [Get Options](#get-options)
-  - [Sync Options](#sync-options)
-- [Other Missions](#other-missions)
-- [Default Collections](#default-collections)
-- [Exit Codes](#exit-codes)
-- [Troubleshooting](#troubleshooting)
-- [Links](#links)
-- [Contact](#contact)
+The default format applies only when no `--format` is given. See
+[what is not supported yet](EXAMPLES.md#not-supported-yet) for current limitations.
 
 ---
 
-## Installation
+## Quickstart
+
+### 1. Install
 
 ```bash
 pip install maap-client
 ```
 
-Or for development:
+### 2. Credentials
 
-```bash
-git clone https://github.com/earthfocus/maap_client.git
-cd maap_client
-pip install -e .
-```
-
----
-
-## Setup
-
-### Get Credentials
-
-1. Go to  https://portal.maap.eo.esa.int/ini/services/auth/token/
-2. Login with your ESA credentials
-3. Request a 90-day offline token
-4. Create `~/.maap/credentials.txt`:
+1. Go to https://portal.maap.eo.esa.int/ini/services/auth/token/
+2. Log in with your ESA account and request a 90-day offline token.
+3. Create `~/.maap/credentials.txt`:
 
 ```
 CLIENT_ID=offline-token
@@ -87,915 +48,104 @@ CLIENT_SECRET=p1eL7uonXs6MDxtGbgKdPVRAmnGxHpVE
 OFFLINE_TOKEN=<your_token>
 ```
 
-> The token expires after 90 days and must be renewed from the ESA portal.
-> `maap token` shows when (`--days-left` prints only the days, for scripts).
+`maap token` shows when the token expires (`--days-left` prints only the days, for scripts).
+Run `maap config` to see the paths and the mission in use.
 
----
+### 3. How the mission is chosen
 
-## Configuration
+Every collection belongs to one mission, so **the collection decides**: a command
+given `BiomassLevel1b` works on Biomass whatever else is set. Download URLs decide
+it the same way. Only when nothing decides it (e.g. `maap list` or `maap catalog update`
+without a collection), the mission comes from, highest first:
 
-> **Important:** Configure paths and API settings before using the client. The defaults work for most users, but you may want to customize the data directory or use a different mission. Run `maap config` to verify your current configuration.
-
-### Priority
-
-Configuration is resolved in order (highest to lowest):
-1. CLI arguments
-2. Environment variables
-3. Config file (`~/.maap/config.toml`)
-4. Built-in defaults
-
-### Environment Variables
-
-- `MAAP_DATA_DIR` - Download directory
-- `MAAP_CATALOG_DIR` - Catalog queryables directory
-- `MAAP_BUILT_CATALOG_DIR` - Built catalogs directory
-- `MAAP_REGISTRY_DIR` - Registry/state files directory
-- `MAAP_CREDENTIALS_FILE` - Credentials file path
-- `MAAP_CATALOG_URL` - MAAP catalog API URL
-- `MAAP_MISSION_START` - Mission start date
-- `MAAP_MISSION_END` - Mission end date
-
-### Config File
-
-Create `~/.maap/config.toml`:
-
-```toml
-[paths]
-data_dir = "/data/earthcare/data"
-catalog_dir = "/data/earthcare/catalogs"
-built_catalog_dir = "/data/earthcare/built_catalogs"
-registry_dir = "/data/earthcare/registry"
-credentials_file = "~/.maap/credentials.txt"
-
-[api]
-catalog_url = "https://catalog.maap.eo.esa.int/catalogue"
-token_url = "https://iam.maap.eo.esa.int/realms/esa-maap/protocol/openid-connect/token"
-
-[mission]
-name = "EarthCARE"
-start = "2024-05-28T00:00:00Z"
-end = "2045-12-31T23:59:59Z"
-# collections = [...]        # Replace default collections
-```
-
----
-
-## Quickstart
-
-### 1. Find Available Data
+1. `--mission <name>` (before or after the sub-command)
+2. the `MAAP_MISSION` environment variable
+3. `maap mission use <name>` (saved in `~/.maap/active_mission`)
+4. `default_mission` in `~/.maap/config.toml`
+5. `EarthCARE`
 
 ```bash
-# What collections are available?
-maap list
-
-# What products are in L1 Validated?
-maap list EarthCAREL1Validated_MAAP
-
-# What baselines exist for CPR_NOM_1B?
-maap list EarthCAREL1Validated_MAAP CPR_NOM_1B
-
-# Verify baselines from API (live query)
-maap list EarthCAREL1Validated_MAAP CPR_NOM_1B --verify
-
-# Specific information about a baseline
-maap list EarthCAREL1Validated_MAAP CPR_NOM_1B DA
+maap mission list            # known missions, the active one marked
+maap mission show Biomass    # collections, dates, default formats, filters
 ```
 
-### 2. Search for Files
+### 4. Search and download
 
 ```bash
-# Search for CPR_NOM_1B data from a specific date
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01T23:50:27Z
-
-# Search by date
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01
-
-# Search by specific orbit+frame
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --orbit 08962F
-
-# Search a whole orbit (all frames A-H)
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --orbit 08962
-
-# Search specific frames of one orbit
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --orbit 08962 --frame C,D
-
-# Search only "A" frames over a time range
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA \
-  --start 2024-12-01 --end 2024-12-08 --frame A
-
-# Search with time range
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA \
-  --start 2024-12-01 --end 2024-12-02
-
-# Search last 7 days
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --days-back 7
-
-# Search for HDR files instead of H5
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01 --format hdr
-```
-
-Output shows URLs found:
-```
-https://catalog.maap.eo.esa.int/data/earthcare-pdgs-01/EarthCARE/CPR_NOM_1B/DA/2024/12/01/.../ECA_JXDA_CPR_NOM_1B_...h5
-```
-
-### 3. Download Files
-
-```bash
-# Search and save URLs to a file
+# Find CPR_NOM_1B products of baseline DA sensed on one day and save their URLs
 maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01 --url-file urls.txt
 
-# Download to a specific directory
-maap download EarthCAREL1Validated_MAAP CPR_NOM_1B DA --url-file urls.txt --out-dir ./
+# Download them into data/EarthCARE/EarthCAREL1Validated_MAAP/CPR_NOM_1B/DA/2024/12/01/
+maap download EarthCAREL1Validated_MAAP CPR_NOM_1B DA --url-file urls.txt
+```
 
-# Or use 'get' to search + download in one step
-maap get EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01
+The same for Biomass (whole products as `.zip`, filtered by track):
+
+```bash
+maap get BiomassLevel1b S1_DGM__1S 01 --date 2025-12-11 --track 38
 ```
 
 ---
 
-## Core Concepts
-
-### Catalogs
-
-The client uses two types of local catalogs for **offline reference** and **faster searches**:
-
-#### Queryables Catalogs (`./catalogs/`)
-
-Schema information downloaded from the MAAP API:
-- Contains available **products** and **baselines** for each collection
-- Enables `maap list` to work without API calls
-- Auto-downloaded on first use; refresh with `maap catalog update`
+## Main workflows
 
 ```bash
-# Update queryables for a collection
-maap catalog update EarthCAREL1Validated_MAAP
+# Browse: collections, products, baselines (from the local catalogue)
+maap list
+maap list EarthCAREL1Validated_MAAP
+maap list EarthCAREL1Validated_MAAP CPR_NOM_1B
 
-# Update all collections
-maap catalog update
-```
+# One-off: search and download in one step
+maap get EarthCAREL1Validated_MAAP CPR_NOM_1B DA --orbit 08962 --frame C,D
 
-#### Built Catalogs (`./built_catalogs/`)
+# Pipeline: register URLs, then download what is still pending
+maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --start 2024-12-01 --end 2024-12-07 --registry-save
+maap download EarthCAREL1Validated_MAAP CPR_NOM_1B DA --registry
 
-Comprehensive metadata summaries you build locally:
-- Contains **time ranges**, **orbit ranges**, and **file counts** per baseline
-- Enables `--use-catalog` for faster time-bounded searches
-- Great for knowing "what data exists" without querying the API
-
-```bash
-# Build catalog for a collection
-maap catalog build EarthCAREL1Validated_MAAP
-
-# Build for specific product/baseline
-maap catalog build EarthCAREL1Validated_MAAP CPR_NOM_1B DA
-
-# Use catalog for faster search
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --use-catalog --date 2024-12-01
-```
-
-> Rebuild periodically to keep catalogs current with new data.
-
-Building is **resumable and failure-tolerant**:
-- Progress is saved to disk after every baseline, so an interrupted build never loses fetched work.
-- A baseline that keeps failing is skipped and reported at the end (exit code 3); re-running the same command fills only the gaps — already-built baselines are recounted first (one request) and only fetch the tail when the server total changed.
-
-See [Reliability](#reliability) for what is retried before a baseline is given up on.
-
-> Each pass re-syncs every baseline's file count with the server's
-> authoritative total, so counts self-heal when reprocessing inserts files
-> inside the already-covered range. `maap catalog build --force` is only
-> needed to fix stale time edges after files are deleted from the server
-> (rare).
-
-### Registry
-
-The registry is a **text-file based tracking system** for managing download workflows. It maintains state using daily files organized by the **sensing date** extracted from each file's name.
-
-#### How Files Are Tracked
-
-Each file progresses through three states:
-
-1. **Discovered** (`urls/`) - URLs found during search
-2. **Downloaded** (`downloads/`) - Files successfully downloaded
-3. **Marked** (`marked/`) - Files processed by your pipeline
-
-The tracker computes what's pending automatically:
-- **Pending downloads** = Discovered URLs − Downloaded URLs
-- **Pending marks** = Downloaded files − Marked files
-
-#### File Structure
-
-```
-registry/
-├── urls/{mission}/{collection}/{product}/{baseline}/{year}/
-│   └── url_YYYYMMDD.txt      # URL|LOCAL_PATH (one per line)
-├── downloads/{mission}/{collection}/{product}/{baseline}/{year}/
-│   └── dwl_YYYYMMDD.txt      # URL|LOCAL_PATH (one per line)
-├── marked/{mission}/{collection}/{product}/{baseline}/{year}/
-│   └── mrk_YYYYMMDD.txt      # PATH only (one per line)
-└── downloads/.../errors.txt  # URL|ERROR for failed downloads
-```
-
-Files are date-partitioned by sensing time for efficient filtering and manageable file sizes.
-
-#### Workflow
-
-1. **Search and save**: `maap search ... --registry-save` → creates `url_*.txt` files
-2. **Download**: `maap download --registry ...` → reads URLs, writes `dwl_*.txt` on success
-3. **Process**: Your pipeline processes files, then calls `maap state mark <path>`
-4. **Cleanup**: `maap state cleanup ...` deletes marked files to free disk space
-
-### Data Organization
-
-Downloaded files are organized to **mirror the mission archive structure**:
-
-```
-data/{mission}/{collection}/{product}/{baseline}/YYYY/MM/DD/filename.h5
-```
-
-Example:
-```
-data/EarthCARE/EarthCAREL2Validated_MAAP/CPR_CLD_2A/BC/2024/12/01/
-  ECA_EXBC_CPR_CLD_2A_20241201T123456Z_20241201T135958Z_07282E.h5
-```
-
-With `--product-dir`, each file is wrapped in a subdirectory named after the file stem:
-```
-data/.../BC/2024/12/01/ECA_EXBC_CPR_CLD_2A_20241201T123456Z_20241201T135958Z_07282E/
-  ECA_EXBC_CPR_CLD_2A_20241201T123456Z_20241201T135958Z_07282E.h5
-  ECA_EXBC_CPR_CLD_2A_20241201T123456Z_20241201T135958Z_07282E.hdr
-```
-
-This is useful for grouping related files (e.g., H5 and HDR) for the same product together.
-
-**Benefits:**
-- Matches ESA's archive organization - intuitive navigation
-- Different baselines are always separate (no overwrites)
-- Easy to find data for a specific date
-- Path is deterministic: given metadata, the location is predictable
-
-### Time Filtering
-
-Time filtering uses the **sensing time** (start of validity period) extracted from each product's filename.
-
-#### Filename Convention
-
-Product filenames contain two timestamps:
-```
-ECA_JXDA_CPR_NOM_1B_20241201T123456Z_20241201T135958Z_07282E.h5
-                    ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
-                    sensing_start    creation_time
-```
-
-- **sensing_start**: When the observation began (start of validity period)
-- **creation_time**: When the file was processed/created
-
-#### How Filtering Works
-
-The STAC API indexes products by their **validity period** (start to end). When you search for a date range, the API returns products whose validity period overlaps with your range.
-
-This client adds a post-filter step using only the **sensing_start** timestamp, so that each product is assigned to exactly one date and stored in the correct daily folder:
-
-1. Query the STAC API with your time range (returns products with overlapping validity)
-2. Post-filter by **sensing_start** extracted from filenames
-3. Return only products whose sensing_start falls within your specified range
-
-**Example**: A product sensed at 23:50 on December 31st with validity extending into January 1st:
-- STAC API returns it for a January 1st search (validity overlaps)
-- Client excludes it because sensing_start is December 31st
-
-#### Data Organization
-
-Files are organized and tracked by their **sensing date**:
-```
-data/EarthCARE/.../CPR_CLD_2A/BC/2024/12/01/
-  ECA_EXBC_CPR_CLD_2A_20241201T123456Z_...h5
-```
-
-### Reliability
-
-Every command is built to be re-run. Transient failures are retried in-process
-where that is cheap and safe; whatever survives is skipped, recorded and
-reported, so a later run picks up exactly the gaps.
-
-| Operation | In-process retries | On failure |
-|-----------|--------------------|------------|
-| STAC search (`search`, `sync`, `get`) | 5 transport retries with exponential backoff, each logged; then a second pass at the end of the range retrying every failed day once | Day skipped and recorded → `FAILED DAY:` on stderr, exit 3 |
-| Catalog build | The same transport retries (it shares the STAC client); no second pass | Baseline skipped and reported at the end, exit 3 |
-| Download | None — one attempt per file, plus one token refresh on 401/403 | File recorded in `errors.txt`, exit 3 |
-
-The retried statuses are **429, 500, 502, 503 and 504** — rate limiting plus
-the gateway errors MAAP's load balancer returns under load. Anything else (400,
-404, a malformed response) is treated as non-transient and fails immediately.
-Backoff doubles: sleeps of 0, 4, 8, 16 and 32 seconds across the five retries.
-
-One exception to the table: when a run's only per-file failures are filenames
-that cannot be parsed into a data path, `download` and `get` exit 4 instead,
-because retrying cannot help until the entries are fixed.
-
-**Retry cadence between runs is the caller's policy.** The client never sleeps
-waiting for a server to recover; it exits 3 and lets your cron job or wrapper
-script decide when to try again. See [Exit Codes](#exit-codes) for the contract.
-
-**Re-running is cheap**, which is what makes that policy workable:
-- Discovered URLs are registered day by day as they are found, so an interrupted
-  run keeps everything it had already discovered.
-- Files that already exist on disk are skipped (`skip_existing`, on by default).
-- Downloads are atomic: each file is written to a `.part` sibling and renamed
-  into place only once complete, so an interrupted transfer never leaves a
-  truncated file for a later run to mistake for a finished one.
-
----
-
-## Workflows
-
-Choose the right workflow for your use case:
-
-### Direct Download (get)
-
-**Best for:** One-off downloads, quick data retrieval
-
-```bash
-maap get EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01
-```
-
-- Searches and downloads in one step
-- No state tracking
-- No catalog optimization
-- Simple and fast
-
-### Two-Step Workflow (search + download)
-
-**Best for:** Production pipelines, large datasets, scheduled jobs
-
-```bash
-# Step 1: Search and save to registry
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01 --registry-save
-
-# Step 2: Download when ready (with state tracking)
-maap download EarthCAREL1Validated_MAAP CPR_NOM_1B DA --registry --date 2024-12-01
-```
-
-Advantages:
-- **Registry**: Save URLs for later; track what's downloaded
-- **Catalog**: Use `--use-catalog` for faster searches
-- **Flexibility**: Separate search from download timing
-- **Resumable**: If interrupted, only downloads remaining files
-
-### Incremental Sync
-
-**Best for:** Scheduled data synchronization (cron jobs)
-
-```bash
-# Sync last 3 days (default)
+# Scheduled: search + register + download the last 3 days (for cron)
 maap sync EarthCAREL2Validated_MAAP CPR_CLD_2A DA
 
-# Run daily in crontab
-0 6 * * * /path/to/maap sync EarthCAREL2Validated_MAAP CPR_CLD_2A DA
-```
-
-Combines search + registry + download:
-- Automatic state tracking
-- Skips already-downloaded files
-- Designed for unattended operation
-- Failed days are skipped and reported (`FAILED DAY:` lines, exit 3) — re-run to fill the gaps; exit 2 means credentials are dead
-- URLs are registered day-by-day as found, so an interrupted sync never loses discovered work
-
----
-
-## Common Tasks
-
-### Download One Day of Data
-
-```bash
-# Search and save to registry files (tracks what's been downloaded)
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --date 2024-12-01 --registry-save
-
-# Download from registry
-maap download EarthCAREL1Validated_MAAP CPR_NOM_1B DA --registry --date 2024-12-01
-```
-
-Files are organized by collection, product, baseline, and date:
-```
-data/EarthCARE/EarthCAREL1Validated_MAAP/CPR_NOM_1B/DA/2024/12/01/*.h5
-```
-
-### Download a Specific Orbit/Frame
-
-```bash
-# Find by orbit (e.g., orbit 07655, frame C)
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B --orbit 07655C
-
-# Download immediately with get
-maap get EarthCAREL1Validated_MAAP CPR_NOM_1B --orbit 07655C --out-dir ./
-
-# Download specific frames over a period
-maap get EarthCAREL1Validated_MAAP CPR_NOM_1B --start 2024-12-01 --end 2024-12-08 --frame C,D --out-dir ./
-
-# X-JSG / X-MET note: MAAP does not index these products by orbit, so --orbit
-# searches return nothing for them. Two working alternatives:
-#   1) frame + time (server-side; frame IS indexed for X-JSG/X-MET):
-maap get EarthCAREL0L1Products_MAAP AUX_JSG_1D --date 2024-09-03 --frame E --out-dir ./
-#   2) registry flow (client-side --orbit filter matches filenames):
-maap search EarthCAREXMETL1DProducts10_MAAP AUX_MET_1D --date 2024-09-03 --registry-save
-maap download EarthCAREXMETL1DProducts10_MAAP AUX_MET_1D --registry --orbit 01524E
-```
-
-### Sync Recent Data
-
-The `sync` command searches and downloads in one step with state tracking:
-
-```bash
-# Sync last 3 days (default)
-maap sync EarthCAREL2Validated_MAAP CPR_CLD_2A DA
-
-# Sync last 7 days
-maap sync EarthCAREL2Validated_MAAP CPR_CLD_2A DA --days-back 7
-
-# Sync a specific date
-maap sync EarthCAREL2Validated_MAAP CPR_CLD_2A DA --date 2024-12-01
-
-# Sync a date range
-maap sync EarthCAREL2Validated_MAAP CPR_CLD_2A DA --start 2024-12-01 --end 2024-12-15
-```
-
-For cron jobs:
-
-```bash
-# Add to crontab (runs daily at 6 AM, syncs last 3 days)
-0 6 * * * /path/to/maap sync EarthCAREL2Validated_MAAP CPR_CLD_2A DA >> /var/log/maap-sync.log 2>&1
-```
-
-### Build Catalog Cache
-
-```bash
-# Build metadata catalog for a collection (one-time)
-maap catalog build EarthCAREL1Validated_MAAP
-
-# Build for specific product/baseline
-maap catalog build EarthCAREL1Validated_MAAP CPR_NOM_1B DA
-
-# Use cache for faster search (may be stale)
-maap search EarthCAREL1Validated_MAAP CPR_NOM_1B DA --use-catalog
-```
-
-Rebuild periodically to keep the cache current.
-
-### Check Pending Downloads
-
-```bash
-# Show state summary
+# Tracking: what is pending, mark processed files, free disk space
 maap state show EarthCAREL1Validated_MAAP CPR_NOM_1B DA
-
-# List pending download URLs
-maap state pending EarthCAREL1Validated_MAAP CPR_NOM_1B DA --type downloads
-
-# List pending marks (files downloaded but not processed)
-maap state pending EarthCAREL1Validated_MAAP CPR_NOM_1B DA --type marks
-```
-
-### Mark Files as Processed
-
-```bash
-# After processing files, mark them
-maap state mark data/EarthCARE/.../file1.h5
-
-# Preview cleanup (dry run)
+maap state mark data/EarthCARE/.../file.h5
 maap state cleanup EarthCAREL1Validated_MAAP CPR_NOM_1B DA --dry-run
-
-# Delete marked files to free space
-maap state cleanup EarthCAREL1Validated_MAAP CPR_NOM_1B DA
 ```
 
----
+Use `maap <command> -h` for every option. Filters depend on the mission
+(EarthCARE `--orbit`/`--frame`; Biomass `--track`, `--frame`, `--repeat-cycle`,
+`--major-cycle`; Aeolus and FLEX `--orbit`); a filter the mission does not have
+is rejected with the list of available ones.
 
-## Python API
+### Automation
 
-### Basic Usage
+Commands given a collection (`list <collection>`, `search`, `download`, `get`, `sync`,
+`state show|pending|cleanup`, `catalog update|build <collection>`), `download --url/--url-file`
+and `state mark` take the mission from their inputs, so a `maap mission use` typed on the
+same machine never changes what they do.
 
-```python
-from maap_client import MaapClient
-from datetime import datetime, timezone
-
-client = MaapClient()
-
-# Browse collections and products
-collections = client.list_collections()
-products = client.list_products("EarthCAREL1Validated_MAAP")
-baselines = client.list_baselines("EarthCAREL1Validated_MAAP", "CPR_NOM_1B")
-
-# Verify baselines from API
-baselines = client.list_baselines(
-    "EarthCAREL1Validated_MAAP", "CPR_NOM_1B", verify=True
-)
-```
-
-### Search with Result Types
-
-```python
-from maap_client import MaapClient, SearchResult
-from datetime import datetime, timezone
-
-client = MaapClient()
-
-# Time-based search (returns SearchResult)
-search_result: SearchResult = client.search(
-    collection="EarthCAREL2Validated_MAAP",
-    product_type="CPR_CLD_2A",
-    baseline="BC",
-    start=datetime(2024, 12, 1, tzinfo=timezone.utc),
-    end=datetime(2024, 12, 31, tzinfo=timezone.utc),
-)
-print(f"Found {search_result.total_count} URLs")
-print(f"Baselines: {search_result.baselines_found}")
-
-# Search all baselines (omit baseline parameter)
-search_result = client.search(
-    collection="EarthCAREL2Validated_MAAP",
-    product_type="CPR_CLD_2A",
-    start=datetime(2024, 12, 1, tzinfo=timezone.utc),
-)
-
-# Orbit-based search
-search_result = client.search(
-    collection="EarthCAREL2Validated_MAAP",
-    product_type="CPR_CLD_2A",
-    orbit="08962F",
-)
-
-# All frames of an orbit, or specific frames over a period
-result = client.search(collection, product, orbit="8962")
-result = client.search(collection, product, start=start, end=end, frames=["C", "D"])
-
-# Search for HDR files instead of H5
-search_result = client.search(
-    collection="EarthCAREL2Validated_MAAP",
-    product_type="CPR_CLD_2A",
-    baseline="BC",
-    start=datetime(2024, 12, 1, tzinfo=timezone.utc),
-    format="hdr",
-)
-```
-
-### Download with Result Types
-
-```python
-from pathlib import Path
-from datetime import datetime, timezone
-from maap_client import MaapClient, DownloadResult
-
-client = MaapClient()
-
-# search_result from previous example
-search_result = client.search(...)
-
-# Download from search results
-result: DownloadResult = client.download(
-    urls=search_result.urls,
-    collection="EarthCAREL2Validated_MAAP",
-)
-print(f"Downloaded {len(result.downloaded)} files")
-print(f"Skipped {len(result.skipped)} existing files")
-print(f"Errors: {result.errors}")
-
-# Download to flat directory
-result = client.download(
-    urls=search_result.urls,
-    collection="EarthCAREL2Validated_MAAP",
-    out_dir=Path("./downloads"),
-)
-
-# Search + download in one step with get()
-result = client.get(
-    collection="EarthCAREL2Validated_MAAP",
-    product_type="CPR_CLD_2A",
-    baseline="BC",
-    start=datetime(2024, 12, 1, tzinfo=timezone.utc),
-)
-```
-
-### Day-by-Day Search
-
-For large date ranges, use the day-by-day generator for reliability:
-
-```python
-from maap_client import MaapClient
-from datetime import datetime, timezone
-
-client = MaapClient()
-
-for day_urls in client.searcher.search_urls_iter_day(
-    collection="EarthCAREL1Validated_MAAP",
-    product_type="CPR_NOM_1B",
-    baseline="DA",
-    start=datetime(2024, 6, 1, tzinfo=timezone.utc),
-    end=datetime(2024, 12, 31, tzinfo=timezone.utc),
-    verbose=True,
-):
-    print(f"Found {len(day_urls)} URLs for this day")
-    # Process or download day_urls
-```
-
-Days that keep failing after transport retries are skipped and recorded in
-`client.searcher.last_failed_days` as `(date, error)` tuples.
-
-### Sync Workflow
-
-```python
-from maap_client import MaapClient, SyncResult
-from datetime import datetime, timezone
-
-client = MaapClient()
-
-# Incremental sync with automatic state tracking
-result: SyncResult = client.sync(
-    collection="EarthCAREL2Validated_MAAP",
-    product_type="CPR_CLD_2A",
-    baseline="BC",
-)
-print(f"Found {result.urls_found} URLs")
-print(f"Downloaded {result.urls_downloaded} files")
-print(f"Errors: {result.errors}")
-
-# Sync with time range
-result = client.sync(
-    collection="EarthCAREL2Validated_MAAP",
-    product_type="CPR_CLD_2A",
-    baseline="BC",
-    start=datetime(2024, 12, 1, tzinfo=timezone.utc),
-    end=datetime(2024, 12, 31, tzinfo=timezone.utc),
-)
-```
-
-### State Tracking
-
-```python
-from maap_client import MaapClient
-
-client = MaapClient()
-
-# Get tracker for a product/baseline
-tracker = client.get_tracker(
-    collection="EarthCAREL2Validated_MAAP",
-    product_type="CPR_CLD_2A",
-    baseline="BC",
-)
-
-# Check pending downloads
-pending = tracker.get_pending_downloads()
-print(f"Pending: {len(pending)} files")
-
-# Check pending marks
-pending_marks = tracker.get_pending_mark_paths()
-
-# Mark files as processed (for cleanup)
-tracker.mark("/path/to/file.h5")
-```
-
----
-
-## CLI Reference
-
-### Commands Overview
-
-```
-maap list [collection [product [baseline]]]   Browse collections/products/baselines
-maap search <coll> <prod> [bl] [options]      Search for product URLs
-maap download <coll> <prod> [bl] [options]    Download products
-maap get <coll> <prod> [bl] [options]         Search + download in one step
-maap sync <coll> <prod> [bl] [options]        Incremental sync (for crontab)
-maap state show <coll> <prod> <bl>            Show state summary
-maap state pending <coll> <prod> <bl>         List pending items
-maap state mark <paths>                       Mark files as processed
-maap state cleanup <coll> <prod> <bl>         Delete marked files
-maap catalog update [collection]              Update catalog queryables
-maap catalog build [collection]               Build metadata cache
-maap config                                   Show configuration
-maap token [--days-left]                      Show when the offline token expires
-```
-
-Use `maap <command> -h` for detailed help on any command.
-
-### Search Options
+Commands that do **not** determine it (`catalog update` and `catalog build` without a
+collection, `list` without a collection, `config`, `mission show` without a name) follow
+the selection order above, including the persisted `maap mission use`. In scripts and cron
+jobs, pass `--mission` or set `MAAP_MISSION` for those:
 
 ```bash
-maap search <collection> <product> [baseline] [options]
-
-Filtering (mutually exclusive):
-  --date YYYY-MM-DD        Single day (expands to 00:00:00-23:59:59)
-  --start, -s DATETIME     Start of range (ISO format)
-  --end, -e DATETIME       End of range (use with --start)
-  --days-back, -d N        Days to look back from now
-  --orbit NNNNN[X]         Search by orbit, optionally one frame (e.g., 07655 or 07655C)
-  --frame LETTERS          Frame letter(s) A-H, comma-separated (e.g., C,D)
-
-Output:
-  --url-file, -o FILE      Save URLs to flat file
-  --registry-save          Save URLs to registry files (by sensing date)
-
-Other:
-  --max-items, -n N        Maximum items to return (default: 50000)
-  --use-catalog            Use built catalog (faster, may be stale)
-  --format {h5,hdr}        File format to search for (default: h5)
+0 5 * * * MAAP_MISSION=Biomass maap catalog update
+0 6 * * * maap sync EarthCAREL2Validated_MAAP CPR_CLD_2A DA
 ```
 
-> **Note on `--format` and registry/sync:** The registry does not separate files by format. If you use `--registry-save` or `sync` with different `--format` values for the same collection/product/baseline, URLs of both formats will be mixed in the same registry files. To avoid this, use a consistent `--format` value per collection/product/baseline, or use separate `--data-dir` directories for each format.
-
-### Download Options
-
-```bash
-maap download <collection> <product> [baseline] [options]
-
-Source (mutually exclusive):
-  (default)                Search MAAP API
-  --url, -u URL            Download single URL
-  --url-file, -f FILE      Download from URL file
-  --registry               Download from registry files
-
-Filtering (with --registry):
-  --date YYYY-MM-DD        Filter by date
-  --start, -s / --end, -e  Filter by range
-  --days-back, -d N        Days to look back
-  --frame LETTERS          Filter registry entries by frame (filename match)
-  --orbit NNNNN[X]         Filter registry entries by orbit (filename match)
-
-Output:
-  --out-dir, -o DIR        Custom output directory
-  --dry-run                Show what would be downloaded
-  --product-dir            Save each file in a subdirectory named after the file stem
-
-Other:
-  --max-items, -n N        Maximum items to download
-  --use-catalog            Use built catalog for time bounds
-```
-
-### Get Options
-
-```bash
-maap get <collection> <product> [baseline] [options]
-
-Filtering (mutually exclusive):
-  --date YYYY-MM-DD        Single day
-  --start, -s / --end, -e  Time range
-  --days-back, -d N        Days to look back
-  --orbit NNNNN[X]         Search by orbit, optionally one frame (e.g., 07655 or 07655C)
-  --frame LETTERS          Frame letter(s) A-H, comma-separated (e.g., C,D)
-
-Output:
-  --out-dir, -o DIR        Custom output directory
-  --dry-run                Show what would be downloaded
-  --product-dir            Save each file in a subdirectory named after the file stem
-
-Other:
-  --max-items, -n N        Maximum items to get (default: 50000)
-  --format {h5,hdr}        File format to search for (default: h5)
-```
-
-### Sync Options
-
-```bash
-maap sync <collection> <product> [baseline] [options]
-
-Time selection (mutually exclusive):
-  --days-back, -d N        Days to look back (default: 3)
-  --date YYYY-MM-DD        Sync a single day
-  --start, -s DATETIME     Start of range (ISO format)
-  --end, -e DATETIME       End of range (defaults to now)
-  --frame LETTERS          Sync only these frames (A-H, comma-separated)
-
-Other:
-  --max-items, -n N        Max items per run (default: 50000)
-  --out-dir, -o DIR        Custom output directory
-  --format {h5,hdr}        File format to search for (default: h5)
-  --product-dir            Save each file in a subdirectory named after the file stem
-```
+Every command exits with a classified status, so wrappers need no log parsing:
+`0` success, `2` authentication failed (fix the token), `3` transient or partial
+failure (re-run the same command later; done work is kept), `4` invalid request
+(fix the command or configuration).
 
 ---
 
-## Other Missions
+## More
 
-The client is designed for EarthCARE but can be configured for other ESA missions available on the MAAP platform, such as Aeolus.
-
-### Configuration
-
-To use a different mission, update `~/.maap/config.toml`:
-
-```toml
-[mission]
-name = "Aeolus"
-start = "2018-08-22T00:00:00Z"
-end = "2023-04-30T23:59:59Z"
-collections = [
-    "AeolusL1BProducts",
-    "AeolusL2AProducts",
-    "AeolusL2BProducts",
-    "AeolusL2CProducts",
-    "AeolusAuxProducts",
-]
-```
-
-Then use the CLI normally:
-
-```bash
-maap list AeolusL1BProducts
-maap search AeolusL1BProducts ALD_U_N_1B --date 2023-04-22
-```
-
-> **Note:** Other missions may be compatible but could require manual adjustments due to different product naming conventions, file formats, and metadata structures.
-
----
-
-## Default Collections
-
-By default, the client is configured for EarthCARE mission data:
-
-| Collection | Description |
-|------------|-------------|
-| EarthCAREL0L1Products_MAAP | Level 0/1 products |
-| EarthCAREL1InstChecked_MAAP | L1 instrument-checked |
-| EarthCAREL1Validated_MAAP | L1 validated |
-| EarthCAREL2InstChecked_MAAP | L2 instrument-checked |
-| EarthCAREL2Products_MAAP | L2 products |
-| EarthCAREL2Validated_MAAP | L2 validated |
-| EarthCAREAuxiliary_MAAP | Auxiliary data |
-| EarthCAREOrbitData_MAAP | Orbit data |
-| EarthCAREXMETL1DProducts10_MAAP | XMET L1D products |
-| JAXAL2InstChecked_MAAP | JAXA L2 instrument-checked |
-| JAXAL2Products_MAAP | JAXA L2 products |
-| JAXAL2Validated_MAAP | JAXA L2 validated |
-
----
-
-## Exit Codes
-
-Every command exits with a classified status so wrapper scripts can react
-without parsing logs:
-
-| Code | Meaning       | Wrapper action                                              |
-|------|---------------|-------------------------------------------------------------|
-| 0    | Success       | Nothing to do                                                |
-| 2    | Auth fatal    | Stop everything; fix credentials/token                       |
-| 3    | Transient     | Re-run the same command later; completed work is kept and gaps fill in |
-| 4    | Non-transient | Do not retry; fix the request                                |
-
-See [Reliability](#reliability) for what each command retries before it gives
-up and returns one of these codes.
-
-A partially successful run (some days failed after every retry was exhausted)
-exits 3 and lists each gap on stderr in a stable format:
-
-    FAILED DAY: 2025-03-14 (503 Server Error ...)
-    WARNING: 1 day(s) failed; re-run the same command to fill the gaps
-
-`sync` prefixes the baseline: `FAILED DAY: AC 2025-03-14 (...)`.
-
-When the only per-file failures are filenames that cannot be parsed into a
-data path (bad registry or `--url-file` entries), `download`/`get` exit 4
-instead: retrying cannot help until the entries are fixed.
-
-> Note: argparse usage errors (unknown flags, missing arguments) exit 2 by
-> Python convention, the same code as auth-fatal. For an unattended wrapper,
-> "stop and let a human look" is the right reaction to both.
-
----
-
-## Troubleshooting
-
-**Token expired:**
-```
-AuthenticationError: Failed to refresh token: 401 Unauthorized
-```
-Get a new token from https://portal.maap.eo.esa.int/ini/services/auth/token/90dToken.php
-
-**Credentials not found:**
-```
-CredentialsError: Credentials file not found
-```
-Create `~/.maap/credentials.txt` with your credentials.
-
-**No data found:**
-Check available baselines with `maap list <collection> <product>` and verify your date range.
-
-**Timezone error:**
-```
-InvalidRequestError: 'start' must be timezone-aware
-```
-Always use timezone-aware datetimes in Python:
-```python
-from datetime import datetime, timezone
-start = datetime(2024, 12, 1, tzinfo=timezone.utc)
-```
-
-**Catalog not found:**
-```
-FileNotFoundError: Built catalog not found for ...
-```
-Build the catalog first:
-```bash
-maap catalog build <collection>
-```
-
----
+[EXAMPLES.md](EXAMPLES.md) covers every command and option, configuration
+(`config.toml`, environment variables, per-mission overrides), the on-disk layout
+of data and registry, formats and filters per mission, reliability and exit codes,
+the Python API, troubleshooting and the limitations of this version.
 
 ## Links
 
@@ -1003,8 +153,6 @@ maap catalog build <collection>
 - ESA MAAP Portal: https://portal.maap.eo.esa.int
 - MAAP Catalog: https://catalog.maap.eo.esa.int
 - Token Request: https://portal.maap.eo.esa.int/ini/services/auth/token/90dToken.php
-
----
 
 ## Contact
 
