@@ -33,7 +33,8 @@ def generate_data_path(
     Generate structured path for downloaded data files.
 
     Structure: data_dir/mission/collection/product_type/baseline/yyyy/mm/dd/filename
-    With product_dir: .../yyyy/mm/dd/{stem}/filename
+    With product_dir: .../yyyy/mm/dd/{stem}/filename (legacy; downloads pass
+    a ``local_relpath`` as filename instead)
 
     Args:
         data_dir: Base data directory
@@ -42,8 +43,11 @@ def generate_data_path(
         product_type: Product type name
         baseline: Baseline version
         dt: Datetime for the file
-        filename: Filename
-        product_dir: If True, wrap file in a subdirectory named after the file stem
+        filename: Filename, or a relative path below the day folder (e.g.
+                  ``local_relpath(url, product_dir)``)
+        product_dir: Kept for compatibility: if True, wrap ``filename`` in a
+                     subdirectory named after its stem. Leave False when
+                     ``filename`` is already a ``local_relpath``.
 
     Returns:
         Full path for the file
