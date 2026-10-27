@@ -9,7 +9,8 @@ import time
 import requests
 
 from maap_client.auth import TokenManager, get_auth_headers
-from maap_client.constants import DEFAULT_CHUNK_SIZE, DEFAULT_MISSION, DEDUP_PRODUCTS
+from maap_client.constants import DEFAULT_CHUNK_SIZE, DEFAULT_MISSION
+from maap_client.missions.earthcare import DEDUP_PRODUCTS
 from maap_client.exceptions import BatchDownloadAborted, DownloadError
 from maap_client.paths import (
     extract_orbit_frame,

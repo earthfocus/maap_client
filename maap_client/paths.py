@@ -1,22 +1,21 @@
 """Path generation utilities for MAAP data organization.
 
-This module is standalone with no maap_client imports, so it can be
-used independently in other contexts.
+This module depends only on the stdlib and the stdlib-only
+maap_client.missions package, so it can be used independently in other
+contexts.
 """
 
 import logging
 import os
-import re
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from maap_client.missions import mission_for_filename
+from maap_client.missions.base import ProductName
+
 
 logger = logging.getLogger(__name__)
-
-# Root of the MAAP archive serving EarthCARE products over HTTPS. The layout
-# below it is keyed entirely by the filename (see filename_to_url).
-EARTHCARE_DATA_URL = "https://catalog.maap.eo.esa.int/data/earthcare-pdgs-01/EarthCARE"
 
 
 def generate_data_path(
@@ -82,6 +81,12 @@ def generate_registry_path(
     return registry_dir / prefix / mission / collection / product_type / baseline
 
 
+def _parse(uri: str) -> Optional[ProductName]:
+    """Parse a product filename or URL with its mission, or None for an unknown prefix."""
+    mission = mission_for_filename(uri)
+    return mission.parse(uri) if mission else None
+
+
 def extract_sensing_time(filename: str) -> Optional[datetime]:
     """
     Extract sensing time (first timestamp) from product filename.
@@ -97,33 +102,8 @@ def extract_sensing_time(filename: str) -> Optional[datetime]:
     Returns:
         Sensing datetime or None if not found
     """
-    filename = os.path.basename(filename)
-
-    # Aeolus: _YYYYMMDDTHHMMSSMMM_ (9-digit time with milliseconds)
-    # Must check first as it's more specific than the 6-digit pattern
-    # e.g., AE_OPER_ALD_U_N_1B_20230422T165721033_005543989_027018_0001.DBL
-    match = re.search(r"_(\d{8}T\d{9})_", filename)
-    if match:
-        dt_str = match.group(1)
-        try:
-            dt = datetime.strptime(dt_str, "%Y%m%dT%H%M%S%f")
-            return dt.replace(tzinfo=timezone.utc)
-        except ValueError:
-            pass
-
-    # EarthCARE/Aeolus: _YYYYMMDDTHHMMSS[Z]_ (6-digit time, optional Z suffix)
-    # e.g., ECA_EXBC_BM__RAD_2B_20250908T232505Z_...
-    # e.g., AE_OPER_ALD_U_N_2B_20190430T015241_20190430T041441_0003.DBL
-    match = re.search(r"_(\d{8}T\d{6})Z?_", filename)
-    if match:
-        dt_str = match.group(1)
-        try:
-            dt = datetime.strptime(dt_str, "%Y%m%dT%H%M%S")
-            return dt.replace(tzinfo=timezone.utc)
-        except ValueError:
-            pass
-
-    return None
+    parsed = _parse(filename)
+    return parsed.sensing_time if parsed else None
 
 
 def sort_by_sensing_time(items: list[str], reverse: bool = False) -> list[str]:
@@ -150,31 +130,16 @@ def extract_creation_time(filename: str) -> Optional[datetime]:
     Example: ECA_EXBA_BM__RAD_2B_20250908T232505Z_20250909T010458Z_07282E.h5
                                                   ^^^^^^^^^^^^^^^^ creation time
 
+    Aeolus products do not have a creation time encoded in their filename.
+
     Args:
         filename: Product filename (or full path - directory is stripped)
 
     Returns:
         Creation datetime or None if not found
     """
-    filename = os.path.basename(filename)
-
-    # Aeolus products do not have a creation time encoded in their filename
-    if filename.startswith("AE_"):
-        return None
-
-    # Pattern: _YYYYMMDDTHHMMSSZ_YYYYMMDDTHHMMSSZ_
-    pattern = r"_\d{8}T\d{6}Z_(\d{8}T\d{6}Z)_"
-    match = re.search(pattern, filename)
-
-    if match:
-        dt_str = match.group(1)
-        try:
-            dt = datetime.strptime(dt_str, "%Y%m%dT%H%M%SZ")
-            return dt.replace(tzinfo=timezone.utc)
-        except ValueError:
-            return None
-
-    return None
+    parsed = _parse(filename)
+    return parsed.creation_time if parsed else None
 
 
 def extract_orbit_frame(filename: str) -> Optional[str]:
@@ -193,21 +158,8 @@ def extract_orbit_frame(filename: str) -> Optional[str]:
     Returns:
         Orbit+frame string (e.g., "07282E" or "027018") or None if not found
     """
-    filename = os.path.basename(filename)
-
-    # EarthCARE: 5 digits + 1 letter at the end before extension
-    match = re.search(r"_(\d{5})([A-Z])\.[a-zA-Z0-9]+$", filename, re.IGNORECASE)
-    if match:
-        orbit_str, frame = match.groups()
-        return f"{orbit_str}{frame.upper()}"
-
-    # Aeolus: 6 digits orbit number (third field from end: _ORBIT_VERSION.EXT)
-    # AE_OPER_ALD_U_N_1B_20230422T165721033_005543989_027018_0001.DBL
-    match = re.search(r"_(\d{6})_\d{4}\.[A-Z]{3}$", filename, re.IGNORECASE)
-    if match:
-        return match.group(1)
-
-    return None
+    parsed = _parse(filename)
+    return parsed.orbit_frame if parsed else None
 
 
 def extract_agency(filename: str) -> Optional[str]:
@@ -229,18 +181,8 @@ def extract_agency(filename: str) -> Optional[str]:
     Returns:
         Agency string (e.g., "EX", "JX") or None if not found
     """
-    filename = os.path.basename(filename)
-
-    # EarthCARE: ECA_ + 2 uppercase letters (agency)
-    match = re.match(r"^ECA_([A-Z]{2})[A-Z]{2}_", filename)
-    if match:
-        return match.group(1)
-
-    # Aeolus: ESA mission, always "EX"
-    if filename.startswith("AE_"):
-        return "EX"
-
-    return None
+    parsed = _parse(filename)
+    return parsed.agency if parsed else None
 
 
 def extract_file_class(filename: str) -> Optional[str]:
@@ -266,14 +208,8 @@ def extract_file_class(filename: str) -> Optional[str]:
     Returns:
         File class string (e.g., "OPER", "RPRO") or None if not Aeolus
     """
-    filename = os.path.basename(filename)
-
-    # Aeolus: AE_ + 4 uppercase letters (file class)
-    match = re.match(r"^AE_([A-Z]{4})_", filename)
-    if match:
-        return match.group(1)
-
-    return None
+    parsed = _parse(filename)
+    return parsed.fields.get("file_class") if parsed else None
 
 
 def extract_duration_ms(filename: str) -> Optional[int]:
@@ -291,14 +227,9 @@ def extract_duration_ms(filename: str) -> Optional[int]:
     Returns:
         Duration in milliseconds or None if not Aeolus
     """
-    filename = os.path.basename(filename)
-
-    # Aeolus: timestamp_duration_orbit_version.ext
-    match = re.search(r"_\d{8}T\d{9}_(\d{9})_\d{6}_\d{4}\.[A-Z]{3}$", filename, re.IGNORECASE)
-    if match:
-        return int(match.group(1))
-
-    return None
+    parsed = _parse(filename)
+    duration = parsed.fields.get("duration_ms") if parsed else None
+    return int(duration) if duration is not None else None
 
 
 def extract_file_version(filename: str) -> Optional[str]:
@@ -316,14 +247,8 @@ def extract_file_version(filename: str) -> Optional[str]:
     Returns:
         File version string (e.g., "0001") or None if not Aeolus
     """
-    filename = os.path.basename(filename)
-
-    # Aeolus: _VERSION.EXT at the end
-    match = re.search(r"_(\d{4})\.[A-Z]{3}$", filename, re.IGNORECASE)
-    if match and filename.startswith("AE_"):
-        return match.group(1)
-
-    return None
+    parsed = _parse(filename)
+    return parsed.fields.get("file_version") if parsed else None
 
 
 def extract_baseline(uri: str) -> Optional[str]:
@@ -346,30 +271,8 @@ def extract_baseline(uri: str) -> Optional[str]:
     Returns:
         Baseline string (e.g., "BC", "1B16") or None if not found
     """
-    filename = os.path.basename(uri)
-
-    # EarthCARE: baseline in filename (ECA_XX + baseline)
-    match = re.match(r"^ECA_[A-Z]{2}([A-Z]{2})_", filename)
-    if match:
-        return match.group(1)
-
-    # Aeolus: baseline in URL path after product type
-    # URL pattern: .../PRODUCT_TYPE/BASELINE/YYYY/MM/DD/...
-    # e.g., .../ALD_U_N_1B/1B16/2023/04/22/... or .../ALD_U_N_2B/2b16/2023/04/22/...
-    if filename.startswith("AE_"):
-        # Look for baseline in path: /PRODUCT_TYPE/BASELINE/YYYY/
-        # Case-insensitive to handle both uppercase (1B16) and lowercase (2b16) baselines
-        #
-        # note: there is a (for now empty) AeolusAuxProducts collection in the MAAP database
-        #       this next regular expression will not work for these files, which typically
-        #       have a names like: AE_OPER_AUX_DCMZ1B_20230430T222914_20230430T223214_0001.EEF
-        #       or:                AE_OPER_AUX_RBC_L2_20230220T025338_20230220T171326_0001.DBL
-        #
-        match = re.search(r"/ALD_[UC]_N_\d[AB]/([A-Za-z0-9]{4})/\d{4}/", uri, re.IGNORECASE)
-        if match:
-            return match.group(1)
-
-    return None
+    parsed = _parse(uri)
+    return parsed.baseline if parsed else None
 
 
 def extract_product(filename: str) -> Optional[str]:
@@ -392,29 +295,8 @@ def extract_product(filename: str) -> Optional[str]:
     Returns:
         Product type string (e.g., "CPR_NOM_1B", "ALD_U_N_1B") or None if not found
     """
-    filename = os.path.basename(filename)
-
-    # EarthCARE: ECA_XXXX_ followed by product, then _YYYYMMDDTHHMMSSZ
-    match = re.match(r"^ECA_[A-Z]{4}_(.+?)_\d{8}T\d{6}Z_", filename)
-    if match:
-        return match.group(1)
-
-    # Aeolus: AE_CCCC_ followed by product type (ALD_X_N_XX), then _timestamp
-    # AE_OPER_ALD_U_N_1B_20230422T165721033_...
-    #
-    # note: see the remark for Aeolus AUX file types in extract_baseline() above
-    #
-    match = re.match(r"^AE_[A-Z]{4}_(ALD_[UC]_N_\d[AB])_\d{8}T\d{9}_", filename)
-    if match:
-        return match.group(1)
-
-    # this is needed for products without milliseconds in their sensing start datetime group
-    # AE_OPER_ALD_U_N_2B_20230401T235022_20230402T012120_0002.DBL
-    match = re.match(r"^AE_[A-Z]{4}_(ALD_[UC]_N_\d[AB])_\d{8}T\d{6}_", filename)
-    if match:
-        return match.group(1)
-
-    return None
+    parsed = _parse(filename)
+    return parsed.product_type if parsed else None
 
 
 def extract_mission(filename: str) -> Optional[str]:
@@ -430,21 +312,15 @@ def extract_mission(filename: str) -> Optional[str]:
     Returns:
         Mission identifier ("ECA" or "AE") or None if not recognized
     """
-    filename = os.path.basename(filename)
-
-    if filename.startswith("ECA_"):
-        return "ECA"
-    if filename.startswith("AE_"):
-        return "AE"
-
-    return None
+    mission = mission_for_filename(filename)
+    return mission.code if mission else None
 
 
 def extract_info(uri: str) -> dict[str, Any]:
     """
     Extract all metadata from a product filename.
 
-    Wraps all extraction functions to provide complete metadata in a single call.
+    Wraps the mission parser to provide complete metadata in a single call.
 
     Example:
         ECA_EXBC_BM__RAD_2B_20250908T232505Z_20250909T010458Z_07282E.h5
@@ -465,19 +341,17 @@ def extract_info(uri: str) -> dict[str, Any]:
     Returns:
         Dict with extracted metadata (values may be None if parsing fails)
     """
-    filename = os.path.basename(uri)
-
+    parsed = _parse(uri)
     return {
-        "filename": filename,
-        "mission": extract_mission(filename),
-        "agency": extract_agency(filename),
-        "baseline": extract_baseline(uri), # need to pass uri to extract baseline for Aeolus
-        "product_type": extract_product(filename),
-        "sensing_time": extract_sensing_time(filename),
-        "creation_time": extract_creation_time(filename),
-        "orbit_frame": extract_orbit_frame(filename),
+        "filename": os.path.basename(uri),
+        "mission": parsed.mission if parsed else None,
+        "agency": parsed.agency if parsed else None,
+        "baseline": parsed.baseline if parsed else None,
+        "product_type": parsed.product_type if parsed else None,
+        "sensing_time": parsed.sensing_time if parsed else None,
+        "creation_time": parsed.creation_time if parsed else None,
+        "orbit_frame": parsed.orbit_frame if parsed else None,
     }
-
 
 def filter_by_sensing_time(
     items: list[str],
@@ -618,9 +492,10 @@ def extract_collection(path: str | Path) -> Optional[str]:
     return None if collection == path.anchor else collection
 
 
+
 def filename_to_url(filename: str) -> Optional[str]:
     """
-    Rebuild the MAAP download URL of an EarthCARE product from its filename.
+    Rebuild the MAAP download URL of a product from its filename.
 
     The archive lays products out as
     ``.../{product_type}/{baseline}/{yyyy}/{mm}/{dd}/{stem}/{stem}/{filename}``
@@ -635,21 +510,8 @@ def filename_to_url(filename: str) -> Optional[str]:
         filename: Product filename or path (directory is stripped)
 
     Returns:
-        Download URL, or None for non-EarthCARE or unparsable names
+        Download URL, or None for names of missions whose URL cannot be
+        derived from the filename (e.g. Aeolus) or unparsable names
     """
-    info = extract_info(filename)
-    if info["mission"] != "ECA":
-        return None
-
-    product_type = info["product_type"]
-    baseline = info["baseline"]
-    dt = info["sensing_time"]
-    if not (product_type and baseline and dt):
-        return None
-
-    name = info["filename"]
-    stem = os.path.splitext(name)[0]
-    return (
-        f"{EARTHCARE_DATA_URL}/{product_type}/{baseline}"
-        f"/{dt.year:04d}/{dt.month:02d}/{dt.day:02d}/{stem}/{stem}/{name}"
-    )
+    mission = mission_for_filename(filename)
+    return mission.data_url(filename) if mission else None

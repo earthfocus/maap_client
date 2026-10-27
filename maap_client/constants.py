@@ -1,5 +1,8 @@
 """Constants for MAAP client."""
 
+# Re-exported for compatibility: these sets now live in the EarthCARE mission module.
+from maap_client.missions.earthcare import DEDUP_PRODUCTS, NO_ORBIT_PRODUCTS  # noqa: F401
+
 __version__ = "0.2.1"
 
 # API endpoints (defaults)
@@ -43,13 +46,6 @@ DEFAULT_CATALOG_DIR = "~/.maap/catalogs"
 DEFAULT_BUILT_CATALOG_DIR = "~/.maap/built_catalogs"
 DEFAULT_REGISTRY_DIR = "~/.maap/registry"
 DEFAULT_CREDENTIALS_FILE = "~/.maap/credentials.txt"
-
-# Products that are deduplicated by (sensing_time, orbit_frame) at download time.
-# AUX_MET_1D has multiple versions per granule (different creation_time) in the STAC API.
-DEDUP_PRODUCTS = {"AUX_MET_1D"}
-
-# Products that don't have orbit/frame indexed in STAC metadata
-NO_ORBIT_PRODUCTS = {"AUX_MET_1D"}
 
 # Download settings
 DEFAULT_CHUNK_SIZE = 8192

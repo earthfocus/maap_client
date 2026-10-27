@@ -47,13 +47,13 @@ from maap_client.constants import (
     DEFAULT_CATALOG_URL,
     DEFAULT_MISSION_START,
     DEFAULT_MISSION_END,
-    NO_ORBIT_PRODUCTS,
     STAC_RETRY_ALLOWED_METHODS,
     STAC_RETRY_BACKOFF_FACTOR,
     STAC_RETRY_STATUS_FORCELIST,
     STAC_RETRY_TOTAL,
 )
 from maap_client.exceptions import AuthenticationError, CredentialsError
+from maap_client.missions.earthcare import NO_ORBIT_PRODUCTS
 from maap_client.paths import (
     extract_sensing_time,
     extract_baseline,
