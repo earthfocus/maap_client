@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+from maap_client.exceptions import InvalidRequestError
 from maap_client.missions.base import NO_BASELINE
 from maap_client.missions.earthcare import parse_frames  # noqa: F401  (re-exported)
 
@@ -104,6 +105,10 @@ def normalize_time_range(
 
     Returns:
         Tuple of (start, end) datetimes clamped to valid bounds
+
+    Raises:
+        InvalidRequestError: If the range does not overlap the mission period
+            (up to now), e.g. a recent --days-back window of an ended mission
     """
     now = datetime.now(timezone.utc).replace(microsecond=0)
 
@@ -116,6 +121,11 @@ def normalize_time_range(
     # Default and clamp end
     t1 = min(end if end else end_cap, end_cap)
 
+    if t0 > t1:
+        raise InvalidRequestError(
+            f"{to_zulu(start or t0)} to {to_zulu(end or t1)} is outside the mission period "
+            f"{to_zulu(mission_start)} to {to_zulu(end_cap)}"
+        )
     return t0, t1
 
 
