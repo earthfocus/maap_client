@@ -220,10 +220,10 @@ def collect_filter_args(args: argparse.Namespace) -> Optional[dict[str, str]]:
 
 
 def validate_download_filter_args(args: argparse.Namespace) -> Optional[str]:
-    """Registry-only filters (--frame/--orbit/...) must not be used with --url/--url-file."""
+    """Registry-only filters and time options (--frame/--orbit/--date/...) must not be used with --url/--url-file."""
     if not getattr(args, 'registry', False):
-        for option in (*filter_options(), "orbit"):
-            if getattr(args, option, None):
+        for option in (*filter_options(), "orbit", "date", "start", "end", "days_back"):
+            if getattr(args, option, None) is not None:
                 return f"{option_flag(option)} requires --registry"
     return None
 
