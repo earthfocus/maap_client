@@ -38,7 +38,7 @@ Assumptions:
 import logging
 import os
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Callable, Iterator, Literal, Mapping, Optional, Sequence
+from typing import Callable, Iterator, Literal, Mapping, Optional, Sequence
 
 from pystac_client import Client
 from pystac_client.stac_api_io import StacApiIO
@@ -427,26 +427,19 @@ class MaapSearcher:
         self,
         collection: str,
         product_type: str,
-        candidates: Optional[list[str]] = None,
+        candidates: list[str],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         mode: Literal["all", "latest"] = "all",
         verbose: bool = False,
-        catalog_manager: Optional[Any] = None,
     ) -> list[str]:
         """
-        Get baselines that actually have data for a product.
+        Get the candidate baselines (e.g. the collection's queryable
+        versions) that actually have data for a product.
 
         Returns:
             List of baselines that have actual data (sorted alphabetically)
         """
-        if candidates is None:
-            if catalog_manager is None:
-                from maap_client.catalog_query import CatalogQueryablesManager
-                catalog_manager = CatalogQueryablesManager()
-            queryables = catalog_manager.load(collection, refresh=True)
-            candidates = queryables.list_baselines()
-
         if verbose:
             logger.info(f"Checking {collection} {product_type} baselines ({len(candidates)} candidates){format_time_range(start, end)}")
 

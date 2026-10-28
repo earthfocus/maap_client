@@ -3,9 +3,11 @@
 import argparse
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from maap_client import MaapClient, MaapConfig, InvalidRequestError
+from maap_client.auth import load_credentials, offline_token_expiry
 from maap_client.cli_helpers import (
     apply_cli_overrides,
     collect_filter_args,
@@ -17,10 +19,12 @@ from maap_client.cli_helpers import (
     validate_download_filter_args,
     validate_time_args,
 )
-from maap_client.exceptions import classify_exit_code, EXIT_NON_TRANSIENT, EXIT_TRANSIENT
+from maap_client.exceptions import CatalogError, classify_exit_code, EXIT_NON_TRANSIENT, EXIT_TRANSIENT
 from maap_client.filters import option_flag
 from maap_client.mission_select import resolve_mission, write_active_mission
 from maap_client.missions import MISSIONS, get_mission, mission_for_collection, parse_product
+from maap_client.paths import baseline_error
+from maap_client.registry import read_pairs_file
 from maap_client.utils import normalize_baseline, to_zulu
 
 
@@ -106,8 +110,6 @@ def cmd_list(args: argparse.Namespace) -> int:
     2 args: list baselines from built catalog
     3 args: show baseline info from built catalog
     """
-    from maap_client.exceptions import CatalogError
-
     client = get_client(args)
 
     # Level 0: List collections
@@ -332,7 +334,6 @@ def cmd_download(args: argparse.Namespace) -> int:
 
         # Download from URL file
         elif args.url_file:
-            from maap_client.registry import read_pairs_file
             if not args.url_file.exists():
                 print(f"Error: URL file not found: {args.url_file}", file=sys.stderr)
                 return EXIT_NON_TRANSIENT
@@ -530,8 +531,6 @@ def cmd_state_pending(args: argparse.Namespace) -> int:
 
 def cmd_state_mark(args: argparse.Namespace) -> int:
     """Handle 'state mark' command."""
-    from pathlib import Path
-    from maap_client.paths import baseline_error
 
     # The collection in each path decides its mission, whatever the active mission
     config = MaapConfig.load(getattr(args, "config", None))
@@ -624,9 +623,6 @@ def cmd_state_cleanup(args: argparse.Namespace) -> int:
 
 def cmd_token(args: argparse.Namespace) -> int:
     """Handle 'token' command - show when the offline token expires."""
-    from datetime import datetime, timezone
-    from maap_client.auth import load_credentials, offline_token_expiry
-
     config = MaapConfig.load(args.config) if args.config else MaapConfig.load()
     expiry = offline_token_expiry(load_credentials(config.credentials_file))
     days_left = (expiry - datetime.now(timezone.utc)).days
