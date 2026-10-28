@@ -10,7 +10,7 @@ import requests
 
 from maap_client.catalog import Catalog, CatalogManager
 from maap_client.constants import DEFAULT_CATALOG_URL, DEFAULT_CATALOG_DIR, DEFAULT_TIMEOUT
-from maap_client.exceptions import CatalogError
+from maap_client.exceptions import CatalogError, InvalidRequestError
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +87,25 @@ class CatalogQueryablesManager(CatalogManager):
         return self._collections
 
     def fetch(self, collection: str) -> dict[str, Any]:
-        """Fetch raw queryables JSON schema directly from MAAP STAC API."""
-        url = f"{self._catalog_url}/collections/{collection}/queryables"
+        """
+        Fetch raw queryables JSON schema directly from MAAP STAC API.
+
+        MAAP has no queryables (404) for a collection without searchable
+        items yet: that gives an empty schema (no products).
+
+        Raises:
+            InvalidRequestError: If MAAP does not know the collection
+            CatalogError: If the queryables cannot be fetched
+        """
+        url = f"{self._catalog_url}/collections/{collection}"
 
         try:
-            r = requests.get(url, timeout=DEFAULT_TIMEOUT)
+            r = requests.get(f"{url}/queryables", timeout=DEFAULT_TIMEOUT)
+            if r.status_code == 404:
+                if requests.get(url, timeout=DEFAULT_TIMEOUT).status_code == 404:
+                    raise InvalidRequestError(f"Unknown collection: {collection}")
+                logger.info(f"{collection}: no searchable items yet")
+                return {"properties": {}}
             r.raise_for_status()
             return r.json()
         except requests.RequestException as e:
