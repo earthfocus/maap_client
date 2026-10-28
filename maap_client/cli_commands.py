@@ -51,8 +51,10 @@ def cmd_catalog_update(args: argparse.Namespace) -> int:
         print(f"{len(failures)} collection(s) failed:", file=sys.stderr)
         for coll, err in failures:
             print(f"  {coll}: {err}", file=sys.stderr)
-        print("Re-run the same command to retry the failed collections.", file=sys.stderr)
-        return _failures_exit_code(err for _, err in failures)
+        code = _failures_exit_code(err for _, err in failures)
+        if code == EXIT_TRANSIENT:
+            print("Re-run the same command to retry the failed collections.", file=sys.stderr)
+        return code
 
     return 0
 
@@ -91,12 +93,14 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
             print(f"{len(failures)} baseline(s) failed after retries:", file=sys.stderr)
             for coll, prod, baseline, err in failures:
                 print(f"  {coll}/{prod}/{baseline}: {err}", file=sys.stderr)
-            print(
-                "Re-run the same command to fill only the gaps "
-                "(if a baseline was deleted on the server, use --force).",
-                file=sys.stderr,
-            )
-            return _failures_exit_code(err for *_, err in failures)
+            code = _failures_exit_code(err for *_, err in failures)
+            if code == EXIT_TRANSIENT:
+                print(
+                    "Re-run the same command to fill only the gaps "
+                    "(if a baseline was deleted on the server, use --force).",
+                    file=sys.stderr,
+                )
+            return code
 
         return 0
 

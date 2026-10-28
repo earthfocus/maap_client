@@ -685,8 +685,8 @@ print(len(downloaded.downloaded), len(downloaded.skipped), downloaded.errors)
 client.download(urls=result.urls, collection="EarthCAREL2Validated_MAAP", out_dir=Path("./downloads"))
 
 # Search + download, and incremental sync (returns SyncResult)
-client.get("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", "BC", start=datetime(2024, 12, 1, tzinfo=timezone.utc))
-sync = client.sync("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", "BC")
+client.get("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", "BA", start=datetime(2024, 12, 1, tzinfo=timezone.utc))
+sync = client.sync("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", "BA")
 print(sync.urls_found, sync.urls_downloaded, sync.errors)
 
 # Another mission: mission filters go in `filters`
@@ -750,7 +750,7 @@ for day_urls in client.searcher.search_urls_iter_day(
 State tracking:
 
 ```python
-tracker = client.get_tracker("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", "BC")
+tracker = client.get_tracker("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", "BA")
 pending = tracker.get_pending_downloads()
 pending_marks = tracker.get_pending_mark_paths()
 tracker.mark("/path/to/file.h5")

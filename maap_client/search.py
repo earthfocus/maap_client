@@ -680,13 +680,14 @@ class MaapSearcher:
         if urls is None:
             urls = []
             products: set[str] = set()
+            # Whole days are fetched (no per-day max_items): the server cuts an
+            # item list in its own order, so the cut is made here once sorted
             days = self.search_urls_iter_day(
                 collection=collection,
                 product_type=product_type,
                 start=start,
                 end=end,
                 baseline=baseline,
-                max_items=max_items,
                 verbose=verbose,
                 format=format,
                 reverse=reverse,
@@ -702,7 +703,7 @@ class MaapSearcher:
                     # retry the days that failed before them
                     days.close()
                     for recovered in self.retry_failed_days(
-                        collection, product_type, baseline, max_items, format, extra
+                        collection, product_type, baseline, format=format, extra=extra
                     ):
                         urls.extend(recovered)
                     self._warn_missing_format()
