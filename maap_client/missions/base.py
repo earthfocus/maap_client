@@ -137,7 +137,8 @@ class Mission:
     end: str
     default_formats: tuple[str, ...]
     filters: tuple[FilterSpec, ...] = ()
-    # orbits may end with a frame letter ('01525E'), merged into the "frame" filter
+    # orbits may end with a frame letter ('01525E'), parsed by and merged into the
+    # "frame" filter, which a mission with orbit_frame_letter must declare
     orbit_frame_letter: bool = False
     # names that carry an absolute orbit, for offline (registry) orbit filtering:
     # "all" (names without one are dropped), "some" (such names are rejected),

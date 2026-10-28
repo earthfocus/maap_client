@@ -264,9 +264,6 @@ class CatalogCollectionManager(CatalogManager):
             if verbose:
                 logger.info(f"Processing {product}...")
 
-            # Candidate baselines (verified during the metadata fetch below)
-            all_baselines = self._client.product_baselines(collection, product)
-
             # Get or create product entry
             product_info = catalog.get_product(product)
             if product_info is None:
@@ -274,11 +271,15 @@ class CatalogCollectionManager(CatalogManager):
                 catalog.set_product(product, product_info)
 
             # Determine which baselines to update
+            # Candidate baselines are verified during the metadata fetch below
             if baselines_filter:
                 # Use specified baselines only (case-insensitive comparison)
                 filter_upper = [f.upper() for f in baselines_filter]
-                baselines_to_update = [b for b in all_baselines if b.upper() in filter_upper]
-           
+                baselines_to_update = [
+                    b for b in self._client.product_baselines(collection, product)
+                    if b.upper() in filter_upper
+                ]
+
             # Note that new baselines added to queryables won't be picked up with
             # --latest-baseline until a full rebuild 
             # "update the latest baseline I already know about"
@@ -294,7 +295,7 @@ class CatalogCollectionManager(CatalogManager):
                     latest = pick_latest_baseline(verified_baselines)
                     baselines_to_update = [latest] if latest else []
             else:
-                baselines_to_update = all_baselines
+                baselines_to_update = self._client.product_baselines(collection, product)
 
             # Iterate on baselines to update
             for baseline in baselines_to_update:

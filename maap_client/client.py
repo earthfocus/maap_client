@@ -1059,7 +1059,7 @@ class MaapClient:
             ]
         result = SyncResult(collection=collection, product_type=product_type, baselines=baselines)
         if not baselines:
-            logger.warning(f"No baselines found for {collection}/{product_type}")
+            logger.warning(f"No baseline of {collection}/{product_type} has data in the range")
             return result
         if not baseline:
             logger.info(f"Syncing all baselines: {', '.join(b.upper() for b in baselines)}...")

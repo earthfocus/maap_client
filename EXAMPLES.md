@@ -668,7 +668,7 @@ baselines = client.list_baselines("EarthCAREL1Validated_MAAP", "CPR_NOM_1B", ver
 result = client.search(
     collection="EarthCAREL2Validated_MAAP",
     product_type="CPR_CLD_2A",
-    baseline="BC",
+    baseline="BA",
     start=datetime(2024, 12, 1, tzinfo=timezone.utc),
     end=datetime(2024, 12, 31, tzinfo=timezone.utc),
 )

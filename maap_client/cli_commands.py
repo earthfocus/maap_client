@@ -538,7 +538,6 @@ def cmd_state_pending(args: argparse.Namespace) -> int:
 
 def cmd_state_mark(args: argparse.Namespace) -> int:
     """Handle 'state mark' command."""
-
     # The collection in each path decides its mission, whatever the active mission
     config = MaapConfig.load(getattr(args, "config", None))
     extra_collections = config.extra_collections()

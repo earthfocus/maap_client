@@ -71,9 +71,9 @@ class CatalogQueryablesManager(CatalogManager):
         Args:
             catalog_url: Base URL for MAAP catalog
             catalog_dir: Directory for storing queryables JSON files
-            collections: Collections used when download is given none
-                (default: DEFAULT_COLLECTIONS, the default mission's;
-                MaapClient passes its configured mission's)
+            collections: Collections of download (when given none) and
+                list_downloaded (default: DEFAULT_COLLECTIONS, the default
+                mission's; MaapClient passes its configured mission's)
         """
         super().__init__(catalog_dir)
         self._catalog_url = catalog_url.rstrip("/")

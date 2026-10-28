@@ -27,8 +27,14 @@
   invalid date, a time range outside the mission period, an unknown product type in
   `catalog build` and `NO_BASELINE` for a product with baselines exit 4 (do not
   retry) instead of 3. A download 403 still exits 3.
-- Malformed filter values name their flag: `--frame: invalid value 'Z': must be
-  letters A-H`.
+- Malformed filter values name their flag, and exit 4 instead of argparse's 2:
+  `--frame: invalid value 'Z': must be letters A-H`.
+- `catalog update` / `catalog build` of all collections record an unknown
+  collection and go on with the others (exit 4 at the end); one given explicitly
+  stops with exit 4.
+- A download URL whose baseline cannot be read is an error of that URL (exit 4 at
+  the end); the other URLs are still downloaded. `sync` and `search --registry-save`
+  still stop before registering it.
 - `download --max-items` caps the new files downloaded (it was ignored); day-by-day
   searches cap `--max-items` in total.
 - A long range of a sparse product is searched in one paged request instead of day
@@ -36,6 +42,10 @@
 - `catalog build`, `list --verify` and `sync` skip the collection-wide catalogue
   versions for a product none of whose items has a version.
 - A collection without searchable items yet is listed as empty instead of failing.
+- A legacy `[mission] name` in `config.toml` is matched case-insensitively and
+  stored with the built-in spelling (e.g. `earthcare` -> `EarthCARE`), which names
+  the data and registry folders; an unknown name is an error.
+- On Python 3.10, `tomli` is now a dependency (needed to read `config.toml`).
 
 ### Removed
 
@@ -43,17 +53,20 @@ Compatibility names; import each name from where it is defined:
 
 | Removed | Use |
 |---------|-----|
-| `maap_client.paths.sort_by_sensing_time`, `filter_by_fields`, `filter_by_sensing_time`, `filter_by_orbit_frame` | `maap_client.filters.sort_by_sensing_time`, `filter_by_fields`, `filter_by_sensing_time`, `filter_by_orbit` (frames: `filter_by_fields` with `{"frame": [...]}`) |
-| `maap_client.constants.NO_BASELINE` | `maap_client.missions.NO_BASELINE` |
+| `maap_client.paths.sort_by_sensing_time`, `filter_by_sensing_time`, `filter_by_orbit_frame` | `maap_client.filters.sort_by_sensing_time`, `filter_by_sensing_time`, `filter_by_orbit` (frames: `filters.filter_by_fields` with `{"frame": [...]}`) |
+| `maap_client.paths.EARTHCARE_DATA_URL` | `maap_client.paths.filename_to_url(filename)` (the whole URL of a product file) |
 | `maap_client.constants.DEDUP_PRODUCTS`, `NO_ORBIT_PRODUCTS` | `maap_client.missions.earthcare.DEDUP_PRODUCTS`, `NO_ORBIT_PRODUCTS` |
 | `maap_client.utils.parse_frames` | `maap_client.missions.earthcare.parse_frames` |
 | `maap_client.COLLECTIONS` | `maap_client.constants.DEFAULT_COLLECTIONS` |
 | `MaapClient.search/get/sync/download_from_registry(frames=[...])` | `filters={"frame": [...]}` |
+| `MaapSearcher.search_urls/search_urls_iter_day/search_urls_by_orbit(frames=[...])` | `extra={"frame": [...]}` (in `search_urls_by_orbit` the 4th positional argument is now `baseline`) |
+| `MaapSearcher.search_baselines(candidates=None, catalog_manager=...)` | `candidates` is required |
 | `maap download --use-catalog` (it had no effect) | — (`maap search --use-catalog` remains) |
 
 ### Fixed
 
 - Aeolus products named `AE1_...` are recognised.
+- The FLEX baseline is read from local data paths as well as archive URLs.
 - `paths.extract_collection` returns `None` for any URL (it returned `EarthCARE` for
   archive zip URLs).
 - `maap config` applies `-d` and shows the `-c` file; `catalog build` prints the

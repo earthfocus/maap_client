@@ -351,7 +351,7 @@ def filter_registry_urls(
         orbitless = sorted({
             parsed.product_type or parsed.product
             for parsed in map(mission.parse, urls)
-            if parsed.orbit_frame is None
+            if parsed.orbit is None
         })
         if orbitless:
             raise InvalidRequestError(

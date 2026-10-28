@@ -140,8 +140,9 @@ def validate_time_args(args: argparse.Namespace, orbit_is_filter: bool = False) 
         args: Parsed argparse namespace
         orbit_is_filter: If True, --orbit is a client-side filename filter
             (as in `download --registry`) rather than a query mode, so it may
-            be combined with time-based options. Orbit format validation and
-            the orbit-with-letter + --frame conflict check still apply.
+            be combined with time-based options. Orbit format validation
+            still applies (the orbit letter and --frame are checked by
+            filters.resolve_filters).
 
     Returns:
         Error message string if validation fails, None if valid
