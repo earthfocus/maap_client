@@ -52,7 +52,11 @@ _PRODUCT_TYPE = re.compile(r"^AE1?_[A-Z]{4}_([A-Z0-9_]{10})_\d{8}T\d{6}")
 # the baseline is the segment after the directory equal to the file type and
 # equals the item's `version` where the catalogue has one. Items without
 # version use the literal `NNAA` ("no baseline"), which is never a baseline.
-_BASELINE_PATH = re.compile(r"/(?P<type>[A-Z0-9_]{10})/(?P<baseline>[A-Za-z0-9]{2,4})/\d{4}/\d{2}/\d{2}/", re.IGNORECASE)
+_BASELINE_PATH = re.compile(
+    r"/(?P<type>[A-Z0-9_]{10})/(?P<baseline>[A-Za-z0-9]{2,4})"
+    r"/\d{4}/\d{2}/\d{2}/",
+    re.IGNORECASE,
+)
 # The extension is optional: zip (product) URLs end in the bare product name
 _ORBIT = re.compile(r"_(\d{6})_\d{4}(?:\.[A-Z]{3})?$", re.IGNORECASE)
 _NO_VERSION = "NNAA"

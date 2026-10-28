@@ -98,7 +98,9 @@ def select_asset_urls(assets: Mapping[str, str], formats: Sequence[str]) -> list
         elif token == "all":
             selected = enclosures
         else:
-            selected = [h for h in enclosures if os.path.splitext(h)[1].lstrip(".").lower() == token]
+            selected = [
+                h for h in enclosures if os.path.splitext(h)[1].lstrip(".").lower() == token
+            ]
         if selected:
             return selected
     return []
@@ -232,7 +234,10 @@ class MaapSearcher:
         return normalize_time_range(start, end, mission_start, mission_end)
 
     def _formats(self, format: Optional[str]) -> tuple[str, ...]:
-        """Format priority list for a search: the explicit format alone, else the mission default."""
+        """Format priority list for a search.
+
+        The explicit format alone, else the mission default.
+        """
         if format:
             return (normalize_format(format),)
         return self._default_formats
@@ -404,7 +409,9 @@ class MaapSearcher:
         if verbose:
             logger.info(f"Counting {collection} {product_type}/{baseline}{format_time_range(start, end)}...")
 
-        matched = self._matched(collection, self._build_filter(product_type, baseline=baseline), start, end)
+        matched = self._matched(
+            collection, self._build_filter(product_type, baseline=baseline), start, end
+        )
         if verbose:
             logger.info(f"  count: {matched}")
         return matched
@@ -686,7 +693,9 @@ class MaapSearcher:
             frames_str = f" frames {','.join(frames)}" if frames else ""
             logger.info(f"Searching {collection} {product_type}{bl_str} orbit {orbit}{frames_str}...")
 
-        filter_str = self._build_filter(product_type, baseline=baseline, orbit=orbit, frames=frames, extra=extra)
+        filter_str = self._build_filter(
+            product_type, baseline=baseline, orbit=orbit, frames=frames, extra=extra
+        )
         logger.debug(f"Searching with filter: {filter_str}")
 
         search = self.client.search(
@@ -745,7 +754,9 @@ class MaapSearcher:
             day_ranges.reverse()
         for i, (day_start, day_end) in enumerate(day_ranges):
             datetime_arg = to_stac_datetime(day_start, day_end)
-            filter_str = self._build_filter(product_type, baseline=baseline, frames=frames, extra=extra)
+            filter_str = self._build_filter(
+                product_type, baseline=baseline, frames=frames, extra=extra
+            )
             try:
                 search = self.client.search(
                     collections=[collection],
@@ -755,7 +766,9 @@ class MaapSearcher:
                     method="GET",
                     max_items=max_items,
                 )
-                urls = self._clean_search_results(search, day_start, day_end, format=format, baseline=baseline)
+                urls = self._clean_search_results(
+                    search, day_start, day_end, format=format, baseline=baseline
+                )
             except (AuthenticationError, CredentialsError):
                 raise
             except Exception as e:
@@ -792,7 +805,9 @@ class MaapSearcher:
             self.last_failed_days = []
             for day_start, day_end in failed_ranges:
                 datetime_arg = to_stac_datetime(day_start, day_end)
-                filter_str = self._build_filter(product_type, baseline=baseline, frames=frames, extra=extra)
+                filter_str = self._build_filter(
+                    product_type, baseline=baseline, frames=frames, extra=extra
+                )
                 try:
                     search = self.client.search(
                         collections=[collection],
@@ -802,7 +817,9 @@ class MaapSearcher:
                         method="GET",
                         max_items=max_items,
                     )
-                    urls = self._clean_search_results(search, day_start, day_end, format=format, baseline=baseline)
+                    urls = self._clean_search_results(
+                        search, day_start, day_end, format=format, baseline=baseline
+                    )
                 except (AuthenticationError, CredentialsError):
                     raise
                 except Exception as e:

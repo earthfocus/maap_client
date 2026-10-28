@@ -43,7 +43,9 @@ def read_pairs_file(file_path: Path) -> list[tuple[str, str]]:
     return results
 
 
-def registry_baselines(registry_dir: Path, mission: str, collection: str, product_type: str) -> list[str]:
+def registry_baselines(
+    registry_dir: Path, mission: str, collection: str, product_type: str
+) -> list[str]:
     """Baseline folders of a product in the URL registry (logged), or [] when it has none."""
     base_path = registry_dir / "urls" / mission / collection / product_type
     if not base_path.exists():

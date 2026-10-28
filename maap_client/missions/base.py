@@ -32,7 +32,10 @@ class ProductName:
 
 @dataclass(frozen=True)
 class FilterSpec:
-    """A mission filter: CLI/API option, help, value parser, STAC queryable and ProductName attribute."""
+    """A mission filter: CLI/API option, help, value parser, STAC queryable.
+
+    It also names the ProductName attribute it applies to.
+    """
 
     option: str  # e.g. "frame", "repeat_cycle" (CLI flag --repeat-cycle)
     help: str  # this mission's values, e.g. "frame letter(s) A-H"
@@ -178,5 +181,8 @@ class Mission:
         return None
 
     def dedup_pattern(self, filename: str) -> Optional[str]:
-        """Glob of the other versions of the same granule, or None when versions are not deduplicated."""
+        """Glob of the other versions of the same granule.
+
+        None when versions are not deduplicated.
+        """
         return None

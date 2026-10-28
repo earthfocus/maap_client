@@ -245,7 +245,9 @@ class _Flex(Mission):
             return None
         product_type = _type(basename)
         # the product folder is the name up to the baseline, upper-case
-        product = f"FLX_{product_type}_{basename[match.end('start') - 15:match.end('baseline')]}".upper()
+        product = (
+            f"FLX_{product_type}_{basename[match.end('start') - 15:match.end('baseline')]}"
+        ).upper()
         return (
             f"{_DATA_ROOT}/{product_type}/{match.group('baseline')}/{sensing:%Y/%m/%d}"
             f"/{product}/{product}/{basename}"

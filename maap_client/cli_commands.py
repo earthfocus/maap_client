@@ -692,7 +692,10 @@ def cmd_mission_use(args: argparse.Namespace) -> int:
     print(f"Active mission: {name}")
     env_mission = os.environ.get("MAAP_MISSION")
     if env_mission and env_mission.lower() != name.lower():
-        print(f"Note: MAAP_MISSION={env_mission} takes precedence in this environment", file=sys.stderr)
+        print(
+            f"Note: MAAP_MISSION={env_mission} takes precedence in this environment",
+            file=sys.stderr,
+        )
     return 0
 
 

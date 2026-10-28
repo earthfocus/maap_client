@@ -256,7 +256,10 @@ class MaapClient:
         return self._baseline_candidates(collection, product_type, refresh=False)
 
     def _baseline_candidates(self, collection: str, product_type: str, refresh: bool) -> list[str]:
-        """Baselines of the queryables, plus NO_BASELINE for a type the mission declares without one."""
+        """Baselines of the queryables, plus NO_BASELINE where the mission allows it.
+
+        NO_BASELINE is added for a type the mission declares without one.
+        """
         baselines = self.catalog.load(collection, refresh=refresh).list_baselines()
         if product_type in self.mission.no_baseline_products:
             baselines.append(NO_BASELINE)
@@ -427,7 +430,9 @@ class MaapClient:
         """
         baseline = normalize_baseline(baseline)
         if baseline == NO_BASELINE and product_type not in self.mission.no_baseline_products:
-            raise InvalidRequestError(f"{product_type} has baselines: {NO_BASELINE} is only for products without one")
+            raise InvalidRequestError(
+                f"{product_type} has baselines: {NO_BASELINE} is only for products without one"
+            )
         return baseline
 
     def load_from_registry(
@@ -449,7 +454,8 @@ class MaapClient:
             end: Optional end datetime filter
 
         Raises:
-            InvalidRequestError: If start > end, or NO_BASELINE is given for a product type with baselines
+            InvalidRequestError: If start > end, or NO_BASELINE is given for a product type
+                with baselines
 
         Returns:
             List of URLs
@@ -541,7 +547,9 @@ class MaapClient:
         # Validate parameters
         validate_time_range(start, end, orbit)
         baseline = self._baseline(product_type, baseline)
-        orbit_num, resolved_frames, filters = resolve_filter_args(self.mission, orbit, frames, filters)
+        orbit_num, resolved_frames, filters = resolve_filter_args(
+            self.mission, orbit, frames, filters
+        )
         extra = filter_queryables(self.mission, filters)
 
         # Orbit-based search
@@ -605,7 +613,10 @@ class MaapClient:
         end: Optional[datetime],
         failed_days: Iterable[tuple[date, str]] = (),
     ) -> SearchResult:
-        """SearchResult of the URLs, with the sorted baselines read from them (unreadable ones left out)."""
+        """SearchResult of the URLs, with the sorted baselines read from them.
+
+        URLs whose baseline cannot be read are left out.
+        """
         return SearchResult(
             urls=urls,
             baselines_found=sorted({bl for bl in map(extract_baseline, urls) if bl}),
@@ -642,7 +653,9 @@ class MaapClient:
                 result.permanent_errors.append(f"cannot parse product type from {filename}")
                 continue
             if parsed.sensing_time is None:
-                result.permanent_errors.append(f"cannot parse filename (no sensing time): {filename}")
+                result.permanent_errors.append(
+                    f"cannot parse filename (no sensing time): {filename}"
+                )
                 continue
             urls_by_key.setdefault((parsed.product_type, parsed.baseline), []).append(url)
         return urls_by_key
@@ -697,7 +710,12 @@ class MaapClient:
 
         parsed_urls = {url: parse_product(url) for url in dict.fromkeys(urls)}
         local_paths = check_download_layout(
-            parsed_urls, product_dir, self._config.data_dir, self._config.mission, collection, out_dir
+            parsed_urls,
+            product_dir,
+            self._config.data_dir,
+            self._config.mission,
+            collection,
+            out_dir,
         )
 
         if reverse:
@@ -1095,7 +1113,12 @@ class MaapClient:
                 result.errors.extend(_failed(to_download, downloaded))
 
                 logger.info(f"Downloaded {len(downloaded)} files for {bl.upper()}")
-            except (AuthenticationError, CredentialsError, BatchDownloadAborted, InvalidRequestError):
+            except (
+                AuthenticationError,
+                CredentialsError,
+                BatchDownloadAborted,
+                InvalidRequestError,
+            ):
                 # Auth failures doom every remaining baseline identically, an
                 # abort was explicitly requested by the caller, and a rejected
                 # layout is the same for every baseline: propagate so callers

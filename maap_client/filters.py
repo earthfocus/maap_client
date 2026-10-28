@@ -1,4 +1,7 @@
-"""Filtering of product URLs/paths by sensing time, orbit, frame and mission fields, and validation of the filter arguments."""
+"""Filtering of product URLs/paths by sensing time, orbit, frame and mission fields.
+
+Also validates the filter arguments.
+"""
 
 import logging
 from datetime import datetime
@@ -117,7 +120,10 @@ def _unknown_option_message(mission: Mission, option: str) -> str:
 
 
 def _canonical_attribute(spec: FilterSpec, value: object) -> Optional[str]:
-    """A ProductName attribute in the canonical form of spec.parse, or None if blank or not parseable."""
+    """A ProductName attribute in the canonical form of spec.parse.
+
+    None if the value is blank or not parseable.
+    """
     if value is None:
         return None
     try:
@@ -126,7 +132,9 @@ def _canonical_attribute(spec: FilterSpec, value: object) -> Optional[str]:
         return None
 
 
-def filter_by_fields(items: list[str], filters: dict[str, list[str]], mission: Mission) -> list[str]:
+def filter_by_fields(
+    items: list[str], filters: dict[str, list[str]], mission: Mission
+) -> list[str]:
     """
     Filter URLs/paths by the mission filters read from their product names.
 
@@ -306,7 +314,9 @@ def resolve_filters(
         if option not in specs:
             raise InvalidRequestError(_unknown_option_message(mission, option))
     if orbit and not mission.orbit_frame_letter and has_orbit_letter(orbit):
-        raise InvalidRequestError(f"{mission.name} orbits take no frame letter: --orbit {orbit.strip()}")
+        raise InvalidRequestError(
+            f"{mission.name} orbits take no frame letter: --orbit {orbit.strip()}"
+        )
     if orbit and registry and mission.orbit_offline == "none":
         raise InvalidRequestError(
             f"{mission.name} product names carry no absolute orbit: --orbit only works with search"
@@ -359,7 +369,9 @@ def filter_queryables(
     """Resolved filters (option -> values) as the mission's STAC queryables -> values."""
     if not filters:
         return None
-    return {spec.queryable: filters[spec.option] for spec in mission.filters if spec.option in filters}
+    return {
+        spec.queryable: filters[spec.option] for spec in mission.filters if spec.option in filters
+    }
 
 
 def filter_registry_urls(

@@ -308,7 +308,10 @@ def url_to_local_path(
 def _data_path(
     parsed: Optional[ProductName], relpath: Path, data_dir: Path, mission: str, collection: str
 ) -> Optional[Path]:
-    """generate_data_path of a parsed URL, or None without product type, baseline or sensing time."""
+    """generate_data_path of a parsed URL.
+
+    None without product type, baseline or sensing time.
+    """
     if not (parsed and parsed.sensing_time and parsed.product_type and parsed.baseline):
         return None
     return generate_data_path(
@@ -325,7 +328,8 @@ def _data_path(
 def product_dir_error(mission: Mission) -> InvalidRequestError:
     """The error for individual files of a mission that need product_dir, asked for without it."""
     return InvalidRequestError(
-        f"{mission.name} individual files need --product-dir: names repeat across and within products"
+        f"{mission.name} individual files need --product-dir: "
+        "names repeat across and within products"
     )
 
 
@@ -436,7 +440,11 @@ def check_download_layout(
             relpath = _relpath(url, name, product_dir)
         except ValueError as e:
             raise InvalidRequestError(str(e)) from e
-        path = out_dir / relpath if out_dir else _data_path(name, relpath, data_dir, mission_name, collection)
+        path = (
+            out_dir / relpath
+            if out_dir
+            else _data_path(name, relpath, data_dir, mission_name, collection)
+        )
         paths[url] = path
         if path is None:
             continue
@@ -474,7 +482,9 @@ def extract_collection(path: str | Path) -> Optional[str]:
     parts = path.parent.parts
     if product_folder(path.as_posix()):
         # product directory (and any sub-folders) below the day folder
-        day_end = next((i for i in range(len(tail), len(parts)) if parts[i - len(tail):i] == tail), None)
+        day_end = next(
+            (i for i in range(len(tail), len(parts)) if parts[i - len(tail):i] == tail), None
+        )
         if day_end is not None:
             parts = parts[:day_end]
     if len(parts) <= len(tail) or parts[-len(tail):] != tail:

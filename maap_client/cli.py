@@ -70,7 +70,10 @@ def add_mission_option(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--mission",
         default=argparse.SUPPRESS,
-        help="Mission when the collection or URLs do not decide it (same as the top-level --mission)",
+        help=(
+            "Mission when the collection or URLs do not decide it "
+            "(same as the top-level --mission)"
+        ),
     )
 
 
@@ -111,7 +114,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mission",
         help=f"Mission ({', '.join(MISSIONS)}) when the collection or URLs "
-             f"do not decide it (default: MAAP_MISSION, 'maap mission use', config, {DEFAULT_MISSION})",
+             f"do not decide it (default: MAAP_MISSION, 'maap mission use', config, "
+             f"{DEFAULT_MISSION})",
     )
     parser.add_argument(
         "-v",
@@ -352,7 +356,10 @@ Notes:
     )
     output_group.add_argument(
         "--product-dir", action="store_true",
-        help="Put each product's files in a folder named after the product, keeping its internal sub-folders"
+        help=(
+            "Put each product's files in a folder named after the product, "
+            "keeping its internal sub-folders"
+        ),
     )
 
     # Other options group
@@ -422,7 +429,10 @@ Notes:
     )
     output_group.add_argument(
         "--product-dir", action="store_true",
-        help="Put each product's files in a folder named after the product, keeping its internal sub-folders"
+        help=(
+            "Put each product's files in a folder named after the product, "
+            "keeping its internal sub-folders"
+        ),
     )
 
     # Other options group
@@ -484,7 +494,10 @@ Notes:
     )
     sync_parser.add_argument(
         "--product-dir", action="store_true",
-        help="Put each product's files in a folder named after the product, keeping its internal sub-folders"
+        help=(
+            "Put each product's files in a folder named after the product, "
+            "keeping its internal sub-folders"
+        ),
     )
     sync_parser.add_argument(
         "--newest-first", action="store_true",
@@ -579,7 +592,9 @@ Notes:
     mission_list = mission_sub.add_parser(
         "list",
         help="List missions, marking the active one",
-        description="List the known missions; the active one is marked with where the choice came from.",
+        description=(
+            "List the known missions; the active one is marked with where the choice came from."
+        ),
     )
     add_mission_option(mission_list)
     mission_list.set_defaults(func=cmd_mission_list)
@@ -587,7 +602,9 @@ Notes:
     mission_use = mission_sub.add_parser(
         "use",
         help="Persist the active mission",
-        description="Persist the mission used by commands whose collection or URLs do not decide it.",
+        description=(
+            "Persist the mission used by commands whose collection or URLs do not decide it."
+        ),
     )
     mission_use.add_argument("name", type=non_empty_string, help="Mission name")
     mission_use.set_defaults(func=cmd_mission_use)
@@ -595,9 +612,14 @@ Notes:
     mission_show = mission_sub.add_parser(
         "show",
         help="Show a mission profile",
-        description="Show the effective profile of a mission: dates, default formats, filters, collections.",
+        description=(
+            "Show the effective profile of a mission: dates, default formats, filters, "
+            "collections."
+        ),
     )
-    mission_show.add_argument("name", nargs="?", default=None, help="Mission name (default: active mission)")
+    mission_show.add_argument(
+        "name", nargs="?", default=None, help="Mission name (default: active mission)"
+    )
     add_mission_option(mission_show)
     mission_show.set_defaults(func=cmd_mission_show)
 

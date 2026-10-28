@@ -108,7 +108,10 @@ class MaapConfig:
         ``collections_extend``), the ``extra`` of ``missions.mission_for_collection``.
         """
         return {
-            name: [*(overrides.get("collections") or ()), *(overrides.get("collections_extend") or ())]
+            name: [
+                *(overrides.get("collections") or ()),
+                *(overrides.get("collections_extend") or ()),
+            ]
             for name, overrides in self.mission_overrides.items()
         }
 
@@ -234,7 +237,9 @@ class MaapConfig:
         return config
 
     @classmethod
-    def load(cls, config_path: Optional[Path] = None, mission: Optional[str] = None) -> "MaapConfig":
+    def load(
+        cls, config_path: Optional[Path] = None, mission: Optional[str] = None
+    ) -> "MaapConfig":
         """
         Load configuration with priority:
         1. Environment variables

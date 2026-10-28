@@ -215,12 +215,17 @@ def collect_filter_args(args: argparse.Namespace) -> Optional[dict[str, str]]:
     Values are validated by the client (filters.resolve_filters) once the
     mission is known; InvalidRequestError there means exit code 4.
     """
-    given = {option: getattr(args, option) for option in filter_options() if getattr(args, option, None)}
+    given = {
+        option: getattr(args, option) for option in filter_options() if getattr(args, option, None)
+    }
     return given or None
 
 
 def validate_download_filter_args(args: argparse.Namespace) -> Optional[str]:
-    """Registry-only filters and time options (--frame/--orbit/--date/...) must not be used with --url/--url-file."""
+    """Registry-only filters and time options must not be used with --url/--url-file.
+
+    The registry-only options are --frame, --orbit, --date and the like.
+    """
     if not getattr(args, 'registry', False):
         for option in (*filter_options(), "orbit", "date", "start", "end", "days_back"):
             if getattr(args, option, None) is not None:
