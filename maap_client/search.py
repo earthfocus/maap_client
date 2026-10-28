@@ -409,22 +409,24 @@ class MaapSearcher:
         if verbose:
             logger.info(f"Counting {collection} {product_type}/{baseline}{format_time_range(start, end)}...")
 
-        datetime_arg = (start, end) if start is not None and end is not None else None
+        matched = self._matched(collection, self._build_filter(product_type, baseline=baseline), start, end)
+        if verbose:
+            logger.info(f"  count: {matched}")
+        return matched
 
+    def _matched(
+        self, collection: str, filter_str: str, start: Optional[datetime], end: Optional[datetime]
+    ) -> int:
+        """The server's numberMatched for a filter and datetime window (one request), 0 if none."""
+        datetime_arg = (start, end) if start is not None and end is not None else None
         search = self.client.search(
             collections=[collection],
-            filter=self._build_filter(product_type, baseline=baseline),
+            filter=filter_str,
             datetime=datetime_arg,
             method="GET",
             max_items=150,
         )
-
-        matched = search.matched()
-        if matched is None:
-            matched = 0
-        if verbose:
-            logger.info(f"  count: {matched}")
-        return matched
+        return search.matched() or 0
 
     def search_baselines(
         self,
@@ -582,7 +584,9 @@ class MaapSearcher:
         """
         Search for download URLs for matching products.
 
-        Uses day-by-day searching internally for reliability with time-bounded queries.
+        Ranges over 10 days are searched day by day, for reliability, unless
+        the product is sparse there: a count (one fast request) of at most one
+        item per day on average fetches the whole range in one paged search.
         For incremental processing or progress display, use search_urls_iter_day() instead.
 
         Args:
@@ -600,13 +604,13 @@ class MaapSearcher:
         start, end = self._resolve_time_range(start, end)
 
         period_days = (end - start).days
+        filter_str = self._build_filter(product_type, baseline=baseline, frames=frames, extra=extra)
 
-        # Single API call for short ranges (≤10 days)
-        if period_days <= 10:
+        # Single API call for short ranges (≤10 days) and sparse products
+        if period_days <= 10 or self._matched(collection, filter_str, start, end) <= period_days:
             if verbose:
                 bl_str = f"/{baseline}" if baseline else ""
                 logger.info(f"Searching {collection} {product_type}{bl_str}{format_time_range(start, end)}...")
-            filter_str = self._build_filter(product_type, baseline=baseline, frames=frames, extra=extra)
             datetime_arg = (start, end)
             search = self.client.search(
                 collections=[collection],
