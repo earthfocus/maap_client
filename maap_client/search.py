@@ -447,6 +447,11 @@ class MaapSearcher:
         with _rejected_as_invalid():
             return search.matched() or 0
 
+    def count_versioned(self, collection: str, product_type: str) -> int:
+        """Number of items of the product that carry a catalogue version (one fast request)."""
+        filter_str = f"{self._build_filter(product_type)} AND productVersion IS NOT NULL"
+        return self._matched(collection, filter_str, None, None)
+
     def search_baselines(
         self,
         collection: str,

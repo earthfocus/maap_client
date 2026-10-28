@@ -263,8 +263,8 @@ class CatalogCollectionManager(CatalogManager):
             if verbose:
                 logger.info(f"Processing {product}...")
 
-            # Get all baselines from queryables (without verification - we'll verify during metadata fetch)
-            all_baselines = self._client.list_baselines(collection, product, from_built=False, verify=False)
+            # Candidate baselines (verified during the metadata fetch below)
+            all_baselines = self._client.product_baselines(collection, product)
 
             # Get or create product entry
             product_info = catalog.get_product(product)

@@ -233,7 +233,7 @@ class MaapClient:
 
         # MAAP
         if verify:
-            candidates = self._baseline_candidates(collection, product_type, refresh=True)
+            candidates = self.product_baselines(collection, product_type, refresh=True)
             return self.searcher.search_baselines(collection, product_type, candidates=candidates)
 
         # Catalog Built
@@ -264,6 +264,25 @@ class MaapClient:
         if product_type in self.mission.no_baseline_products:
             baselines.append(NO_BASELINE)
         return baselines
+
+    def product_baselines(self, collection: str, product_type: str, refresh: bool = False) -> list[str]:
+        """
+        Candidate baselines of a product to check on MAAP: the collection's
+        queryable versions, or none of them when no item of the product has a
+        version (one fast count, which spares a request per version), plus
+        NO_BASELINE for a type the mission declares without one.
+
+        A count that fails transiently keeps every candidate.
+        """
+        candidates = self._baseline_candidates(collection, product_type, refresh=refresh)
+        try:
+            versioned = self.searcher.count_versioned(collection, product_type)
+        except (AuthenticationError, CredentialsError, InvalidRequestError):
+            raise
+        except Exception as e:
+            logger.warning(f"Could not count the versioned items of {collection}/{product_type}: {e}")
+            return candidates
+        return candidates if versioned else [b for b in candidates if b == NO_BASELINE]
 
     def get_baseline_info(
         self,
@@ -1047,7 +1066,7 @@ class MaapClient:
             baselines = [baseline]
         else:
             baselines = [
-                bl for bl in self.list_baselines(collection, product_type, from_built=False)
+                bl for bl in self.product_baselines(collection, product_type)
                 if self._may_have_data(collection, product_type, bl, start, end)
             ]
         result = SyncResult(collection=collection, product_type=product_type, baselines=baselines)
