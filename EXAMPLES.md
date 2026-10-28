@@ -173,7 +173,8 @@ format it has from its mission's priority list:
 ## Filters
 
 Each mission has a closed list of filters; any other is rejected with the list of
-available ones (exit 4).
+available ones (exit 4). `maap search --help` shows what each option means per mission,
+e.g. `--frame FRAME[,FRAME...]  EarthCARE: frame letter(s) A-H; Biomass: frame number(s)`.
 
 | Mission | Filters |
 |---------|---------|
@@ -600,9 +601,9 @@ A partially successful run exits 3 and lists each gap on stderr:
 `sync` prefixes the baseline: `FAILED DAY: AC 2025-03-14 (...)`.
 
 Exit 4 covers invalid requests: a filter the mission does not have, an invalid `--frame`
-value (e.g. `--frame 12` for EarthCARE), Biomass files without `--product-dir`, a
-configuration error, or a run whose only failures are file names that cannot be parsed
-into a data path.
+value (e.g. `--frame 12` for EarthCARE), Biomass files without `--product-dir`, a URL
+whose baseline cannot be read (`cannot read the baseline of ...`), a configuration error,
+or a run whose only failures are file names that cannot be parsed into a data path.
 
 > argparse usage errors (unknown flags, missing arguments) exit 2 by Python convention,
 > like auth-fatal; "stop and let a human look" fits both.
@@ -674,6 +675,40 @@ result = biomass.get(
     end=datetime(2025, 12, 11, 23, 59, 59, tzinfo=timezone.utc),
     filters={"track": ["38"], "frame": ["249"]},
 )
+```
+
+Product names, without network: `parse_product` picks the mission from the name prefix
+and returns its typed name (`EarthCAREName`, `AeolusName`, `BiomassName`, `FlexName`),
+or `None` for an unknown prefix. Each mission module also has one `extract_<field>` per
+field. Pass the whole URL when you have it: some fields (the Aeolus baseline, every
+Biomass field) are only in the archive path.
+
+```python
+from maap_client.missions import BiomassName, parse_product
+from maap_client.missions import aeolus
+
+name = parse_product("ECA_EXBE_ATL_AER_2A_20261027T165657Z_20261027T173059Z_13720B.h5")
+print(name.product_type, name.baseline, name.orbit, name.frame)  # ATL_AER_2A BE 13720 B
+
+url = (
+    "https://catalog.maap.eo.esa.int/data/biomass-pdgs-01/BiomassLevel1a/2026/03/03/"
+    "BIO_S1_SCS__1M_20260303T002946_20260303T003002_T_G01_M02_C07_T001_F062_01_DNOUR5/"
+    "BIO_S1_SCS__1M_20260303T002946_20260303T003002_T_G01_M02_C07_T001_F062_01_DNOUR5/"
+    "schema/bio-common-types.xsd"
+)
+bio = parse_product(url)
+assert isinstance(bio, BiomassName)
+print(bio.track, bio.frame, bio.repeat_cycle, bio.major_cycle)  # 1 62 7 2
+
+print(aeolus.extract_orbit("AE_OPER_ALD_U_N_1B_20230430T223357019_005160010_027148_0002.DBL"))  # 27148
+
+orbit_file = (
+    "https://catalog.maap.eo.esa.int/data/biomass-pdgs-01/BiomassAux/2026/10/27/"
+    "BIO_OPER_MPL_ORBPRE_20261027T000000_20261110T000000_0001/"
+    "BIO_OPER_MPL_ORBPRE_20261027T000000_20261110T000000_0001/"
+    "BIO_OPER_MPL_ORBPRE_20261027T000000_20261110T000000_0001.EOF"
+)
+print(parse_product(orbit_file).baseline)  # NO_BASELINE
 ```
 
 Day-by-day search for large ranges (days that keep failing are recorded in
