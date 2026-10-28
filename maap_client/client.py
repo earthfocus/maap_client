@@ -1144,7 +1144,6 @@ class MaapClient:
 
                 path = manager.save(catalog)
                 results[coll] = path
-                logger.info(f"Wrote catalog to {path}")
 
                 # Summary
                 products = catalog.products
