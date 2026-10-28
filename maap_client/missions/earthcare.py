@@ -149,7 +149,7 @@ def extract_frame(name_or_url: str) -> Optional[str]:
 class _EarthCARE(Mission):
     name = "EarthCARE"
     code = "ECA"
-    prefix = "ECA_"
+    prefixes = ("ECA_",)
     collections = COLLECTIONS
     start = "2024-05-28T00:00:00Z"
     end = "2045-12-31T23:59:59Z"

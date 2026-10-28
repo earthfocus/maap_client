@@ -229,12 +229,15 @@ def normalize_frames(frames: Optional[list[str]], mission: Optional[Mission] = N
         None if frames is None/empty, otherwise the uppercased, validated list.
 
     Raises:
-        InvalidRequestError: If any entry is not a frame letter of the mission (EarthCARE: A-H).
+        InvalidRequestError: If the mission has no frame filter, or any entry
+            is not a frame letter of the mission (EarthCARE: A-H).
     """
     if not frames:
         return None
     mission = mission or get_mission(DEFAULT_MISSION)
-    spec = next(spec for spec in mission.filters if spec.option == "frame")
+    spec = next((spec for spec in mission.filters if spec.option == "frame"), None)
+    if spec is None:
+        raise InvalidRequestError(_unknown_option_message(mission, "frame"))
     try:
         return spec.parse(",".join(frames))
     except ValueError as e:

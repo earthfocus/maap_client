@@ -203,7 +203,7 @@ class _Biomass(Mission):
     # no data_url: the collection and date are only in the archive path, not in the filename
     name = "Biomass"
     code = "BIO"
-    prefix = "BIO_"
+    prefixes = ("BIO_",)
     collections = COLLECTIONS
     # earliest start_datetime among the catalogue items (an AUX_PP0 validity
     # start), rounded down to the day

@@ -138,7 +138,7 @@ class Mission:
 
     name: str
     code: str  # mission code in filenames: "ECA", "AE", ...
-    prefix: str  # product-name prefix, matched case-insensitively
+    prefixes: tuple[str, ...]  # product-name prefixes, matched case-insensitively
     collections: tuple[str, ...]
     start: str
     end: str
@@ -165,6 +165,10 @@ class Mission:
         """Parse a product filename or URL."""
         raise NotImplementedError
 
+    def is_product_name(self, name: str) -> bool:
+        """True if name starts with one of the mission's product-name prefixes."""
+        return name.upper().startswith(tuple(prefix.upper() for prefix in self.prefixes))
+
     def product_name(self, url: str) -> str:
         """
         Name to parse the product fields from: the first of the basename, the
@@ -175,7 +179,7 @@ class Mission:
         """
         product = split_product_url(url)[0]
         for candidate in (os.path.basename(url), product, product_folder(url)):
-            if candidate and candidate.upper().startswith(self.prefix.upper()):
+            if candidate and self.is_product_name(candidate):
                 return candidate
         return product
 

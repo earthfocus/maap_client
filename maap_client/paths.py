@@ -370,6 +370,18 @@ def _needs_product_dir(url: str, parsed: Optional[ProductName]) -> Optional[Miss
     return mission
 
 
+def _not_named_after_product(url: str, parsed: Optional[ProductName]) -> bool:
+    """
+    True for an individual file whose name is not a product name of its
+    mission (e.g. Aeolus ``L1A_<start>__<stop>.nc``): in the structured layout
+    without product_dir its local path would not identify the product.
+    """
+    if parsed is None or is_zip_url(url):
+        return False
+    mission = mission_for_code(parsed.mission)
+    return bool(mission) and not mission.is_product_name(os.path.basename(url))
+
+
 def check_download_layout(
     parsed_urls: dict[str, Optional[ProductName]],
     product_dir: bool,
@@ -384,9 +396,11 @@ def check_download_layout(
     Individual files of a mission that declares files_need_product_dir
     need product_dir (their names repeat across and within products),
     unless their product type is one of its single_file_products; a zip
-    does not. As a defensive check, two different URLs mapping to one
-    local path fail the run instead of one of them being skipped as
-    already downloaded.
+    does not. In the structured layout, an individual file not named after
+    its product needs product_dir too (state mark and list --verify read the
+    product from the local path). As a defensive check, two different URLs
+    mapping to one local path fail the run instead of one of them being
+    skipped as already downloaded.
 
     Args:
         parsed_urls: URL -> parse_product(URL), for every URL of the batch once
@@ -401,13 +415,19 @@ def check_download_layout(
 
     Raises:
         InvalidRequestError: On an individual file that needs product_dir
-            without it, a URL with unsafe path segments (``..``), or two
+            without it (or, in the structured layout, is not named after its
+            product), a URL with unsafe path segments (``..``), or two
             different URLs sharing a local path
     """
     if not product_dir:
         for url, name in parsed_urls.items():
             if needs := _needs_product_dir(url, name):
                 raise product_dir_error(needs)
+            if not out_dir and _not_named_after_product(url, name):
+                raise InvalidRequestError(
+                    f"{os.path.basename(url)} is not named after its product {name.product}: "
+                    f"{name.product_type} files need --product-dir (or --out-dir)"
+                )
 
     paths: dict[str, Optional[Path]] = {}
     seen: dict[Path, str] = {}

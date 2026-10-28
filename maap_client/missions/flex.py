@@ -203,7 +203,7 @@ def extract_tile(name_or_url: str) -> Optional[str]:
 class _Flex(Mission):
     name = "FLEX"
     code = "FLX"
-    prefix = "FLX_"
+    prefixes = ("FLX_",)
     collections = COLLECTIONS
     # earliest start_datetime among the catalogue items (AUX validity starts),
     # rounded down to the day

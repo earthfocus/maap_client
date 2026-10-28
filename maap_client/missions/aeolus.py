@@ -1,7 +1,8 @@
 """Aeolus: product-name parsing and mission profile.
 
 Name: ``AE_<CCCC>_<file type>_<start>[_<duration ms>_<orbit>|_<stop>]_<version>.<ext>``
-where CCCC is the file class (OPER, RPRO, ...). The naming is not publicly
+where CCCC is the file class (OPER, RPRO, ...); a few AUX products (e.g.
+AUX_CHAR__) start with ``AE1_`` instead. The naming is not publicly
 documented; every rule below is verified against the catalogue fixtures.
 
 Meaning of sensing_time (first timestamp of the name; equals the item's
@@ -42,10 +43,10 @@ COLLECTIONS = (
 
 # First timestamp: with milliseconds (9-digit time) or without (6-digit time)
 _SENSING = re.compile(r"_(\d{8}T\d{6}(?:\d{3})?)_")
-_FILE_CLASS = re.compile(r"^AE_([A-Z]{4})_")
+_FILE_CLASS = re.compile(r"^AE1?_([A-Z]{4})_")
 # Verified rule: the 10 characters after AE_<CCCC>_ equal `product:type` on
 # every fixture item (shorter types are padded with underscores).
-_PRODUCT_TYPE = re.compile(r"^AE_[A-Z]{4}_([A-Z0-9_]{10})_\d{8}T\d{6}")
+_PRODUCT_TYPE = re.compile(r"^AE1?_[A-Z]{4}_([A-Z0-9_]{10})_\d{8}T\d{6}")
 # Verified rule: the archive path holds .../<file type>/<baseline>/YYYY/MM/DD/;
 # the baseline is the segment after the directory equal to the file type and
 # equals the item's `version` where the catalogue has one (aux products
@@ -64,11 +65,6 @@ class AeolusName(ProductName):
     file_class: Optional[str] = None  # OPER, RPRO, ...
     duration_ms: Optional[int] = None
     file_version: Optional[int] = None
-
-    @property
-    def agency(self) -> str:
-        """Agency code: Aeolus is an ESA mission, so always EX."""
-        return "EX"
 
     @property
     def orbit_frame(self) -> Optional[str]:
@@ -135,7 +131,7 @@ class _Aeolus(Mission):
     # no data_url: the baseline is only in the archive path, not in the filename
     name = "Aeolus"
     code = "AE"
-    prefix = "AE_"
+    prefixes = ("AE_", "AE1_")
     collections = COLLECTIONS
     start = "2018-08-22T00:00:00Z"
     end = "2023-07-28T23:59:59Z"

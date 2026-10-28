@@ -244,6 +244,8 @@ data/Biomass/.../01/2025/12/11/BIO_S1_DGM__1S_..._F249_01_DO9ZT3/
 - **Biomass individual files** (any `--format` other than `zip`) **require `--product-dir`**:
   their names repeat across and within products. The command is rejected before any request.
   The exception is `MPL_ORBPRE`: a single-file product, it downloads without `--product-dir`.
+- Aeolus `ALDUN1A_NC` also requires `--product-dir` (or `--out-dir`): its data file
+  `L1A_<start>__<stop>.nc` is not named after the product.
 - Aeolus `.QR.EEF` files go in `<PRODUCT>/` with `--product-dir`.
 - `--out-dir DIR` downloads to `DIR` instead of the structured layout.
 - **Products without baseline** go in a `NO_BASELINE` baseline folder (data and registry):

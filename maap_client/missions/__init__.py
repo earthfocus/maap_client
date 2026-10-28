@@ -46,7 +46,7 @@ def mission_for_code(code: str) -> Optional[Mission]:
 
 def mission_for_filename(name_or_url: str) -> Optional[Mission]:
     """
-    Mission whose product-name prefix starts the basename, case-insensitively.
+    Mission with a product-name prefix that starts the basename, case-insensitively.
 
     Falls back to the product directory of an archive URL, then to the
     product folder after YYYY/MM/DD of a local ``--product-dir`` path, for
@@ -59,7 +59,7 @@ def mission_for_filename(name_or_url: str) -> Optional[Mission]:
     )
     for candidate in filter(None, candidates):
         for mission in MISSIONS.values():
-            if candidate.upper().startswith(mission.prefix.upper()):
+            if mission.is_product_name(candidate):
                 return mission
     return None
 
