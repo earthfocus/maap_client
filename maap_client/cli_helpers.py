@@ -178,10 +178,12 @@ def validate_time_args(args: argparse.Namespace, orbit_is_filter: bool = False) 
         if has_orbit and has_days_back:
             return "--orbit cannot be used with --days-back"
 
-    # Validate start <= end if both provided
+    # Validate start <= end if both provided (a date-only --end is its end of day)
     if has_start and has_end:
-        start = parse_datetime(args.start)
-        end = parse_datetime(args.end)
+        try:
+            start, end = resolve_date_args(args)
+        except InvalidRequestError as e:
+            return str(e)
         if start > end:
             return f"--start ({args.start}) must be before --end ({args.end})"
 
