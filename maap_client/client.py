@@ -21,24 +21,23 @@ from maap_client.exceptions import (
     InvalidRequestError,
 )
 from maap_client.filters import (
-    filter_by_fields,
-    filter_by_orbit_frame,
-    merge_frames,
-    resolve_filters,
+    filter_queryables,
+    filter_registry_urls,
+    resolve_filter_args,
     sort_by_sensing_time,
     validate_time_range,
 )
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
-from maap_client.missions import Mission, get_mission, mission_for_filename
+from maap_client.missions import Mission, ProductName, get_mission, parse_product
 from maap_client.paths import (
+    baseline_error,
+    check_download_layout,
+    check_product_dir_format,
     extract_baseline,
-    is_zip_url,
-    local_relpath,
     parse_with_baseline,
-    url_to_local_path,
 )
-from maap_client.registry import Registry
+from maap_client.registry import Registry, registry_baselines
 from maap_client.types import DownloadResult, SearchResult, SyncResult
 from maap_client.utils import normalize_time_range as _normalize_time_range
 from maap_client.utils import normalize_baseline, normalize_format, parse_datetime, to_zulu
@@ -88,11 +87,7 @@ class MaapClient:
     def catalog(self) -> CatalogQueryablesManager:
         """Get catalog manager (lazy initialization)."""
         if self._catalog is None:
-            self._catalog = CatalogQueryablesManager(
-                catalog_url=self._config.catalog_url,
-                catalog_dir=self._config.catalog_dir,
-                collections=self.list_collections(),
-            )
+            self._catalog = self._queryables_manager(self._config.catalog_dir)
         return self._catalog
 
     @property
@@ -138,126 +133,35 @@ class MaapClient:
             product_dir=product_dir,
         )
 
-    # === VALIDATION ===
-
-    @staticmethod
-    def _product_dir_error(mission: Mission) -> InvalidRequestError:
-        return InvalidRequestError(
-            f"{mission.name} individual files need --product-dir: names repeat across and within products"
+    def _registry(self, collection: str, product_type: str, baseline: str) -> Registry:
+        """Registry of one collection/product/baseline of the configured mission."""
+        return Registry(
+            registry_dir=self._config.registry_dir,
+            mission=self._config.mission,
+            collection=collection,
+            product_type=product_type,
+            baseline=baseline,
         )
+
+    def _queryables_manager(self, catalog_dir: Path) -> CatalogQueryablesManager:
+        """Queryables manager of the configured collections in catalog_dir."""
+        return CatalogQueryablesManager(
+            catalog_url=self._config.catalog_url,
+            catalog_dir=catalog_dir,
+            collections=self.list_collections(),
+        )
+
+    def _built_catalog(self, collection: str):
+        """The built catalog of a collection, or None when it was not built."""
+        manager = CatalogCollectionManager(client=self, catalog_dir=self.config.built_catalog_dir)
+        return manager.load(collection)
 
     def _check_product_dir_format(
         self, product_type: str, format: Optional[str], product_dir: bool
     ) -> None:
-        """
-        Reject individual files that need product_dir, before any search.
-
-        The configured mission's files need it when it declares
-        files_need_product_dir and product_type is not one of its
-        single_file_products. The effective format is the explicit one, else
-        the configured default list; anything but ``zip`` selects individual
-        files.
-
-        Raises:
-            InvalidRequestError: Individual files that need product_dir, without it
-        """
-        mission = self.mission
-        if product_dir or not mission.files_need_product_dir:
-            return
-        if product_type in mission.single_file_products:
-            return
+        """paths.check_product_dir_format with the explicit format, else the configured defaults."""
         formats = (normalize_format(format),) if format else self._config.default_formats
-        if any(f != "zip" for f in formats):
-            raise self._product_dir_error(mission)
-
-    @staticmethod
-    def _needs_product_dir(url: str) -> Optional[Mission]:
-        """
-        The URL's mission when the URL is an individual file that needs
-        product_dir (see Mission.files_need_product_dir), else None. A product
-        type that cannot be read from the URL needs it; a zip never does.
-        """
-        mission = mission_for_filename(url)
-        if mission is None or not mission.files_need_product_dir or is_zip_url(url):
-            return None
-        if mission.parse(url).product_type in mission.single_file_products:
-            return None
-        return mission
-
-    def _check_download_layout(
-        self,
-        urls: list[str],
-        product_dir: bool,
-        collection: str,
-        out_dir: Optional[Path] = None,
-    ) -> None:
-        """
-        Reject a batch whose files cannot each get their own local path.
-
-        Individual files of a mission that declares files_need_product_dir
-        need product_dir (their names repeat across and within products),
-        unless their product type is one of its single_file_products; a zip
-        does not. As a defensive check, two different URLs mapping to one
-        local path fail the run instead of one of them being skipped as
-        already downloaded.
-
-        Raises:
-            InvalidRequestError: On an individual file that needs product_dir
-                without it, a URL with unsafe path segments (``..``), or two
-                different URLs sharing a local path
-        """
-        if not product_dir:
-            for url in urls:
-                if mission := self._needs_product_dir(url):
-                    raise self._product_dir_error(mission)
-
-        seen: dict[Path, str] = {}
-        for url in dict.fromkeys(urls):
-            try:
-                relpath = local_relpath(url, product_dir)
-            except ValueError as e:
-                raise InvalidRequestError(str(e)) from e
-            if out_dir:
-                path = out_dir / relpath
-            else:
-                path = url_to_local_path(
-                    url, self._config.data_dir, self._config.mission, collection, product_dir
-                )
-            if path is None:
-                continue
-            if path in seen:
-                raise InvalidRequestError(
-                    f"Two URLs map to the same local path {path}: {seen[path]} and {url}"
-                )
-            seen[path] = url
-
-    def _resolve_filters(
-        self,
-        orbit: Optional[str],
-        frames: Optional[list[str]],
-        filters: Optional[dict[str, list]],
-        registry: bool = False,
-    ) -> tuple[Optional[int], Optional[list[str]], Optional[dict[str, list[str]]]]:
-        """
-        Validate orbit and filters with filters.resolve_filters; ``frames`` is
-        an alias of ``filters["frame"]``.
-
-        Returns:
-            (orbit number, frame letters of orbits, other filters): on missions
-            with orbit_frame_letter the "frame" filter is returned apart, for
-            the searcher's frames and the offline orbit/frame filter.
-        """
-        if not (orbit or frames or filters):
-            return None, None, None
-        orbit_num, resolved = resolve_filters(self.mission, orbit, merge_frames(frames, filters), registry)
-        letters = resolved.pop("frame", None) if self.mission.orbit_frame_letter else None
-        return orbit_num, letters, resolved or None
-
-    def _queryables(self, filters: Optional[dict[str, list[str]]]) -> Optional[dict[str, list[str]]]:
-        """Map resolved filters (option -> values) to STAC queryables -> values."""
-        if not filters:
-            return None
-        return {spec.queryable: filters[spec.option] for spec in self.mission.filters if spec.option in filters}
+        check_product_dir_format(self.mission, product_type, formats, product_dir)
 
     # === CATALOG OPERATIONS ===
 
@@ -275,14 +179,7 @@ class MaapClient:
         is appended with (collection, error) for each collection that failed.
         """
         self._config.ensure_directories()
-        if out_dir:
-            manager = CatalogQueryablesManager(
-                catalog_url=self._config.catalog_url,
-                catalog_dir=out_dir,
-                collections=self.list_collections(),
-            )
-        else:
-            manager = self.catalog
+        manager = self._queryables_manager(out_dir) if out_dir else self.catalog
         results = manager.download(collections, force)
         if failures_out is not None:
             failures_out.extend(manager.last_failures)
@@ -301,17 +198,9 @@ class MaapClient:
         """
         List products for a collection.
         """
-        # MAAP - Catalog Queryables refresh
-        if verify:
-            queryables = self.catalog.load(collection, refresh=True)
-            return queryables.list_products()
-
-        # Catalog Built
-        if from_built:
-            manager = CatalogCollectionManager(
-                client=self, catalog_dir=self.config.built_catalog_dir
-            )
-            catalog = manager.load(collection)
+        # Catalog Built (verify refreshes the queryables from MAAP instead)
+        if from_built and not verify:
+            catalog = self._built_catalog(collection)
             if not catalog:
                 raise FileNotFoundError(
                     f"Built catalog not found for {collection}. "
@@ -319,9 +208,8 @@ class MaapClient:
                 )
             return catalog.list_products()
 
-        # Catalog Queryables (only if already exist, read-only)
-        queryables = self.catalog.load(collection, refresh=False)
-        return queryables.list_products()
+        # Catalog Queryables: refreshed from MAAP with verify, else read-only
+        return self.catalog.load(collection, refresh=verify).list_products()
 
     def list_baselines(
         self,
@@ -333,8 +221,9 @@ class MaapClient:
         """
         List available baselines.
 
-        From the queryables (the default), a product the mission declares
-        without baseline (its items have no version) also lists NO_BASELINE.
+        From the queryables (the default, and the candidates verify checks on
+        MAAP), a product the mission declares without baseline (its items
+        have no version) also lists NO_BASELINE.
         """
         if (verify or from_built) and not product_type:
             raise ValueError(
@@ -343,16 +232,12 @@ class MaapClient:
 
         # MAAP
         if verify:
-            return self.searcher.search_baselines(
-                collection, product_type, catalog_manager=self.catalog
-            )
+            candidates = self._baseline_candidates(collection, product_type, refresh=True)
+            return self.searcher.search_baselines(collection, product_type, candidates=candidates)
 
         # Catalog Built
         if from_built:
-            manager = CatalogCollectionManager(
-                client=self, catalog_dir=self.config.built_catalog_dir
-            )
-            catalog = manager.load(collection)
+            catalog = self._built_catalog(collection)
             if not catalog:
                 raise FileNotFoundError(
                     f"Built catalog not found for {collection}. "
@@ -367,8 +252,11 @@ class MaapClient:
             return product_info.list_baselines()
 
         # Catalog Queryables (only if already exist, read-only)
-        queryables = self.catalog.load(collection, refresh=False)
-        baselines = queryables.list_baselines()
+        return self._baseline_candidates(collection, product_type, refresh=False)
+
+    def _baseline_candidates(self, collection: str, product_type: str, refresh: bool) -> list[str]:
+        """Baselines of the queryables, plus NO_BASELINE for a type the mission declares without one."""
+        baselines = self.catalog.load(collection, refresh=refresh).list_baselines()
         if product_type in self.mission.no_baseline_products:
             baselines.append(NO_BASELINE)
         return baselines
@@ -401,10 +289,7 @@ class MaapClient:
         """
         if from_built:
             try:
-                manager = CatalogCollectionManager(
-                    client=self, catalog_dir=self.config.built_catalog_dir
-                )
-                catalog = manager.load(collection)
+                catalog = self._built_catalog(collection)
                 if not catalog:
                     return None
                 product_info = catalog.get_product(product_type)
@@ -414,26 +299,19 @@ class MaapClient:
             except (FileNotFoundError, ValueError):
                 return None
 
-        info_range = self.searcher.search_product_info_range(
-            collection=collection,
-            product_type=product_type,
-            baseline=baseline,
-            start=start,
-            end=end,
-        )
-
+        query = {
+            "collection": collection,
+            "product_type": product_type,
+            "baseline": baseline,
+            "start": start,
+            "end": end,
+        }
+        info_range = self.searcher.search_product_info_range(**query)
         if info_range is None:
             return None
 
         first_granule, last_granule = info_range
-
-        count = self.searcher.search_product_count(
-            collection=collection,
-            product_type=product_type,
-            baseline=baseline,
-            start=start,
-            end=end,
-        )
+        count = self.searcher.search_product_count(**query)
 
         now = to_zulu(datetime.now(timezone.utc))
 
@@ -530,13 +408,7 @@ class MaapClient:
         total_new_count = 0
         all_files_written: list[Path] = []
         for bl, bl_urls in urls_by_baseline.items():
-            registry = Registry(
-                registry_dir=self._config.registry_dir,
-                mission=self._config.mission,
-                collection=collection,
-                product_type=product_type,
-                baseline=bl,
-            )
+            registry = self._registry(collection, product_type, bl)
             new_count, files = registry.save_urls(bl_urls, self._config.data_dir)
             total_new_count += new_count
             all_files_written.extend(files)
@@ -571,34 +443,21 @@ class MaapClient:
         # Validate time range
         validate_time_range(start, end)
 
-        registry_dir = self._config.registry_dir
-
         # Discover baselines from registry if not specified
         if baseline:
             baselines = [normalize_baseline(baseline)]
         else:
-            base_path = registry_dir / "urls" / self._config.mission / collection / product_type
-            if not base_path.exists():
-                logger.info(f"No registry files found at {base_path}")
-                return []
-            baselines = [d.name for d in base_path.iterdir() if d.is_dir()]
+            baselines = registry_baselines(
+                self._config.registry_dir, self._config.mission, collection, product_type
+            )
             if not baselines:
-                logger.info(f"No baseline directories in {base_path}")
                 return []
-            logger.info(f"Found baselines: {', '.join(sorted(baselines))}")
 
         # Load URLs from registry files
         all_urls: list[str] = []
         seen: set[str] = set()
         for bl in baselines:
-            registry = Registry(
-                registry_dir=registry_dir,
-                mission=self._config.mission,
-                collection=collection,
-                product_type=product_type,
-                baseline=bl,
-            )
-            for url in registry.load_urls(start=start, end=end):
+            for url in self._registry(collection, product_type, bl).load_urls(start=start, end=end):
                 if url not in seen:
                     seen.add(url)
                     all_urls.append(url)
@@ -666,8 +525,8 @@ class MaapClient:
         # Validate parameters
         validate_time_range(start, end, orbit)
         baseline = normalize_baseline(baseline)
-        orbit_num, resolved_frames, filters = self._resolve_filters(orbit, frames, filters)
-        extra = self._queryables(filters)
+        orbit_num, resolved_frames, filters = resolve_filter_args(self.mission, orbit, frames, filters)
+        extra = filter_queryables(self.mission, filters)
 
         # Orbit-based search
         if orbit_num is not None:
@@ -690,13 +549,7 @@ class MaapClient:
             )
             if reverse:
                 urls = sort_by_sensing_time(urls, reverse=True)
-            return SearchResult(
-                urls=urls,
-                baselines_found=self._baselines_found(urls),
-                start=None,
-                end=None,
-                total_count=len(urls),
-            )
+            return self._search_result(urls, None, None)
 
         # Time-based search with optional catalog optimization
         search_start = start
@@ -727,31 +580,30 @@ class MaapClient:
             extra=extra,
         )
 
+        return self._search_result(urls, search_start, search_end, self.searcher.last_failed_days)
+
+    @staticmethod
+    def _search_result(
+        urls: list[str], start: Optional[datetime], end: Optional[datetime], failed_days=()
+    ) -> SearchResult:
+        """SearchResult of the URLs, with the sorted baselines read from them (unreadable ones left out)."""
         return SearchResult(
             urls=urls,
-            baselines_found=self._baselines_found(urls),
-            start=search_start,
-            end=search_end,
+            baselines_found=sorted({bl for bl in map(extract_baseline, urls) if bl}),
+            start=start,
+            end=end,
             total_count=len(urls),
-            failed_days=list(self.searcher.last_failed_days),
+            failed_days=list(failed_days),
         )
 
     @staticmethod
-    def _baselines_found(urls: list[str]) -> list[str]:
-        """Sorted baselines read from the URLs (unreadable ones left out)."""
-        return sorted({bl for bl in map(extract_baseline, urls) if bl})
-
-    @staticmethod
     def _group_by_product_baseline(
-        urls: list[str], result: DownloadResult
+        urls: list[str], parsed_urls: dict[str, Optional[ProductName]], result: DownloadResult
     ) -> dict[tuple[str, str], list[str]]:
         """
-        Group URLs by (product type, baseline) for the structured layout.
-
-        Parsed from the URL: Aeolus keeps the baseline in the path, and
-        Biomass internal files are not named after their product. A URL
-        without product type or sensing time goes to result.permanent_errors
-        (batch_download would silently skip it; a retry cannot fix the name).
+        Group URLs by their parsed (product type, baseline) for the structured
+        layout. A URL without product type or sensing time goes to
+        result.permanent_errors (batch_download would silently skip it).
 
         Raises:
             InvalidRequestError: If the baseline of a URL cannot be read
@@ -759,7 +611,9 @@ class MaapClient:
         urls_by_key: dict[tuple[str, str], list[str]] = {}
         for url in urls:
             filename = os.path.basename(url)
-            parsed = parse_with_baseline(url)
+            parsed = parsed_urls[url]
+            if parsed is None or parsed.baseline is None:
+                raise baseline_error(url, parsed)
             if not parsed.product_type:
                 result.permanent_errors.append(f"cannot parse product type from {filename}")
                 continue
@@ -814,7 +668,10 @@ class MaapClient:
             logger.info("No URLs to download")
             return result
 
-        self._check_download_layout(urls, product_dir, collection, out_dir)
+        parsed_urls = {url: parse_product(url) for url in dict.fromkeys(urls)}
+        local_paths = check_download_layout(
+            parsed_urls, product_dir, self._config.data_dir, self._config.mission, collection, out_dir
+        )
 
         if reverse:
             urls = sort_by_sensing_time(urls, reverse=True)
@@ -823,7 +680,7 @@ class MaapClient:
         # neither); done before the dry run so it lists what a real run downloads
         urls_by_key: dict[tuple[str, str], list[str]] = {}
         if not out_dir:
-            urls_by_key = self._group_by_product_baseline(urls, result)
+            urls_by_key = self._group_by_product_baseline(urls, parsed_urls, result)
             grouped = {url for group in urls_by_key.values() for url in group}
             urls = [url for url in urls if url in grouped]
 
@@ -839,24 +696,23 @@ class MaapClient:
 
         self._config.ensure_directories()
 
-        # Download to flat directory (--out-dir)
         if out_dir:
             out_dir.mkdir(parents=True, exist_ok=True)
-            downloader = self._get_downloader(product_dir=product_dir)
-            total_urls = len(urls)
+        downloader = self._get_downloader(product_dir=product_dir)
 
+        # Download to flat directory (--out-dir)
+        if out_dir:
+            total = len(urls)
             for i, url in enumerate(urls, 1):
-                parsed_url = urlparse(url)
-                filename = os.path.basename(parsed_url.path)
-                output_path = out_dir / local_relpath(url, product_dir)
-
+                filename = os.path.basename(urlparse(url).path)
+                output_path = local_paths[url]
+                progress = f"[{i:>{len(str(total))}}/{total}]"
                 if skip_existing and output_path.exists():
-                    logger.info(f"[{i:>{len(str(total_urls))}}/{total_urls}] Already exists: {filename}")
+                    logger.info(f"{progress} Already exists: {filename}")
                     result.skipped.append(url)
                     continue
-
                 try:
-                    logger.info(f"[{i:>{len(str(total_urls))}}/{total_urls}] Downloading: {filename}")
+                    logger.info(f"{progress} Downloading: {filename}")
                     downloader.download_file(url, output_path)
                     result.downloaded[url] = output_path
                 except (AuthenticationError, CredentialsError):
@@ -866,12 +722,7 @@ class MaapClient:
                 except Exception as e:
                     result.errors.append(f"{url}: {e}")
 
-            result.elapsed_seconds = time.time() - start_time
-            logger.info(f"Downloaded {len(result.downloaded)} files")
-            return result
-
-        # Download to structured paths (grouped by product/baseline)
-        downloader = self._get_downloader(product_dir=product_dir)
+        # Download to structured paths (grouped by product/baseline; none with out_dir)
         for (product, baseline), group_urls in urls_by_key.items():
             try:
                 tracker = None
@@ -889,11 +740,7 @@ class MaapClient:
                     verbose=verbose,
                 )
                 result.downloaded.update(downloaded)
-                # batch_download's mapping includes successes and skipped
-                # files; anything absent failed and must reach the caller.
-                for u in group_urls:
-                    if u not in downloaded:
-                        result.errors.append(f"{u}: download failed")
+                result.errors.extend(_failed(group_urls, downloaded))
             except (AuthenticationError, CredentialsError):
                 # Auth failures doom every remaining download identically:
                 # propagate so callers can classify.
@@ -954,7 +801,9 @@ class MaapClient:
         Returns:
             DownloadResult with downloaded paths, skipped, errors
         """
-        orbit_num, resolved_frames, filters = self._resolve_filters(orbit, frames, filters, registry=True)
+        orbit_num, resolved_frames, filters = resolve_filter_args(
+            self.mission, orbit, frames, filters, registry=True
+        )
         # Validate time range (done inside load_from_registry)
         urls = self.load_from_registry(
             collection=collection,
@@ -963,32 +812,7 @@ class MaapClient:
             start=start,
             end=end,
         )
-        if orbit_num is not None and self.mission.orbit_offline == "some":
-            # Names that carry the orbit only sometimes (Aeolus L0/L1 ms
-            # timestamps): reject the others instead of silently dropping them.
-            # With "all" orbit-less names (EarthCARE AUX_CC*, AUX_ORBPRE,
-            # MPL_ORBSCT) are dropped by filter_by_orbit_frame.
-            orbitless = sorted({
-                parsed.product_type or parsed.product
-                for parsed in map(self.mission.parse, urls)
-                if parsed.orbit_frame is None
-            })
-            if orbitless:
-                raise InvalidRequestError(
-                    f"Cannot filter by orbit offline: the product names of {', '.join(orbitless)} "
-                    f"do not carry the orbit; use search instead"
-                )
-        if orbit_num is not None or resolved_frames:
-            total = len(urls)
-            urls = filter_by_orbit_frame(urls, orbit=orbit_num, frames=resolved_frames)
-            logger.info(f"{len(urls)} of {total} registry URLs match the orbit/frame filter")
-        if filters:
-            total = len(urls)
-            try:
-                urls = filter_by_fields(urls, filters, self.mission)
-            except ValueError as e:
-                raise InvalidRequestError(str(e)) from e
-            logger.info(f"{len(urls)} of {total} registry URLs match the {', '.join(filters)} filter")
+        urls = filter_registry_urls(urls, self.mission, orbit_num, resolved_frames, filters)
         return self.download(
             urls=urls,
             collection=collection,
@@ -1140,8 +964,8 @@ class MaapClient:
         validate_time_range(start, end)
         baseline = normalize_baseline(baseline)
         self._check_product_dir_format(product_type, format, product_dir)
-        _, frames, filters = self._resolve_filters(None, frames, filters)
-        extra = self._queryables(filters)
+        _, frames, filters = resolve_filter_args(self.mission, None, frames, filters)
+        extra = filter_queryables(self.mission, filters)
 
         # Default time range: last 3 days
         now = datetime.now(timezone.utc).replace(microsecond=0)
@@ -1156,20 +980,12 @@ class MaapClient:
             baselines = [baseline]
         else:
             baselines = self.list_baselines(collection, product_type, from_built=False)
-            if not baselines:
-                logger.warning(f"No baselines found for {collection}/{product_type}")
-                return SyncResult(
-                    collection=collection,
-                    product_type=product_type,
-                    baselines=[],
-                )
+        result = SyncResult(collection=collection, product_type=product_type, baselines=baselines)
+        if not baselines:
+            logger.warning(f"No baselines found for {collection}/{product_type}")
+            return result
+        if not baseline:
             logger.info(f"Syncing all baselines: {', '.join(b.upper() for b in baselines)}...")
-
-        result = SyncResult(
-            collection=collection,
-            product_type=product_type,
-            baselines=baselines,
-        )
 
         for bl in baselines:
             logger.info(f"Syncing {collection}/{product_type}/{bl.upper()}...")
@@ -1183,6 +999,7 @@ class MaapClient:
                 # Search day-by-day, registering each day as it is found so
                 # a later failure never loses discovered URLs.
                 urls: list[str] = []
+                parsed_urls: dict[str, ProductName] = {}
                 for day_urls in self.searcher.search_urls_iter_day(
                     collection=collection,
                     product_type=product_type,
@@ -1197,8 +1014,7 @@ class MaapClient:
                 ):
                     if day_urls:
                         # An unreadable baseline fails before the day is registered
-                        for url in day_urls:
-                            parse_with_baseline(url)
+                        parsed_urls.update((url, parse_with_baseline(url)) for url in day_urls)
                         tracker.add_urls(day_urls)
                         urls.extend(day_urls)
 
@@ -1220,7 +1036,10 @@ class MaapClient:
 
                 logger.info(f"Found {len(urls)} URLs, {len(pending)} pending, downloading {len(to_download)}")
 
-                self._check_download_layout(to_download, product_dir, collection)
+                batch = {url: parsed_urls[url] for url in to_download}
+                check_download_layout(
+                    batch, product_dir, self._config.data_dir, self._config.mission, collection
+                )
 
                 # Download with state tracking
                 self._config.ensure_directories()
@@ -1236,12 +1055,7 @@ class MaapClient:
                     max_consecutive_failures=max_consecutive_failures,
                 )
                 result.urls_downloaded += len(downloaded)
-
-                # batch_download's mapping includes successes and skipped
-                # files; anything absent failed and must reach the caller.
-                for url in to_download:
-                    if url not in downloaded:
-                        result.errors.append(f"{url}: download failed")
+                result.errors.extend(_failed(to_download, downloaded))
 
                 logger.info(f"Downloaded {len(downloaded)} files for {bl.upper()}")
             except (AuthenticationError, CredentialsError, BatchDownloadAborted, InvalidRequestError):
@@ -1342,3 +1156,8 @@ class MaapClient:
                     failures_out.append((coll, "*", "*", str(e)))
 
         return results
+
+
+def _failed(urls: list[str], downloaded: dict[str, Path]) -> list[str]:
+    """Errors of the URLs absent from a batch_download mapping (it holds successes and skips)."""
+    return [f"{url}: download failed" for url in urls if url not in downloaded]

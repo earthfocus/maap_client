@@ -9,10 +9,8 @@ from typing import Any, Optional
 import requests
 
 from maap_client.catalog import Catalog, CatalogManager
-from maap_client.config import MaapConfig
 from maap_client.constants import DEFAULT_CATALOG_URL, DEFAULT_CATALOG_DIR, DEFAULT_TIMEOUT
 from maap_client.exceptions import CatalogError
-from maap_client.mission_select import resolve_mission
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +78,9 @@ class CatalogQueryablesManager(CatalogManager):
     def collections(self) -> list[str]:
         """Collections given at construction, else the active mission's."""
         if self._collections is None:
+            from maap_client.config import MaapConfig
+            from maap_client.mission_select import resolve_mission
+
             config = MaapConfig.load()
             mission, _ = resolve_mission(None, [], None, config)
             self._collections = config.effective_collections(mission.name)

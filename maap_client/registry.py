@@ -1,5 +1,6 @@
 """Registry file path management and low-level operations."""
 
+import logging
 import re
 from datetime import date, datetime
 from pathlib import Path
@@ -11,6 +12,8 @@ from maap_client.paths import (
     extract_sensing_time,
     url_to_local_path,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def read_pairs_file(file_path: Path) -> list[tuple[str, str]]:
@@ -38,6 +41,20 @@ def read_pairs_file(file_path: Path) -> list[tuple[str, str]]:
             second = parts[1] if len(parts) > 1 else ""
             results.append((first, second))
     return results
+
+
+def registry_baselines(registry_dir: Path, mission: str, collection: str, product_type: str) -> list[str]:
+    """Baseline folders of a product in the URL registry (logged), or [] when it has none."""
+    base_path = registry_dir / "urls" / mission / collection / product_type
+    if not base_path.exists():
+        logger.info(f"No registry files found at {base_path}")
+        return []
+    baselines = [d.name for d in base_path.iterdir() if d.is_dir()]
+    if not baselines:
+        logger.info(f"No baseline directories in {base_path}")
+        return []
+    logger.info(f"Found baselines: {', '.join(sorted(baselines))}")
+    return baselines
 
 
 class Registry:

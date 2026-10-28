@@ -38,6 +38,7 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from typing import Optional
 
 from maap_client.missions.base import (
@@ -110,9 +111,16 @@ def _product(url: str) -> str:
     return product_folder(url) or split_product_url(url)[0]
 
 
+# Cached: parse() reads six fields of the same match (bounded, for long registry runs)
+@lru_cache(maxsize=1024)
+def _documented_match(name_or_url: str) -> Optional[re.Match]:
+    """Match of the documented grammar on the product directory, or None for other types."""
+    return _DOCUMENTED.match(_product(name_or_url))
+
+
 def _documented(name_or_url: str, key: str) -> Optional[str]:
     """A field of the documented grammar, or None for other types and blank (``__``) fields."""
-    match = _DOCUMENTED.match(_product(name_or_url))
+    match = _documented_match(name_or_url)
     value = match.group(key) if match else None
     return None if value is None or value.startswith("_") else value
 

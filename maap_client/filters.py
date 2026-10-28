@@ -1,5 +1,6 @@
 """Filtering of product URLs/paths by sensing time, orbit, frame and mission fields, and validation of the filter arguments."""
 
+import logging
 from datetime import datetime
 from typing import Optional, Union
 
@@ -7,6 +8,8 @@ from maap_client.exceptions import InvalidRequestError
 from maap_client.missions import parse_product
 from maap_client.missions.base import Mission
 from maap_client.utils import has_orbit_letter, parse_frames, parse_orbit, timezone_is_aware
+
+logger = logging.getLogger(__name__)
 
 
 def _sensing_time(item: str) -> Optional[datetime]:
@@ -327,3 +330,79 @@ def resolve_filters(
     if letters:
         resolved["frame"] = letters
     return orbit_num, resolved
+
+
+def resolve_filter_args(
+    mission: Mission,
+    orbit: Optional[str],
+    frames: Optional[list[str]],
+    filters: Optional[dict[str, FilterValues]],
+    registry: bool = False,
+) -> tuple[Optional[int], Optional[list[str]], Optional[dict[str, list[str]]]]:
+    """
+    resolve_filters for the client API, where ``frames`` is an alias of ``filters["frame"]``.
+
+    Returns:
+        (orbit number, frame letters of orbits, other filters): on missions
+        with orbit_frame_letter the "frame" filter is returned apart, for
+        the searcher's frames and the offline orbit/frame filter.
+    """
+    if not (orbit or frames or filters):
+        return None, None, None
+    orbit_num, resolved = resolve_filters(mission, orbit, merge_frames(frames, filters), registry)
+    letters = resolved.pop("frame", None) if mission.orbit_frame_letter else None
+    return orbit_num, letters, resolved or None
+
+
+def filter_queryables(
+    mission: Mission, filters: Optional[dict[str, list[str]]]
+) -> Optional[dict[str, list[str]]]:
+    """Resolved filters (option -> values) as the mission's STAC queryables -> values."""
+    if not filters:
+        return None
+    return {spec.queryable: filters[spec.option] for spec in mission.filters if spec.option in filters}
+
+
+def filter_registry_urls(
+    urls: list[str],
+    mission: Mission,
+    orbit: Optional[int],
+    frames: Optional[list[str]],
+    filters: Optional[dict[str, list[str]]],
+) -> list[str]:
+    """
+    Filter registry URLs offline by orbit, frame letters and mission filters
+    read from their product names (arguments as resolve_filter_args returns them).
+
+    Raises:
+        InvalidRequestError: If orbit is given and some names of a mission
+            whose names carry the orbit only sometimes have none, or a filter
+            cannot be read from the names (see filter_by_fields)
+    """
+    if orbit is not None and mission.orbit_offline == "some":
+        # Names that carry the orbit only sometimes (Aeolus L0/L1 ms
+        # timestamps): reject the others instead of silently dropping them.
+        # With "all" orbit-less names (EarthCARE AUX_CC*, AUX_ORBPRE,
+        # MPL_ORBSCT) are dropped by filter_by_orbit_frame.
+        orbitless = sorted({
+            parsed.product_type or parsed.product
+            for parsed in map(mission.parse, urls)
+            if parsed.orbit_frame is None
+        })
+        if orbitless:
+            raise InvalidRequestError(
+                f"Cannot filter by orbit offline: the product names of {', '.join(orbitless)} "
+                f"do not carry the orbit; use search instead"
+            )
+    if orbit is not None or frames:
+        total = len(urls)
+        urls = filter_by_orbit_frame(urls, orbit=orbit, frames=frames)
+        logger.info(f"{len(urls)} of {total} registry URLs match the orbit/frame filter")
+    if filters:
+        total = len(urls)
+        try:
+            urls = filter_by_fields(urls, filters, mission)
+        except ValueError as e:
+            raise InvalidRequestError(str(e)) from e
+        logger.info(f"{len(urls)} of {total} registry URLs match the {', '.join(filters)} filter")
+    return urls

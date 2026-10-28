@@ -20,7 +20,7 @@ from maap_client.exceptions import classify_exit_code, EXIT_NON_TRANSIENT, EXIT_
 from maap_client.filters import option_flag
 from maap_client.mission_select import resolve_mission, write_active_mission
 from maap_client.missions import MISSIONS, get_mission, mission_for_collection, parse_product
-from maap_client.utils import to_zulu
+from maap_client.utils import normalize_baseline, to_zulu
 
 
 # --- Command handlers ---
@@ -152,7 +152,7 @@ def cmd_list(args: argparse.Namespace) -> int:
     baseline_info = client.get_baseline_info(
         args.collection,
         args.product,
-        args.baseline,
+        normalize_baseline(args.baseline),
         from_built=True,
     )
 

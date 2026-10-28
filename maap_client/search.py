@@ -283,7 +283,10 @@ class MaapSearcher:
 
         extra maps mission queryables to accepted values; names with a
         namespace (``eofeos:repeat_cycle_id``) are double-quoted. NO_BASELINE
-        adds no productVersion clause (those items have no version).
+        adds no productVersion clause (those items have no version), so a
+        NO_BASELINE count or existence check matches every item of the type:
+        this assumes the types a mission declares without baseline never carry
+        a version (verified on the fixture items, see no_baseline_products).
         """
         parts = [f"productType = '{product_type}'"]
         if baseline and normalize_baseline(baseline) != NO_BASELINE:

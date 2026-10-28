@@ -29,6 +29,7 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from typing import Optional
 
 from maap_client.missions.base import (
@@ -119,9 +120,16 @@ def _name(name_or_url: str) -> str:
     return FLEX.product_name(name_or_url)
 
 
+# Cached: parse() reads up to seven fields of the same match (bounded, for long registry runs)
+@lru_cache(maxsize=1024)
+def _documented_match(name_or_url: str) -> Optional[re.Match]:
+    """Match of the L1C or L2 grammar on the product name, or None for every other type."""
+    return _documented(_name(name_or_url))
+
+
 def _documented_field(name_or_url: str, key: str) -> Optional[str]:
     """A field of the L1C or L2 grammar, or None for other types and fields of the other grammar."""
-    match = _documented(_name(name_or_url))
+    match = _documented_match(name_or_url)
     return match.groupdict().get(key) if match else None
 
 

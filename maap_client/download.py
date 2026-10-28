@@ -223,8 +223,8 @@ class DownloadManager:
 
             # Skip if a different version of this granule already exists
             # (the URL's mission gives the glob of its other versions).
-            mission = mission_for_filename(url)
-            pattern = mission.dedup_pattern(filename) if skip_existing and mission else None
+            mission = mission_for_filename(url) if skip_existing else None
+            pattern = mission.dedup_pattern(filename) if mission else None
             if pattern:
                 date_dir = output_path.parent.parent if self._product_dir else output_path.parent
                 our_stem = Path(filename).stem

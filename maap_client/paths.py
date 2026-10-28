@@ -19,7 +19,7 @@ from maap_client.filters import (  # noqa: F401  (re-exported)
     filter_by_sensing_time,
     sort_by_sensing_time,
 )
-from maap_client.missions import ProductName, mission_for_filename, parse_product, split_product_url
+from maap_client.missions import MISSIONS, Mission, ProductName, mission_for_filename, parse_product, split_product_url
 from maap_client.missions.base import product_folder
 
 
@@ -237,8 +237,12 @@ def local_relpath(url: str, product_dir: bool) -> Path:
     Raises:
         ValueError: If the URL yields an empty, ``.`` or ``..`` path segment
     """
+    return _relpath(url, parse_product(url), product_dir)
+
+
+def _relpath(url: str, parsed: Optional[ProductName], product_dir: bool) -> Path:
+    """local_relpath with the URL already parsed."""
     path = urlparse(url).path
-    parsed = parse_product(url)
     product = parsed.product if parsed else split_product_url(path)[0]
 
     filename = os.path.basename(path)
@@ -286,24 +290,135 @@ def url_to_local_path(
         Local path or None if the product type, baseline or sensing time
         cannot be parsed, or the URL holds unsafe path segments
     """
-    info = extract_info(url)
-
-    if not (info["sensing_time"] and info["product_type"] and info["baseline"]):
-        return None
+    parsed = parse_product(url)
     try:
-        relpath = local_relpath(url, product_dir)
+        relpath = _relpath(url, parsed, product_dir)
     except ValueError:
         return None
+    return _data_path(parsed, relpath, data_dir, mission, collection)
 
+
+def _data_path(
+    parsed: Optional[ProductName], relpath: Path, data_dir: Path, mission: str, collection: str
+) -> Optional[Path]:
+    """generate_data_path of a parsed URL, or None without product type, baseline or sensing time."""
+    if not (parsed and parsed.sensing_time and parsed.product_type and parsed.baseline):
+        return None
     return generate_data_path(
         data_dir=data_dir,
         mission=mission,
         collection=collection,
-        product_type=info["product_type"],
-        baseline=info["baseline"],
-        dt=info["sensing_time"],
+        product_type=parsed.product_type,
+        baseline=parsed.baseline,
+        dt=parsed.sensing_time,
         filename=str(relpath),
     )
+
+
+def product_dir_error(mission: Mission) -> InvalidRequestError:
+    """The error for individual files of a mission that need product_dir, asked for without it."""
+    return InvalidRequestError(
+        f"{mission.name} individual files need --product-dir: names repeat across and within products"
+    )
+
+
+def check_product_dir_format(
+    mission: Mission,
+    product_type: str,
+    formats: tuple[str, ...],
+    product_dir: bool,
+) -> None:
+    """
+    Reject individual files that need product_dir, before any search.
+
+    The mission's files need it when it declares files_need_product_dir and
+    product_type is not one of its single_file_products. ``formats`` are the
+    effective formats (the explicit one, else the configured defaults);
+    anything but ``zip`` selects individual files.
+
+    Raises:
+        InvalidRequestError: Individual files that need product_dir, without it
+    """
+    if product_dir or not mission.files_need_product_dir:
+        return
+    if product_type in mission.single_file_products:
+        return
+    if any(f != "zip" for f in formats):
+        raise product_dir_error(mission)
+
+
+def _needs_product_dir(url: str, parsed: Optional[ProductName]) -> Optional[Mission]:
+    """
+    The URL's mission when the URL is an individual file that needs
+    product_dir (see Mission.files_need_product_dir), else None. A product
+    type that cannot be read from the URL needs it; a zip never does.
+    """
+    if parsed is None:
+        return None
+    mission = next(m for m in MISSIONS.values() if m.code == parsed.mission)
+    if not mission.files_need_product_dir or is_zip_url(url):
+        return None
+    if parsed.product_type in mission.single_file_products:
+        return None
+    return mission
+
+
+def check_download_layout(
+    parsed: dict[str, Optional[ProductName]],
+    product_dir: bool,
+    data_dir: Path,
+    mission: str,
+    collection: str,
+    out_dir: Optional[Path] = None,
+) -> dict[str, Optional[Path]]:
+    """
+    Reject a batch whose files cannot each get their own local path.
+
+    Individual files of a mission that declares files_need_product_dir
+    need product_dir (their names repeat across and within products),
+    unless their product type is one of its single_file_products; a zip
+    does not. As a defensive check, two different URLs mapping to one
+    local path fail the run instead of one of them being skipped as
+    already downloaded.
+
+    Args:
+        parsed: URL -> parse_product(URL), for every URL of the batch once
+        product_dir: If True, place each file inside a folder named after its product
+        data_dir: Base data directory (structured paths)
+        mission: Mission name (structured paths)
+        collection: Collection name (structured paths)
+        out_dir: Flat output directory, instead of the structured paths
+
+    Returns:
+        URL -> local path (``out_dir / local_relpath``, or url_to_local_path)
+
+    Raises:
+        InvalidRequestError: On an individual file that needs product_dir
+            without it, a URL with unsafe path segments (``..``), or two
+            different URLs sharing a local path
+    """
+    if not product_dir:
+        for url, name in parsed.items():
+            if needs := _needs_product_dir(url, name):
+                raise product_dir_error(needs)
+
+    paths: dict[str, Optional[Path]] = {}
+    seen: dict[Path, str] = {}
+    for url, name in parsed.items():
+        try:
+            relpath = _relpath(url, name, product_dir)
+        except ValueError as e:
+            raise InvalidRequestError(str(e)) from e
+        path = out_dir / relpath if out_dir else _data_path(name, relpath, data_dir, mission, collection)
+        paths[url] = path
+        if path is None:
+            continue
+        if path in seen:
+            raise InvalidRequestError(
+                f"Two URLs map to the same local path {path}: {seen[path]} and {url}"
+            )
+        seen[path] = url
+    return paths
 
 
 def extract_collection(path: str | Path) -> Optional[str]:
