@@ -2,7 +2,7 @@
 
 from maap_client.missions import EARTHCARE
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 # API endpoints (defaults)
 DEFAULT_CATALOG_URL = "https://catalog.maap.eo.esa.int/catalogue"
