@@ -117,7 +117,9 @@ def _rejected_as_invalid() -> Iterator[None]:
     try:
         yield
     except APIError as e:
-        if e.status_code != 400:
+        # pystac sets status_code only on HTTP responses (not on timeouts or
+        # connection errors)
+        if getattr(e, "status_code", None) != 400:
             raise
         try:
             message = json.loads(str(e))["error"]["message"]
@@ -424,17 +426,29 @@ class MaapSearcher:
         if verbose:
             logger.info(f"Counting {collection} {product_type}/{baseline}{format_time_range(start, end)}...")
 
-        matched = self._matched(
-            collection, self._build_filter(product_type, baseline=baseline), start, end
-        )
+        matched = self.count_matched(collection, product_type, baseline, start, end) or 0
         if verbose:
             logger.info(f"  count: {matched}")
         return matched
 
+    def count_matched(
+        self,
+        collection: str,
+        product_type: str,
+        baseline: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+    ) -> Optional[int]:
+        """search_product_count, but None when the server reports no count (unknown)."""
+        return self._matched(collection, self._build_filter(product_type, baseline=baseline), start, end)
+
     def _matched(
         self, collection: str, filter_str: str, start: Optional[datetime], end: Optional[datetime]
-    ) -> int:
-        """The server's numberMatched for a filter and datetime window (one request), 0 if none."""
+    ) -> Optional[int]:
+        """
+        The server's numberMatched for a filter and datetime window (one
+        request), or None when the response carries none (unknown, not 0).
+        """
         datetime_arg = (start, end) if start is not None and end is not None else None
         search = self.client.search(
             collections=[collection],
@@ -444,10 +458,13 @@ class MaapSearcher:
             max_items=150,
         )
         with _rejected_as_invalid():
-            return search.matched() or 0
+            return search.matched()
 
-    def count_versioned(self, collection: str, product_type: str) -> int:
-        """Number of items of the product that carry a catalogue version (one fast request)."""
+    def count_versioned(self, collection: str, product_type: str) -> Optional[int]:
+        """
+        Number of items of the product that carry a catalogue version (one
+        fast request), or None when the server reports no count.
+        """
         filter_str = f"{self._build_filter(product_type)} AND productVersion IS NOT NULL"
         return self._matched(collection, filter_str, None, None)
 
@@ -620,27 +637,24 @@ class MaapSearcher:
         period_days = (end - start).days
         filter_str = self._build_filter(product_type, baseline=baseline, extra=extra)
 
-        # Single API call for short ranges (≤10 days) and sparse products
-        if period_days <= 10 or self._matched(collection, filter_str, start, end) <= period_days:
-            if verbose:
-                bl_str = f"/{baseline}" if baseline else ""
-                logger.info(f"Searching {collection} {product_type}{bl_str}{format_time_range(start, end)}...")
-            datetime_arg = (start, end)
-            search = self.client.search(
-                collections=[collection],
-                filter=filter_str,
-                filter_lang="cql2-text",
-                datetime=datetime_arg,
-                method="GET",
-                max_items=max_items,
-            )
-            urls = self._clean_search_results(search, start, end, format=format, baseline=baseline)
-            if verbose:
-                logger.info(f"  found {len(urls)}")
-            self._warn_missing_format()
-
-        # Day-by-day for large ranges (more efficient)
+        urls: Optional[list[str]] = None
+        # One request for short ranges (≤10 days) and sparse products; a long
+        # range falls back to day by day when the count or the search fails
+        if period_days <= 10:
+            urls = self._search_range(collection, product_type, baseline, filter_str, start, end, format, verbose)
         else:
+            try:
+                count = self._matched(collection, filter_str, start, end)
+                if count is not None and count <= period_days:
+                    urls = self._search_range(
+                        collection, product_type, baseline, filter_str, start, end, format, verbose
+                    )
+            except (AuthenticationError, CredentialsError, InvalidRequestError):
+                raise
+            except Exception as e:
+                logger.warning(f"Single search failed, searching day by day: {e}")
+
+        if urls is None:
             urls = []
             for day_urls in self.search_urls_iter_day(
                 collection=collection,
@@ -654,17 +668,45 @@ class MaapSearcher:
                 reverse=reverse,
                 extra=extra,
             ):
-                day_urls = day_urls[: max_items - len(urls)]
+                room = max_items - len(urls)
+                if on_day and day_urls and room > 0:
+                    on_day(day_urls[:room])
                 urls.extend(day_urls)
-                if on_day and day_urls:
-                    on_day(day_urls)
-                if len(urls) >= max_items:
+                # Stop at max_items unless failed days still await their retry pass
+                if len(urls) >= max_items and not self.last_failed_days:
                     break
             if verbose:
                 logger.info(f"Total: {len(urls)} URLs")
 
-        urls = sort_by_sensing_time(urls, reverse=reverse)
+        # Sort before cutting: the server returns items in no particular order
+        return sort_by_sensing_time(urls, reverse=reverse)[:max_items]
 
+    def _search_range(
+        self,
+        collection: str,
+        product_type: str,
+        baseline: Optional[str],
+        filter_str: str,
+        start: datetime,
+        end: datetime,
+        format: Optional[str],
+        verbose: bool,
+    ) -> list[str]:
+        """Every URL of the range in one paged search (search_urls cuts it to max_items once sorted)."""
+        if verbose:
+            bl_str = f"/{baseline}" if baseline else ""
+            logger.info(f"Searching {collection} {product_type}{bl_str}{format_time_range(start, end)}...")
+        search = self.client.search(
+            collections=[collection],
+            filter=filter_str,
+            filter_lang="cql2-text",
+            datetime=(start, end),
+            method="GET",
+        )
+        urls = self._clean_search_results(search, start, end, format=format, baseline=baseline)
+        if verbose:
+            logger.info(f"  found {len(urls)}")
+        self._warn_missing_format()
         return urls
 
     def search_urls_by_orbit(

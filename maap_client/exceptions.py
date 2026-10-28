@@ -89,8 +89,7 @@ def _http_status_from_chain(exc: BaseException) -> int | None:
     while current is not None and id(current) not in seen:
         seen.add(id(current))
         response = getattr(current, "response", None)
-        # requests errors carry the response; pystac-client's APIError the status
-        status = getattr(response, "status_code", None) or getattr(current, "status_code", None)
+        status = getattr(response, "status_code", None)
         if status is not None:
             return status
         current = current.__cause__ or current.__context__

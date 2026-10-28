@@ -271,7 +271,8 @@ class MaapClient:
         version (one fast count, which spares a request per version), plus
         NO_BASELINE for a type the mission declares without one.
 
-        A count that fails transiently keeps every candidate.
+        A count that fails transiently, or that the server does not report,
+        keeps every candidate.
         """
         candidates = self._baseline_candidates(collection, product_type, refresh=refresh)
         try:
@@ -281,7 +282,7 @@ class MaapClient:
         except Exception as e:
             logger.warning(f"Could not count the versioned items of {collection}/{product_type}: {e}")
             return candidates
-        return candidates if versioned else [b for b in candidates if b == NO_BASELINE]
+        return [b for b in candidates if b == NO_BASELINE] if versioned == 0 else candidates
 
     def get_baseline_info(
         self,
@@ -443,11 +444,12 @@ class MaapClient:
     ) -> bool:
         """
         False when the server counts no item of the baseline in the range (one
-        fast request); True when it counts some, or the count fails
-        transiently (the day-by-day search then reports the failed days).
+        fast request); True when it counts some, reports no count, or the
+        count fails transiently (the day-by-day search then reports the failed days).
         """
         try:
-            return self.searcher.search_product_count(collection, product_type, baseline, start, end) > 0
+            count = self.searcher.count_matched(collection, product_type, baseline, start, end)
+            return count is None or count > 0
         except (AuthenticationError, CredentialsError, InvalidRequestError):
             raise
         except Exception as e:
