@@ -468,8 +468,12 @@ def extract_collection(path: str | Path) -> Optional[str]:
         path: Local path of a product file laid out by ``generate_data_path``
 
     Returns:
-        Collection name, or None for unparsable names or paths outside the layout
+        Collection name, or None for a URL (the MAAP archive is laid out by
+        product type, not by collection), unparsable names or paths outside
+        the layout
     """
+    if "://" in str(path):
+        return None
     path = Path(path)
     info = extract_info(str(path))
     product_type = info["product_type"]
