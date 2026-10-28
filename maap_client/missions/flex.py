@@ -69,8 +69,10 @@ _L2_SHORT_TYPE = re.compile(r"^FLX_(L2)_([A-Z0-9]{6})_\d{8}T", re.IGNORECASE)
 _SENSING = re.compile(r"_(\d{8}T\d{6})_")
 # Verified rule: the archive layout `/FLEX/<type>/<baseline>/YYYY/MM/DD/`
 # carries the baseline of every fixture item that has a `version`, including
-# the CCDB `C0` baselines that the product name does not hold.
-_URL_BASELINE = re.compile(r"/FLEX/[^/]+/([^/]+)/\d{4}/\d{2}/\d{2}/")
+# the CCDB `C0` baselines that the product name does not hold. The local data
+# layout `.../<collection>/<type>/<baseline>/YYYY/MM/DD/` has the same tail, so
+# the baseline is the folder after the one named after the product type.
+_PATH_BASELINE = r"/{type}/([^/]+)/\d{{4}}/\d{{2}}/\d{{2}}/"
 
 _TIME = r"\d{8}T\d{6}"
 # Optional suffix and extension of the internal files (section 4.1.1)
@@ -158,9 +160,17 @@ def extract_product_type(name_or_url: str) -> Optional[str]:
 
 
 def extract_baseline(name_or_url: str) -> Optional[str]:
-    """Baseline from the URL path, else from an L1C/L2 name; NO_BASELINE for types without one."""
-    baseline = match_group(_URL_BASELINE, name_or_url) or _documented_field(name_or_url, "baseline")
-    return declared_baseline(baseline, extract_product_type(name_or_url), NO_BASELINE_PRODUCTS)
+    """
+    Baseline from the archive URL or local data path, else from an L1C/L2
+    name; NO_BASELINE for the types that have none.
+    """
+    product_type = extract_product_type(name_or_url)
+    baseline = None
+    if product_type:
+        pattern = re.compile(_PATH_BASELINE.format(type=re.escape(product_type)), re.IGNORECASE)
+        baseline = match_group(pattern, name_or_url)
+    baseline = baseline or _documented_field(name_or_url, "baseline")
+    return declared_baseline(baseline, product_type, NO_BASELINE_PRODUCTS)
 
 
 def extract_sensing_time(name_or_url: str) -> Optional[datetime]:
