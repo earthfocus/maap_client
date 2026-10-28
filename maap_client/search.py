@@ -900,15 +900,19 @@ class MaapSearcher:
     ) -> Iterator[list[str]]:
         """
         Retry once each day of pending_retry (the days search_urls_iter_day
-        failed), yielding the URLs of each recovered day. last_failed_days
-        then holds only the days that failed again.
+        failed), yielding the URLs of each recovered day.
+
+        Days are taken off pending_retry one at a time, and a day leaves
+        last_failed_days only once recovered (a day failing again keeps its
+        latest error), so a caller that stops the iteration early can call
+        this again to retry the days still pending.
         """
-        failed_ranges, self.pending_retry = self.pending_retry, []
-        if not failed_ranges:
+        if not self.pending_retry:
             return
-        logger.info(f"Retrying {len(failed_ranges)} failed day(s)...")
-        self.last_failed_days = []
-        for day_start, day_end in failed_ranges:
+        logger.info(f"Retrying {len(self.pending_retry)} failed day(s)...")
+        while self.pending_retry:
+            day_start, day_end = self.pending_retry.pop(0)
+            day = day_start.date()
             datetime_arg = to_stac_datetime(day_start, day_end)
             filter_str = self._build_filter(product_type, baseline=baseline, extra=extra)
             try:
@@ -926,8 +930,10 @@ class MaapSearcher:
             except (AuthenticationError, CredentialsError, InvalidRequestError):
                 raise
             except Exception as e:
-                logger.warning(f"FAILED DAY (retry) {day_start.date().isoformat()}: {e}")
-                self.last_failed_days.append((day_start.date(), str(e)))
+                logger.warning(f"FAILED DAY (retry) {day.isoformat()}: {e}")
+                self.last_failed_days = [f for f in self.last_failed_days if f[0] != day]
+                self.last_failed_days.append((day, str(e)))
                 continue
-            logger.info(f"Recovered day {day_start.date().isoformat()}")
+            self.last_failed_days = [f for f in self.last_failed_days if f[0] != day]
+            logger.info(f"Recovered day {day.isoformat()}")
             yield urls
