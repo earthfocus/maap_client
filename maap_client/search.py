@@ -58,7 +58,6 @@ from maap_client.exceptions import AuthenticationError, CredentialsError
 from maap_client.missions import get_mission
 from maap_client.filters import filter_by_sensing_time, sort_by_sensing_time
 from maap_client.paths import (
-    extract_sensing_time,
     extract_baseline,
     extract_info,
     parse_with_baseline,
@@ -267,11 +266,6 @@ class MaapSearcher:
         )
 
     @staticmethod
-    def _sort_urls(urls: list[str]) -> list[str]:
-        """Sort URLs by sensing time."""
-        return sorted(urls, key=lambda u: extract_sensing_time(u) or datetime.min)
-
-    @staticmethod
     def _build_filter(
         product_type: str,
         baseline: Optional[str] = None,
@@ -334,7 +328,7 @@ class MaapSearcher:
         # Filter by sensing_time
         urls = filter_by_sensing_time(urls, start, end)
         # Sort by sensing_time
-        urls = self._sort_urls(urls)
+        urls = sort_by_sensing_time(urls)
 
         return urls
 
