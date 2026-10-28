@@ -19,7 +19,7 @@ note for those (ESA-EOPG-EOEP-TN-0015) is not published.
 sensing_time is the first timestamp of the name, which equals the item's
 start_datetime for every product type of every fixture item.
 
-The FLEXL2AuxProductsInternal types listed in NO_BASELINE_PRODUCTS have no
+The FLEX AUX types listed in NO_BASELINE_PRODUCTS have no
 baseline in their URL and no documented name grammar: their baseline is
 NO_BASELINE (the trailing ``_01`` of their names is never read as one). FLEX
 downloads are not validated (MAAP answers 403 without access).
@@ -88,12 +88,15 @@ _L2 = re.compile(
     re.IGNORECASE,
 )
 
-# Verified rule: no item of these types (FLEXL2AuxProductsInternal, AUX_CCCRAD
-# also FLEXTestAuxProducts) has a baseline in its URL or a catalogue `version`;
-# their names end in `_01`, but no document says that is the baseline.
+# Verified rule: no item of these types (FLEXL2AuxProductsInternal and
+# FLEXTestAuxProducts) has a baseline in its URL or a catalogue `version`, and
+# every other type has a version, checked against the whole catalogue on
+# 2026-10-28; their names end in `_01`, but no document says that is the baseline.
 NO_BASELINE_PRODUCTS = frozenset({
-    "AUX_CCCRAD", "AUX_DVAERR", "AUX_MACV2_", "AUX_OLISRF", "AUX_REFCEN",
-    "AUX_SIFCOV", "AUX_SLISRF", "AUX_UTMTIL", "AUX_V_TEMP",
+    "AUX_CCCRAD", "AUX_DVAERR", "AUX_FLOLUT", "AUX_GPRMOD", "AUX_MACV2_",
+    "AUX_OCONVI", "AUX_OCONV_", "AUX_OLISRF", "AUX_OPAR__", "AUX_OWV___",
+    "AUX_REFCEN", "AUX_SIFCOV", "AUX_SLISRF", "AUX_SNCONV", "AUX_SOCONV",
+    "AUX_UTMTIL", "AUX_V_TEMP",
 })
 
 _DATA_ROOT = "https://catalog.maap.eo.esa.int/data/flex-pdgs-01/FLEX"

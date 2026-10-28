@@ -249,8 +249,12 @@ data/Biomass/.../01/2025/12/11/BIO_S1_DGM__1S_..._F249_01_DO9ZT3/
 - Aeolus `.QR.EEF` files go in `<PRODUCT>/` with `--product-dir`.
 - `--out-dir DIR` downloads to `DIR` instead of the structured layout.
 - **Products without baseline** go in a `NO_BASELINE` baseline folder (data and registry):
-  Biomass `MPL_ORBPRE`, and the FLEX aux types `AUX_CCCRAD`, `AUX_DVAERR`, `AUX_MACV2_`,
-  `AUX_OLISRF`, `AUX_REFCEN`, `AUX_SIFCOV`, `AUX_SLISRF`, `AUX_UTMTIL`, `AUX_V_TEMP`. Give
+  Biomass `MPL_ORBPRE`; the Aeolus aux types without catalogue version (archive folder
+  `NNAA`): `AUX_CHAR__`, `AUX_CLM_L2`, `AUX_LUT_BL`, `AUX_MET_12`, the ten `AUX_PAR_*`,
+  `AUX_TEL_12`, `GRND_TRACK`, `MPL_ORBPRE`, `MPL_ORBRES`, `MPL_ORBSCT`, `TLMX__VC1_`; and the
+  FLEX aux types `AUX_CCCRAD`, `AUX_DVAERR`, `AUX_FLOLUT`, `AUX_GPRMOD`, `AUX_MACV2_`,
+  `AUX_OCONVI`, `AUX_OCONV_`, `AUX_OLISRF`, `AUX_OPAR__`, `AUX_OWV___`, `AUX_REFCEN`,
+  `AUX_SIFCOV`, `AUX_SLISRF`, `AUX_SNCONV`, `AUX_SOCONV`, `AUX_UTMTIL`, `AUX_V_TEMP`. Give
   `NO_BASELINE` (any case) as the baseline to search them alone; `sync` without a baseline
   includes them. Any other product whose baseline cannot be read is an error (exit 4,
   "cannot read the baseline of ...") before anything is written.

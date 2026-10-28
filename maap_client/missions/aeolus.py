@@ -28,6 +28,7 @@ from typing import Optional
 from maap_client.missions.base import (
     Mission,
     ProductName,
+    declared_baseline,
     match_group,
     parse_timestamp,
     split_product_url,
@@ -49,11 +50,12 @@ _FILE_CLASS = re.compile(r"^AE1?_([A-Z]{4})_")
 _PRODUCT_TYPE = re.compile(r"^AE1?_[A-Z]{4}_([A-Z0-9_]{10})_\d{8}T\d{6}")
 # Verified rule: the archive path holds .../<file type>/<baseline>/YYYY/MM/DD/;
 # the baseline is the segment after the directory equal to the file type and
-# equals the item's `version` where the catalogue has one (aux products
-# without version use the literal `NNAA`).
+# equals the item's `version` where the catalogue has one. Items without
+# version use the literal `NNAA` ("no baseline"), which is never a baseline.
 _BASELINE_PATH = re.compile(r"/(?P<type>[A-Z0-9_]{10})/(?P<baseline>[A-Za-z0-9]{2,4})/\d{4}/\d{2}/\d{2}/", re.IGNORECASE)
 # The extension is optional: zip (product) URLs end in the bare product name
 _ORBIT = re.compile(r"_(\d{6})_\d{4}(?:\.[A-Z]{3})?$", re.IGNORECASE)
+_NO_VERSION = "NNAA"
 _DURATION = re.compile(r"_\d{8}T\d{9}_(\d{9})_\d{6}_\d{4}\.[A-Z]{3}$", re.IGNORECASE)
 _VERSION = re.compile(r"_(\d{4})\.[A-Z]{3}$", re.IGNORECASE)
 
@@ -76,20 +78,37 @@ def _name(name_or_url: str) -> str:
     return AEOLUS.product_name(name_or_url)
 
 
+# Verified rule: every item of these AeolusAdditionalProducts types, and no
+# item of any other type, has no catalogue `version` (path folder `NNAA`),
+# checked against the whole catalogue on 2026-10-28.
+NO_BASELINE_PRODUCTS = frozenset({
+    "AUX_CHAR__", "AUX_CLM_L2", "AUX_LUT_BL", "AUX_MET_12", "AUX_PAR_0_",
+    "AUX_PAR_1A", "AUX_PAR_1B", "AUX_PAR_2A", "AUX_PAR_2B", "AUX_PAR_CL",
+    "AUX_PAR_CS", "AUX_PAR_HB", "AUX_PAR_QC", "AUX_PAR_RB", "AUX_TEL_12",
+    "GRND_TRACK", "MPL_ORBPRE", "MPL_ORBRES", "MPL_ORBSCT", "TLMX__VC1_",
+})
+
+
 def extract_product_type(name_or_url: str) -> Optional[str]:
     """File type, e.g. ``ALD_U_N_1B``."""
     return match_group(_PRODUCT_TYPE, _name(name_or_url))
 
 
 def extract_baseline(name_or_url: str) -> Optional[str]:
-    """Baseline from the archive path, e.g. ``1B16``; None for a bare filename."""
+    """
+    Baseline from the archive path, e.g. ``1B16``; NO_BASELINE for the types
+    that have none; else None (e.g. a bare filename).
+    """
     product_type = extract_product_type(name_or_url)
     if product_type is None:
         return None
+    baseline = None
     for match in _BASELINE_PATH.finditer(name_or_url):
         if match.group("type").upper() == product_type:
-            return match.group("baseline")
-    return None
+            if match.group("baseline").upper() != _NO_VERSION:
+                baseline = match.group("baseline")
+            break
+    return declared_baseline(baseline, product_type, NO_BASELINE_PRODUCTS)
 
 
 def extract_sensing_time(name_or_url: str) -> Optional[datetime]:
@@ -137,6 +156,7 @@ class _Aeolus(Mission):
     end = "2023-07-28T23:59:59Z"
     default_formats = ("dbl", "nc", "bufr", "eef")
     orbit_offline = "some"
+    no_baseline_products = NO_BASELINE_PRODUCTS
 
     def parse(self, url: str) -> AeolusName:
         return AeolusName(
