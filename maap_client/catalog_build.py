@@ -9,7 +9,7 @@ import logging
 
 from maap_client.catalog import Catalog, CatalogManager
 from maap_client.constants import __version__, DEFAULT_BUILT_CATALOG_DIR
-from maap_client.exceptions import InvalidRequestError
+from maap_client.exceptions import CatalogError, InvalidRequestError
 from maap_client.missions import NO_BASELINE
 from maap_client.utils import parse_datetime, to_zulu
 
@@ -167,7 +167,7 @@ class CatalogCollectionManager(CatalogManager):
         """
         super().__init__(catalog_dir)
         self._client = client
-        self.last_failures: list[tuple[str, str, str]] = []
+        self.last_failures: list[tuple[str, str, Exception]] = []
 
     def build(
         self,
@@ -213,7 +213,7 @@ class CatalogCollectionManager(CatalogManager):
             changes, so previously fetched work survives crashes. A
             baseline whose fetch fails (after transport retries) is skipped
             and recorded in ``self.last_failures`` as a (product, baseline,
-            error) tuple, and the build continues. Use force=True only to
+            exception) tuple, and the build continues. Use force=True only to
             rebuild from scratch (stale edges after server-side granule
             deletions, which can move edges without changing the count).
         """
@@ -326,7 +326,7 @@ class CatalogCollectionManager(CatalogManager):
                                 f"with existing data; keeping catalog entry"
                             )
                             self.last_failures.append(
-                                (product, baseline, "recount returned 0 with existing data")
+                                (product, baseline, CatalogError("recount returned 0 with existing data"))
                             )
                             continue
                         if recount == existing.count:
@@ -392,7 +392,7 @@ class CatalogCollectionManager(CatalogManager):
                     # Transport retries are exhausted by now: record and move on
                     # so one bad baseline doesn't discard the rest of the pass.
                     logger.warning(f"    FAILED ({product}/{baseline}): {e}")
-                    self.last_failures.append((product, baseline, str(e)))
+                    self.last_failures.append((product, baseline, e))
                     continue
 
                 count = recount if recount > 0 else new_count

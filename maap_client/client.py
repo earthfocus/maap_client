@@ -170,13 +170,15 @@ class MaapClient:
         collections: Optional[list[str]] = None,
         force: bool = False,
         out_dir: Optional[Path] = None,
-        failures_out: Optional[list[tuple[str, str]]] = None,
+        failures_out: Optional[list[tuple[str, Exception]]] = None,
     ) -> dict[str, Path]:
         """
         Download/update catalog queryables.
 
         Collections default to the configured mission's. failures_out, if given,
-        is appended with (collection, error) for each collection that failed.
+        is appended with (collection, exception) for each collection that failed;
+        an unknown collection is one of them when all are updated, and raises
+        InvalidRequestError when given explicitly.
         """
         self._config.ensure_directories()
         manager = self._queryables_manager(out_dir) if out_dir else self.catalog
@@ -1163,7 +1165,7 @@ class MaapClient:
         force: bool = False,
         out_dir: Optional[Path] = None,
         verbose: bool = False,
-        failures_out: Optional[list[tuple[str, str, str, str]]] = None,
+        failures_out: Optional[list[tuple[str, str, str, Exception]]] = None,
     ) -> dict[str, Path]:
         """
         Build catalog from API queries.
@@ -1177,9 +1179,11 @@ class MaapClient:
             out_dir: Output directory (uses config default if None)
             verbose: Print progress messages
             failures_out: Optional caller-provided list; appended with
-                (collection, product, baseline, error) for every baseline
+                (collection, product, baseline, exception) for every baseline
                 that failed after retries. A whole-collection error appends
-                (collection, "*", "*", error).
+                (collection, "*", "*", exception); building all collections,
+                that includes an InvalidRequestError, which raises when one
+                collection is given.
 
         Returns:
             Dictionary mapping collection name to catalog file path
@@ -1228,12 +1232,16 @@ class MaapClient:
                         (coll, prod, bl, err) for prod, bl, err in manager.last_failures
                     )
 
-            except InvalidRequestError:
-                raise
+            except InvalidRequestError as e:
+                if collection:
+                    raise
+                logger.error(f"Error building {coll}: {e}")
+                if failures_out is not None:
+                    failures_out.append((coll, "*", "*", e))
             except Exception as e:
                 logger.error(f"Error building {coll}: {e}")
                 if failures_out is not None:
-                    failures_out.append((coll, "*", "*", str(e)))
+                    failures_out.append((coll, "*", "*", e))
 
         return results
 

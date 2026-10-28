@@ -78,7 +78,7 @@ class CatalogQueryablesManager(CatalogManager):
         super().__init__(catalog_dir)
         self._catalog_url = catalog_url.rstrip("/")
         self.collections = list(collections) if collections is not None else list(DEFAULT_COLLECTIONS)
-        self.last_failures: list[tuple[str, str]] = []
+        self.last_failures: list[tuple[str, Exception]] = []
 
     def fetch(self, collection: str) -> dict[str, Any]:
         """
@@ -115,8 +115,14 @@ class CatalogQueryablesManager(CatalogManager):
         Download queryables for collections.
 
         A collection whose queryables cannot be fetched is logged and recorded in
-        ``self.last_failures`` as (collection, error); the others are still downloaded.
+        ``self.last_failures`` as (collection, exception); the others are still
+        downloaded. So is a collection MAAP does not know when collections is
+        None (all of them); one given explicitly raises.
+
+        Raises:
+            InvalidRequestError: If an explicitly given collection is unknown to MAAP
         """
+        explicit = collections is not None
         if collections is None:
             collections = self.collections
 
@@ -133,8 +139,14 @@ class CatalogQueryablesManager(CatalogManager):
 
             try:
                 data = self.fetch(collection)
+            except InvalidRequestError as e:
+                if explicit:
+                    raise
+                logger.error(f"[FAIL] {e}")
+                self.last_failures.append((collection, e))
+                continue
             except CatalogError as e:
-                self.last_failures.append((collection, str(e)))
+                self.last_failures.append((collection, e))
                 continue
             catalog = CatalogQueryables.from_dict(data)
             catalog.collection = collection

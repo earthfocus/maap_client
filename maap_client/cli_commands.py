@@ -37,7 +37,7 @@ def cmd_catalog_update(args: argparse.Namespace) -> int:
 
     collections = [args.collection] if args.collection else None
     out_dir = args.out_dir if hasattr(args, 'out_dir') and args.out_dir else None
-    failures: list[tuple[str, str]] = []
+    failures: list[tuple[str, Exception]] = []
     results = client.update_catalogs(
         collections=collections, force=True, out_dir=out_dir, failures_out=failures
     )
@@ -52,9 +52,16 @@ def cmd_catalog_update(args: argparse.Namespace) -> int:
         for coll, err in failures:
             print(f"  {coll}: {err}", file=sys.stderr)
         print("Re-run the same command to retry the failed collections.", file=sys.stderr)
-        return EXIT_TRANSIENT
+        return _failures_exit_code(err for _, err in failures)
 
     return 0
+
+
+def _failures_exit_code(errors) -> int:
+    """Exit code of recorded failures: 4 if one is an invalid request (retrying cannot help), else 3."""
+    if any(isinstance(err, InvalidRequestError) for err in errors):
+        return EXIT_NON_TRANSIENT
+    return EXIT_TRANSIENT
 
 
 def cmd_catalog_build(args: argparse.Namespace) -> int:
@@ -65,7 +72,7 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
     out_dir = args.out_dir if args.out_dir else None
 
     try:
-        failures: list[tuple[str, str, str, str]] = []
+        failures: list[tuple[str, str, str, Exception]] = []
         results = client.build_catalog(
             collection=args.collection,
             product_type=args.product,
@@ -89,7 +96,7 @@ def cmd_catalog_build(args: argparse.Namespace) -> int:
                 "(if a baseline was deleted on the server, use --force).",
                 file=sys.stderr,
             )
-            return EXIT_TRANSIENT
+            return _failures_exit_code(err for *_, err in failures)
 
         return 0
 
