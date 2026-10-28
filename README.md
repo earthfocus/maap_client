@@ -5,6 +5,7 @@
   <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/aeolus.png" alt="Aeolus" height="120">
   <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/biomass.png" alt="Biomass" height="120">
   <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/flex.png" alt="FLEX" height="120">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/cryosat.png" alt="CryoSat" height="120">
 </p>
 
 Mission patches © ESA
@@ -14,7 +15,7 @@ Mission patches © ESA
 A Python client for ESA MAAP satellite data, with a CLI (`maap`) and a Python library.
 It browses the MAAP catalogue, searches products by date, orbit or mission-specific
 filters, and downloads them with your MAAP credentials into a predictable dated layout,
-with text-file tracking for unattended pipelines. It supports EarthCARE, Aeolus, Biomass and FLEX.
+with text-file tracking for unattended pipelines. It supports EarthCARE, Aeolus, Biomass, FLEX and CryoSat.
 
 | Mission | Default format | Access |
 |---------|----------------|--------|
@@ -22,6 +23,7 @@ with text-file tracking for unattended pipelines. It supports EarthCARE, Aeolus,
 | Aeolus | `dbl` (then `nc`, `bufr`, `eef`) | MAAP offline token |
 | Biomass | `zip` (whole product) | MAAP offline token; `BiomassAuxRest` is restricted; L2b [not supported yet](EXAMPLES.md#not-supported-yet) |
 | FLEX | `zip` (whole product) | Download access must be requested from ESA; downloads [not yet validated](EXAMPLES.md#not-supported-yet) |
+| CryoSat | `nc` | MAAP offline token |
 
 The default format applies only when no `--format` is given. See
 [what is not supported yet](EXAMPLES.md#not-supported-yet) for current limitations.
@@ -113,8 +115,9 @@ maap state cleanup EarthCAREL1Validated_MAAP CPR_NOM_1B DA --dry-run
 
 Use `maap <command> -h` for every option. Filters depend on the mission
 (EarthCARE `--orbit`/`--frame`; Biomass `--track`, `--frame`, `--repeat-cycle`,
-`--major-cycle`; Aeolus and FLEX `--orbit`); a filter the mission does not have
-is rejected with the list of available ones.
+`--major-cycle`; Aeolus and FLEX `--orbit`; CryoSat `--orbit`; EarthCARE, Biomass and
+CryoSat also `--orbit-direction ascending|descending`, with search only); a filter the
+mission does not have is rejected with the list of available ones.
 
 ### Automation
 

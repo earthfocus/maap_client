@@ -4,21 +4,27 @@
 
 ### Added
 
-- Aeolus, Biomass and FLEX support next to EarthCARE: product-name parsing, data and
-  registry layout, search, download, `get`, `sync`, `state`, `list` and `catalog`.
+- Aeolus, Biomass, FLEX and CryoSat support next to EarthCARE: product-name parsing,
+  data and registry layout, search, download, `get`, `sync`, `state`, `list` and
+  `catalog`. CryoSat covers the Ice and Ocean L1/L2, CryoTEMPO and CryoTEMPO-EOLIS
+  collections; its products whose names give no usable sensing time are dated by the
+  archive day.
 - Mission selection: `--mission`, `MAAP_MISSION`, `maap mission list|use|show`, and
   `default_mission` / `[missions.<name>]` in `config.toml`. A collection or URL
   decides the mission on its own.
 - Mission filters declared per mission and generated as CLI options: EarthCARE
   `--frame` (letters A-H); Biomass `--track`, `--frame`, `--repeat-cycle`,
   `--major-cycle`. An option a mission lacks is a clear error.
+- `--orbit-direction ascending|descending` on EarthCARE, Biomass and CryoSat (search
+  only; MAAP `sat:orbit_state`).
 - `NO_BASELINE`: products without a baseline (Biomass `MPL_ORBPRE`, Aeolus aux types
   without catalogue version, FLEX aux types) are searched, downloaded, registered and
   tracked under the baseline folder `NO_BASELINE`.
 - `--format zip` / `all` / any extension, and `--product-dir` to keep each product's
   files in a folder named after it (required for Biomass individual files and for
   Aeolus `ALDUN1A_NC`).
-- Typed product names (`EarthCAREName`, `AeolusName`, `BiomassName`, `FlexName`) and
+- Typed product names (`EarthCAREName`, `AeolusName`, `BiomassName`, `FlexName`,
+  `CryoSatName`) and
   public per-field extractors in each mission module.
 
 ### Changed

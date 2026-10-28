@@ -4,7 +4,7 @@ Reference for the `maap` CLI and the Python library: configuration, missions, fo
 filters, on-disk layout and command examples. The [README](README.md) has the quickstart.
 
 Most examples use EarthCARE (`EarthCAREL0L1Products_MAAP`, `CPR_NOM_1B`); the mission
-sections show the Aeolus, Biomass and FLEX variants.
+sections show the Aeolus, Biomass, FLEX and CryoSat variants.
 
 ## Contents
 
@@ -138,6 +138,7 @@ maap catalog build --mission Aeolus
 | Aeolus | `AeolusBaseline16Products10`, `AeolusEOLProducts10`, `AeolusL2CProducts10`, `AeolusL0ProductsB16`, `AeolusAdditionalProducts` | 2018-08-22 → 2023-07-28 |
 | Biomass | `BiomassLevel0` … `BiomassLevel2bIOC`, `BiomassAux`, `BiomassAuxIOC`, `BiomassAuxRest`, `BiomassCalVal10`, `BiomassSimulated` (17) | 2010-01-01 → 2045-12-31 |
 | FLEX | `FLEXL0…Internal` … `FLEXL1AuxCCDBInternal`, `FLEXTestAuxProducts`, `FLEXTestL1Products`, `FLEXTestL2Products`, `FLEXTestRAWL0Products` (17) | 2016-08-01 → 2045-12-31 |
+| CryoSat | `CryoSatIceL110`, `CryoSatIceL210`, `CryoSatOceanL110`, `CryoSatOceanL210`, `CryoTEMPO10`, `CryoTEMPOEOLIS10` | 2010-07-16 → 2045-12-31 |
 
 ---
 
@@ -160,6 +161,7 @@ format it has from its mission's priority list:
 | Aeolus | `dbl` → `nc` → `bufr` → `eef` |
 | Biomass | `zip` |
 | FLEX | `zip` |
+| CryoSat | `nc` (every product has one; `--format hdr` for the XML header, `zip` for both) |
 
 `default_format` in `[missions.<Name>]` replaces the list with one format.
 
@@ -182,11 +184,16 @@ e.g. `--frame FRAME[,FRAME...]  EarthCARE: frame letter(s) A-H; Biomass: frame n
 | Aeolus | `--orbit` |
 | Biomass | `--orbit` (search only), `--track`, `--frame` (numbers), `--repeat-cycle`, `--major-cycle` (comma lists; zero padding accepted, e.g. `--track 038`) |
 | FLEX | `--orbit` (search only, absolute orbit) |
+| CryoSat | `--orbit` (search only, absolute orbit) |
+
+EarthCARE, Biomass and CryoSat also take `--orbit-direction ascending|descending` (comma
+list, any case), sent to MAAP as `sat:orbit_state`; search only.
 
 `search`, `get` and `sync` send the filters to MAAP. `download --registry` applies them
 offline to the registered file names:
 
-- `--orbit` is rejected for Biomass and FLEX (their names carry no absolute orbit), and
+- `--orbit-direction` is rejected (no name carries the orbit direction).
+- `--orbit` is rejected for Biomass, FLEX and CryoSat (their names carry no absolute orbit), and
   for Aeolus when the registry holds products whose names carry no orbit (e.g. `ALD_U_N_2B`).
 - Biomass `--track`/`--frame`/`--repeat-cycle`/`--major-cycle` work offline only for the
   documented types (L1a, L1b, L1c, L2a).
@@ -202,6 +209,9 @@ maap search BiomassLevel1b S1_DGM__1S --date 2025-12-11 --track 38 --frame 249,2
 
 # Aeolus: one day of L1B
 maap search AeolusBaseline16Products10 ALD_U_N_1B --date 2023-04-30
+
+# Orbit direction (EarthCARE, Biomass, CryoSat)
+maap search EarthCAREL1Validated_MAAP CPR_NOM_1B BA --date 2025-01-01 --orbit-direction descending
 ```
 
 ---
@@ -210,7 +220,8 @@ maap search AeolusBaseline16Products10 ALD_U_N_1B --date 2023-04-30
 
 ### Data
 
-Files mirror the archive, dated by the **sensing time** (first timestamp of the product name):
+Files mirror the archive, dated by the **sensing time** (first timestamp of the product name;
+the archive day for the CryoSat products dated by day, see [CryoSat](#cryosat)):
 
 ```
 data/{mission}/{collection}/{product}/{baseline}/YYYY/MM/DD/<file>
@@ -295,6 +306,10 @@ ECA_JXDA_CPR_NOM_1B_20241201T123456Z_20241201T135958Z_07282E.h5
                     ^^^^^^^^^^^^^^^^ sensing time
 ```
 
+Some CryoSat names give no usable sensing time (see [CryoSat](#cryosat)); those products
+are dated by the day folder of their URL or local path, and a range given with hours
+keeps every such product of the days it touches.
+
 ### Catalogs
 
 - **Queryables** (`catalogs/`): products and baselines of each collection, so `maap list`
@@ -376,6 +391,37 @@ maap search FLEXTestAuxProducts AUX_CCCRAD NO_BASELINE --date 2019-01-01
 maap list FLEXL1BEOProductsInternal
 ```
 
+### CryoSat
+
+- Names (L1b/L2, Ice and Ocean): `CS_<class>_<type>_<start>_<stop>_<baseline><version>`,
+  e.g. `CS_OFFL_SIR_LRM_2__20260831T235639_20260901T001237_F001`. The baseline is the
+  4 characters `E001`, `F001`, `D002`, … (the catalogue `version` and the archive folder),
+  never a single letter. Sources: [L1b](https://earth.esa.int/eogateway/documents/20142/37627/CryoSat-netCDF-L1b-Product-Format-Specification.pdf)
+  and [L2](https://earth.esa.int/eogateway/documents/20142/37627/CryoSat-netCDF-L2-Product-Format-Specification.pdf)
+  format specifications, [CryoTEMPO](https://earth.esa.int/eogateway/documents/20142/37627/CryoTEMPO-Thematic-Product-Handbook.pdf)
+  and [CryoTEMPO-EOLIS](https://earth.esa.int/eogateway/documents/20142/37627/CryoTempo-EOLIS-Product-Handbook.pdf) handbooks.
+- CryoTEMPO adds the region (`CS_OFFL_SIR_TDP_PO_ANTARC_<start>_<stop>_…_D001`);
+  CryoTEMPO-EOLIS names have zone, year and month only
+  (`CS_OFFL_THEM_POINT_ANTICESHF_2026_01_+1200000__-2000000__V201`).
+- Dated by day: EOLIS, the Snow Depth climatologies (`SIR_TDP_SD`, `CLIM…` names) and
+  Inland Water names dated days before the catalogue (`SIR_TDP_IW`) take the day of the
+  archive folder, which is the catalogue start day. Their download URL cannot be rebuilt
+  from a bare file name: use search or the registry.
+- `--orbit` and `--orbit-direction` work with search only. MAAP rejects `--orbit-direction`
+  on `CryoTEMPO10` and both on `CryoTEMPOEOLIS10` (exit 4 with the server message); the
+  whole-orbit `SIR_GDR_2_` items rarely have an orbit direction.
+- `L4_SIT_Open` (SMOS-CryoSat sea-ice thickness) is not supported: it is served by the
+  SMOS dissemination service, which does not accept the MAAP token.
+
+```bash
+maap search CryoSatIceL210 SIR_LRM_2_ F001 --date 2026-08-31
+maap search CryoSatIceL110 SIR_SAR_1B --orbit 86914
+maap get CryoSatIceL210 SIR_SIN_2_ F001 --date 2026-08-31 --orbit-direction ascending
+maap get CryoSatOceanL210 SIR_GOP_2_ D001 --date 2026-08-31 --format hdr
+maap search CryoTEMPO10 SIR_TDP_LI D001 --date 2026-06-30
+maap search CryoTEMPOEOLIS10 THEM_GRID_ V201 --date 2025-11-01
+```
+
 ---
 
 ## Not supported yet
@@ -386,9 +432,15 @@ maap list FLEXL1BEOProductsInternal
 - **FLEX downloads are not validated**: search, registry and name parsing are tested, but
   downloads return 403 until ESA grants access.
 - **`BiomassAuxRest`**: restricted download access (403 with standard accounts).
+- **`catalog build` of long-span products** finds no data: CryoSat `SIR_TDP_SD`
+  (multi-year climatologies) and `THEM_GRID_` (3-month grids), like the long-validity
+  Aeolus and FLEX AUX types. Search, registry, download and sync work.
+- **`L4_SIT_Open`** (SMOS-CryoSat L4): not part of the CryoSat mission (SMOS host, no
+  MAAP token access).
 - For product types without public naming documentation (Aeolus; EarthCARE X-MET, AUX,
   orbit and L0; Biomass L0, CalVal, Simulated and other AUX; FLEX L0, L1B, RAW, ANC, RAC,
-  AUX) only type, sensing start and baseline are read from the name.
+  AUX) only type, sensing start and baseline are read from the name. CryoSat Baseline F
+  follows the Baseline E grammar but has no published format specification.
 
 ---
 

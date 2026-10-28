@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "maap-client"
 version = "0.3.0"
-description = "Python client for ESA MAAP satellite data access (EarthCARE, Aeolus, Biomass, FLEX)"
+description = "Python client for ESA MAAP satellite data access (EarthCARE, Aeolus, Biomass, FLEX, CryoSat)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [
     {name = "Bernat"}
 ]
-keywords = ["esa", "maap", "earthcare", "aeolus", "biomass", "flex", "stac", "satellite", "remote-sensing"]
+keywords = ["esa", "maap", "earthcare", "aeolus", "biomass", "flex", "cryosat", "stac", "satellite", "remote-sensing"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
