@@ -667,19 +667,17 @@ class MaapClient:
 
         Parsed from the URL, not the filename: Aeolus keeps the baseline in
         the path, and Biomass inner files are not named after their product.
-        A URL without product type or sensing time goes to
-        result.permanent_errors (batch_download would silently skip it; a
-        retry cannot fix the name).
-
-        Raises:
-            InvalidRequestError: If the baseline of a URL cannot be read
+        A URL whose baseline, product type or sensing time cannot be read goes
+        to result.permanent_errors (it is never filed in a wrong folder; a
+        retry cannot fix the name) and the others are still downloaded.
         """
         urls_by_key: dict[tuple[str, str], list[str]] = {}
         for url in urls:
             filename = os.path.basename(url)
             parsed = parsed_urls[url]
             if parsed is None or parsed.baseline is None:
-                raise baseline_error(url, parsed)
+                result.permanent_errors.append(str(baseline_error(url, parsed)))
+                continue
             if not parsed.product_type:
                 result.permanent_errors.append(f"cannot parse product type from {filename}")
                 continue
@@ -724,13 +722,13 @@ class MaapClient:
 
         Raises:
             InvalidRequestError: On individual files that need product_dir (e.g.
-                                Biomass) without it, two different URLs
-                                sharing a local path, or (structured paths,
-                                also on a dry run) a URL whose baseline cannot
-                                be read
+                                Biomass) without it, or two different URLs
+                                sharing a local path
 
         Returns:
-            DownloadResult with downloaded paths, skipped, errors
+            DownloadResult with downloaded paths, skipped, errors (a URL
+            whose baseline, product type or sensing time cannot be read is
+            one of its permanent_errors, with the structured layout)
         """
         result = DownloadResult()
         start_time = time.time()

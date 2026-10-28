@@ -114,7 +114,9 @@ def filter_by_fields(
     of the accepted values, both compared in the canonical form of the
     filter's FilterSpec parser (e.g. "002" and 2 match track 2, "e" matches
     frame E). A blank field in the name (e.g. Biomass L2 ``C___``) matches
-    nothing.
+    nothing. A name carrying none of the fields is dropped on a mission whose
+    names carry their orbit and frame whenever they have one (orbit_offline
+    "all", e.g. EarthCARE orbit files), and is an error otherwise.
 
     Args:
         items: List of URLs or paths to filter
@@ -123,8 +125,9 @@ def filter_by_fields(
 
     Raises:
         ValueError: If a filter is not one of the mission's, a value is invalid,
-            or some items' product names carry none of the mission's filter fields
-            (undocumented grammar); the message names those product types.
+            or, on a mission whose names may simply not be documented, some
+            items' product names carry none of its filter fields; the message
+            names those product types.
     """
     if not filters:
         return items
@@ -142,7 +145,11 @@ def filter_by_fields(
     for item in items:
         parsed = mission.parse(item)
         if all(getattr(parsed, spec.attribute) is None for spec in specs.values()):
-            undocumented.add(parsed.product_type or parsed.product)
+            # Names that always carry their orbit and frame when they have one
+            # (orbit_offline "all", e.g. EarthCARE orbit files) are dropped,
+            # like filter_by_orbit drops names without an orbit
+            if mission.orbit_offline != "all":
+                undocumented.add(parsed.product_type or parsed.product)
             continue
         if all(
             _canonical_attribute(specs[option], getattr(parsed, specs[option].attribute)) in values
