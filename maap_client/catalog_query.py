@@ -9,8 +9,10 @@ from typing import Any, Optional
 import requests
 
 from maap_client.catalog import Catalog, CatalogManager
-from maap_client.constants import DEFAULT_CATALOG_URL, DEFAULT_COLLECTIONS, DEFAULT_CATALOG_DIR, DEFAULT_TIMEOUT
+from maap_client.config import MaapConfig
+from maap_client.constants import DEFAULT_CATALOG_URL, DEFAULT_CATALOG_DIR, DEFAULT_TIMEOUT
 from maap_client.exceptions import CatalogError
+from maap_client.mission_select import resolve_mission
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +68,22 @@ class CatalogQueryablesManager(CatalogManager):
         Args:
             catalog_url: Base URL for MAAP catalog
             catalog_dir: Directory for storing queryables JSON files
-            collections: Collections used when none are given (default: EarthCARE)
+            collections: Collections used when none are given (default: the
+                active mission's, resolved from the config when first needed)
         """
         super().__init__(catalog_dir)
         self._catalog_url = catalog_url.rstrip("/")
-        self._collections = list(collections) if collections is not None else DEFAULT_COLLECTIONS.copy()
+        self._collections = list(collections) if collections is not None else None
         self.last_failures: list[tuple[str, str]] = []
+
+    @property
+    def collections(self) -> list[str]:
+        """Collections given at construction, else the active mission's."""
+        if self._collections is None:
+            config = MaapConfig.load()
+            mission, _ = resolve_mission(None, [], None, config)
+            self._collections = config.effective_collections(mission.name)
+        return self._collections
 
     def fetch(self, collection: str) -> dict[str, Any]:
         """Fetch raw queryables JSON schema directly from MAAP STAC API."""
@@ -97,7 +109,7 @@ class CatalogQueryablesManager(CatalogManager):
         ``self.last_failures`` as (collection, error); the others are still downloaded.
         """
         if collections is None:
-            collections = self._collections
+            collections = self.collections
 
         self.last_failures = []
         results = {}
@@ -155,7 +167,7 @@ class CatalogQueryablesManager(CatalogManager):
     def list_downloaded(self) -> list[str]:
         """List collections that have local queryables files."""
         downloaded = []
-        for collection in self._collections:
+        for collection in self.collections:
             if self.get_path(collection).exists():
                 downloaded.append(collection)
         return downloaded

@@ -96,6 +96,12 @@ _DOCUMENTED = re.compile(
 # in its URL, its name or a catalogue `version`.
 NO_BASELINE_PRODUCTS = frozenset({"MPL_ORBPRE"})
 
+# Product types that hold one file by definition, so their files need no
+# --product-dir: MPL_ORBPRE is a mission planning orbit file, one EO CFI .EOF
+# file (EO CFI orbit file format). Types merely seen with one enclosure in a
+# sample of items are not declared: a sample is not a property.
+SINGLE_FILE_PRODUCTS = frozenset({"MPL_ORBPRE"})
+
 
 def _product(url: str) -> str:
     # Verified rule: the product directory is the segment after the YYYY/MM/DD
@@ -206,6 +212,8 @@ class _Biomass(Mission):
     )
     orbit_offline = "none"
     no_baseline_products = NO_BASELINE_PRODUCTS
+    files_need_product_dir = True
+    single_file_products = SINGLE_FILE_PRODUCTS
 
     def parse(self, url: str) -> BiomassName:
         return BiomassName(

@@ -52,8 +52,9 @@ COLLECTIONS = (
     "JAXAL2Validated_MAAP",
 )
 
-# Products that are deduplicated by (sensing_time, orbit_frame) at download time.
-# AUX_MET_1D has multiple versions per granule (different creation_time) in the STAC API.
+# Products that are deduplicated by (sensing_time, orbit_frame) at download time
+# (see EarthCARE.dedup_pattern). AUX_MET_1D has multiple versions per granule
+# (different creation_time) in the STAC API.
 DEDUP_PRODUCTS = frozenset({"AUX_MET_1D"})
 
 # Products that don't have orbit/frame indexed in STAC metadata
@@ -137,7 +138,6 @@ class _EarthCARE(Mission):
     filters = (FilterSpec("frame", "frame letter(s) A-H", parse_frames, "frame", "frame"),)
     orbit_frame_letter = True
     orbit_offline = "all"
-    dedup_products = DEDUP_PRODUCTS
     no_orbit_products = NO_ORBIT_PRODUCTS
 
     def parse(self, url: str) -> EarthCAREName:
@@ -173,6 +173,19 @@ class _EarthCARE(Mission):
             f"{DATA_URL}/{info.product_type}/{info.baseline}"
             f"/{dt.year:04d}/{dt.month:02d}/{dt.day:02d}/{stem}/{stem}/{name}"
         )
+
+    def dedup_pattern(self, filename: str) -> Optional[str]:
+        """
+        Glob of the other versions of a DEDUP_PRODUCTS granule: same sensing
+        time and orbit_frame, any creation time and any extension (so h5 and
+        hdr stay on the same version).
+        """
+        info = self.parse(filename)
+        if info.product_type not in DEDUP_PRODUCTS or info.sensing_time is None:
+            return None
+        sensing_str = info.sensing_time.strftime("%Y%m%dT%H%M%SZ")
+        orbit_frame = info.orbit_frame
+        return f"*_{sensing_str}_*_{orbit_frame}.*" if orbit_frame else f"*_{sensing_str}_*.*"
 
 
 EARTHCARE = _EarthCARE()

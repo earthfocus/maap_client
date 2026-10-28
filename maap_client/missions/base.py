@@ -160,9 +160,12 @@ class Mission:
     # "all" (names without one are dropped), "some" (such names are rejected),
     # "none" (--orbit only works with search)
     orbit_offline: Literal["all", "some", "none"]
-    dedup_products: frozenset[str] = frozenset()
     no_orbit_products: frozenset[str] = frozenset()
     no_baseline_products: frozenset[str] = frozenset()
+    # individual files need --product-dir (their names repeat across and within
+    # products), except the product types declared to hold a single file
+    files_need_product_dir: bool = False
+    single_file_products: frozenset[str] = frozenset()
 
     def available_filters(self) -> tuple[str, ...]:
         """Filter options of the mission: orbit, then its declared filters."""
@@ -188,4 +191,8 @@ class Mission:
 
     def data_url(self, filename: str) -> Optional[str]:
         """Rebuild the download URL from a filename, or None when not derivable."""
+        return None
+
+    def dedup_pattern(self, filename: str) -> Optional[str]:
+        """Glob of the other versions of the same granule, or None when versions are not deduplicated."""
         return None

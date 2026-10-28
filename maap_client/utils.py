@@ -6,6 +6,11 @@ from typing import Optional
 from maap_client.missions.base import parse_frames  # noqa: F401  (re-exported)
 
 
+def normalize_format(value: str) -> str:
+    """Canonical format token, as --format and default_format take it: " .H5 " -> "h5"."""
+    return value.strip().lower().lstrip(".")
+
+
 def to_zulu(dt: datetime) -> str:
     """Convert datetime to ISO 8601 Zulu format (UTC with Z suffix)."""
     if dt.tzinfo is None:

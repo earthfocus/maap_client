@@ -10,10 +10,9 @@ import requests
 
 from maap_client.auth import TokenManager, get_auth_headers
 from maap_client.constants import DEFAULT_CHUNK_SIZE, DEFAULT_MISSION
-from maap_client.missions.earthcare import EARTHCARE
 from maap_client.exceptions import BatchDownloadAborted, DownloadError
+from maap_client.missions import mission_for_filename
 from maap_client.paths import (
-    extract_orbit_frame,
     extract_sensing_time,
     generate_data_path,
     local_relpath,
@@ -222,13 +221,11 @@ class DownloadManager:
                     on_download(url, output_path)
                 continue
 
-            # For DEDUP_PRODUCTS, skip if a different version of this granule
-            # already exists (same sensing_time + orbit_frame, different stem).
-            # Checks any extension so h5 and hdr stay on the same version.
-            if skip_existing and product_type in EARTHCARE.dedup_products:
-                orbit_frame = extract_orbit_frame(filename)
-                sensing_str = dt.strftime("%Y%m%dT%H%M%SZ")
-                pattern = f"*_{sensing_str}_*_{orbit_frame}.*" if orbit_frame else f"*_{sensing_str}_*.*"
+            # Skip if a different version of this granule already exists
+            # (the URL's mission gives the glob of its other versions).
+            mission = mission_for_filename(url)
+            pattern = mission.dedup_pattern(filename) if skip_existing and mission else None
+            if pattern:
                 date_dir = output_path.parent.parent if self._product_dir else output_path.parent
                 our_stem = Path(filename).stem
                 other_version = [

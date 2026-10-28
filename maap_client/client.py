@@ -29,7 +29,7 @@ from maap_client.filters import (
 )
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
-from maap_client.missions import BIOMASS, Mission, get_mission, mission_for_filename, parse_product
+from maap_client.missions import Mission, get_mission, mission_for_filename, parse_product
 from maap_client.paths import (
     extract_baseline,
     is_zip_url,
@@ -39,7 +39,7 @@ from maap_client.paths import (
 from maap_client.registry import Registry
 from maap_client.types import DownloadResult, SearchResult, SyncResult
 from maap_client.utils import normalize_time_range as _normalize_time_range
-from maap_client.utils import parse_datetime, to_zulu
+from maap_client.utils import normalize_format, parse_datetime, to_zulu
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +102,7 @@ class MaapClient:
                 mission_start=self._config.mission_start,
                 mission_end=self._config.mission_end,
                 default_formats=self._config.default_formats,
+                mission=self._config.mission,
             )
         return self._searcher
 
@@ -137,25 +138,49 @@ class MaapClient:
 
     # === VALIDATION ===
 
-    _BIOMASS_FILES_MESSAGE = (
-        "Biomass individual files need --product-dir: names repeat across and within products"
-    )
+    @staticmethod
+    def _product_dir_error(mission: Mission) -> InvalidRequestError:
+        return InvalidRequestError(
+            f"{mission.name} individual files need --product-dir: names repeat across and within products"
+        )
 
-    def _check_biomass_format(self, format: Optional[str], product_dir: bool) -> None:
+    def _check_product_dir_format(
+        self, product_type: str, format: Optional[str], product_dir: bool
+    ) -> None:
         """
-        Reject individual Biomass files without product_dir before any search.
+        Reject individual files that need product_dir, before any search.
 
-        The effective format is the explicit one, else the configured default
-        list; anything but ``zip`` selects individual files.
+        The configured mission's files need it when it declares
+        files_need_product_dir and product_type is not one of its
+        single_file_products. The effective format is the explicit one, else
+        the configured default list; anything but ``zip`` selects individual
+        files.
 
         Raises:
-            InvalidRequestError: Biomass, a non-zip format and no product_dir
+            InvalidRequestError: Individual files that need product_dir, without it
         """
-        if product_dir or self._config.mission != BIOMASS.name:
+        mission = self.mission
+        if product_dir or not mission.files_need_product_dir:
             return
-        formats = (format.strip().lower().lstrip("."),) if format else self._config.default_formats
+        if product_type in mission.single_file_products:
+            return
+        formats = (normalize_format(format),) if format else self._config.default_formats
         if any(f != "zip" for f in formats):
-            raise InvalidRequestError(self._BIOMASS_FILES_MESSAGE)
+            raise self._product_dir_error(mission)
+
+    @staticmethod
+    def _needs_product_dir(url: str) -> Optional[Mission]:
+        """
+        The URL's mission when the URL is an individual file that needs
+        product_dir (see Mission.files_need_product_dir), else None. A product
+        type that cannot be read from the URL needs it; a zip never does.
+        """
+        mission = mission_for_filename(url)
+        if mission is None or not mission.files_need_product_dir or is_zip_url(url):
+            return None
+        if mission.parse(url).product_type in mission.single_file_products:
+            return None
+        return mission
 
     def _check_download_layout(
         self,
@@ -167,29 +192,31 @@ class MaapClient:
         """
         Reject a batch whose files cannot each get their own local path.
 
-        Individual Biomass files need product_dir (their names repeat across
-        and within products); a zip does not. As a defensive check, two
-        different URLs mapping to one local path fail the run instead of one
-        of them being skipped as already downloaded.
+        Individual files of a mission that declares files_need_product_dir
+        need product_dir (their names repeat across and within products),
+        unless their product type is one of its single_file_products; a zip
+        does not. As a defensive check, two different URLs mapping to one
+        local path fail the run instead of one of them being skipped as
+        already downloaded.
 
         Raises:
-            InvalidRequestError: On an individual Biomass file without
-                product_dir, a URL with unsafe path segments (``..``), or two
+            InvalidRequestError: On an individual file that needs product_dir
+                without it, a URL with unsafe path segments (``..``), or two
                 different URLs sharing a local path
         """
-        if not product_dir and any(
-            mission_for_filename(url) is BIOMASS and not is_zip_url(url) for url in urls
-        ):
-            raise InvalidRequestError(self._BIOMASS_FILES_MESSAGE)
+        if not product_dir:
+            for url in urls:
+                if mission := self._needs_product_dir(url):
+                    raise self._product_dir_error(mission)
 
         seen: dict[Path, str] = {}
         for url in dict.fromkeys(urls):
             try:
-                local_relpath(url, product_dir)
+                relpath = local_relpath(url, product_dir)
             except ValueError as e:
                 raise InvalidRequestError(str(e)) from e
             if out_dir:
-                path = out_dir / local_relpath(url, product_dir)
+                path = out_dir / relpath
             else:
                 path = url_to_local_path(
                     url, self._config.data_dir, self._config.mission, collection, product_dir
@@ -739,8 +766,9 @@ class MaapClient:
             product_dir: If True, place each file inside a folder named after its product
 
         Raises:
-            InvalidRequestError: On individual Biomass files without product_dir,
-                                or two different URLs sharing a local path
+            InvalidRequestError: On individual files that need product_dir (e.g.
+                                Biomass) without it, or two different URLs
+                                sharing a local path
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
@@ -992,13 +1020,14 @@ class MaapClient:
             InvalidRequestError: If orbit is used with start/end, or start > end,
                                 or orbit already includes a frame letter while
                                 frames is also given, or a filter is not one of
-                                the mission's, or Biomass individual files
-                                are asked for without product_dir (before any search)
+                                the mission's, or individual files that need
+                                product_dir (e.g. Biomass) are asked for
+                                without it (before any search)
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
         """
-        self._check_biomass_format(format, product_dir)
+        self._check_product_dir_format(product_type, format, product_dir)
 
         # Search (validation happens inside search())
         search_result = self.search(
@@ -1072,15 +1101,16 @@ class MaapClient:
         Raises:
             InvalidRequestError: If start > end or datetimes not timezone-aware,
                                 or a filter is not one of the mission's, or
-                                Biomass individual files are asked for
-                                without product_dir (before any search)
+                                individual files that need product_dir (e.g.
+                                Biomass) are asked for without it (before any
+                                search)
 
         Returns:
             SyncResult with stats and tracker for post-sync operations
         """
         # Validate time range
         validate_time_range(start, end)
-        self._check_biomass_format(format, product_dir)
+        self._check_product_dir_format(product_type, format, product_dir)
         _, frames, filters = self._resolve_filters(None, frames, filters)
         extra = self._queryables(filters)
 

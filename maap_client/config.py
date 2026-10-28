@@ -21,6 +21,7 @@ from maap_client.constants import (
 )
 from maap_client.exceptions import InvalidRequestError
 from maap_client.missions import MISSIONS, get_mission
+from maap_client.utils import normalize_format
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def _config_formats(value: Any, where: str) -> tuple[str, ...]:
         raise InvalidRequestError(
             f"default_format must be a string or a list of strings (config.toml {where})"
         )
-    formats = tuple(v.strip().lower().lstrip(".") for v in values)
+    formats = tuple(map(normalize_format, values))
     if not all(formats):
         raise InvalidRequestError(f"default_format has an empty format (config.toml {where})")
     return formats

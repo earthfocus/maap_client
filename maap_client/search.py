@@ -45,6 +45,7 @@ from urllib3.util.retry import Retry
 
 from maap_client.constants import (
     DEFAULT_CATALOG_URL,
+    DEFAULT_MISSION,
     DEFAULT_MISSION_START,
     DEFAULT_MISSION_END,
     STAC_RETRY_ALLOWED_METHODS,
@@ -53,7 +54,7 @@ from maap_client.constants import (
     STAC_RETRY_TOTAL,
 )
 from maap_client.exceptions import AuthenticationError, CredentialsError
-from maap_client.missions.earthcare import NO_ORBIT_PRODUCTS
+from maap_client.missions import get_mission
 from maap_client.filters import filter_by_sensing_time, sort_by_sensing_time
 from maap_client.paths import (
     extract_sensing_time,
@@ -61,7 +62,13 @@ from maap_client.paths import (
     extract_info,
 )
 from maap_client.types import GranuleInfo
-from maap_client.utils import format_time_range, normalize_time_range, parse_datetime, to_stac_datetime
+from maap_client.utils import (
+    format_time_range,
+    normalize_format,
+    normalize_time_range,
+    parse_datetime,
+    to_stac_datetime,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +132,7 @@ class MaapSearcher:
         mission_start: Optional[str] = None,
         mission_end: Optional[str] = None,
         default_formats: tuple[str, ...] = ("h5", "eof", "dbl"),
+        mission: str = DEFAULT_MISSION,
     ):
         """Initialize MAAP searcher.
 
@@ -135,8 +143,10 @@ class MaapSearcher:
             mission_start: Mission start datetime (ISO 8601). Defaults to DEFAULT_MISSION_START.
             mission_end: Mission end datetime (ISO 8601). Defaults to DEFAULT_MISSION_END.
             default_formats: Format priority list used when a search gives no explicit format.
+            mission: Name of the mission searched (its products without orbit metadata).
         """
         self._default_formats = default_formats
+        self._mission = get_mission(mission)
         self._catalog_url = (catalog_url or DEFAULT_CATALOG_URL).rstrip("/") + "/"
         self._mission_start = mission_start or DEFAULT_MISSION_START
         self._mission_end = mission_end or DEFAULT_MISSION_END
@@ -220,7 +230,7 @@ class MaapSearcher:
     def _formats(self, format: Optional[str]) -> tuple[str, ...]:
         """Format priority list for a search: the explicit format alone, else the mission default."""
         if format:
-            return (format.strip().lower().lstrip("."),)
+            return (normalize_format(format),)
         return self._default_formats
 
     def _extract_enclosures(self, search, format: Optional[str] = None) -> list[str]:
@@ -645,7 +655,7 @@ class MaapSearcher:
             List of product URLs matching the orbit (and frames, if given)
         """
         # Check if product supports orbit/frame search
-        if product_type in NO_ORBIT_PRODUCTS:
+        if product_type in self._mission.no_orbit_products:
             logger.warning(
                 f"{product_type} does not have orbit/frame metadata indexed. "
                 f"Use --date or --start/--end instead."
