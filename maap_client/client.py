@@ -420,6 +420,22 @@ class MaapClient:
         # Return count and unique files
         return total_new_count, list(dict.fromkeys(all_files_written))
 
+    def _may_have_data(
+        self, collection: str, product_type: str, baseline: str, start: datetime, end: datetime
+    ) -> bool:
+        """
+        False when the server counts no item of the baseline in the range (one
+        fast request); True when it counts some, or the count fails
+        transiently (the day-by-day search then reports the failed days).
+        """
+        try:
+            return self.searcher.search_product_count(collection, product_type, baseline, start, end) > 0
+        except (AuthenticationError, CredentialsError, InvalidRequestError):
+            raise
+        except Exception as e:
+            logger.warning(f"Could not count {collection}/{product_type}/{baseline.upper()}: {e}")
+            return True
+
     def _baseline(self, product_type: str, baseline: Optional[str]) -> Optional[str]:
         """
         The baseline argument, NO_BASELINE in any case normalised.
@@ -1025,11 +1041,15 @@ class MaapClient:
         elif start and not end:
             end = now
 
-        # Discover baselines if not specified
+        # Discover baselines if not specified: the catalogue versions (and
+        # NO_BASELINE for a declared type) that have data in the range
         if baseline:
             baselines = [baseline]
         else:
-            baselines = self.list_baselines(collection, product_type, from_built=False)
+            baselines = [
+                bl for bl in self.list_baselines(collection, product_type, from_built=False)
+                if self._may_have_data(collection, product_type, bl, start, end)
+            ]
         result = SyncResult(collection=collection, product_type=product_type, baselines=baselines)
         if not baselines:
             logger.warning(f"No baselines found for {collection}/{product_type}")
