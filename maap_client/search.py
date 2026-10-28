@@ -35,12 +35,15 @@ Assumptions:
 - All MAAP STAC items have enclosure URLs, so matched() reflects downloadable count
 """
 
+import json
 import logging
 import os
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable, Iterator, Literal, Mapping, Optional, Sequence
 
 from pystac_client import Client
+from pystac_client.exceptions import APIError
 from pystac_client.stac_api_io import StacApiIO
 from urllib3.util.retry import Retry
 
@@ -55,7 +58,7 @@ from maap_client.constants import (
     STAC_RETRY_STATUS_FORCELIST,
     STAC_RETRY_TOTAL,
 )
-from maap_client.exceptions import AuthenticationError, CredentialsError
+from maap_client.exceptions import AuthenticationError, CredentialsError, InvalidRequestError
 from maap_client.missions import get_mission
 from maap_client.filters import filter_by_sensing_time, sort_by_sensing_time
 from maap_client.paths import (
@@ -104,6 +107,24 @@ def select_asset_urls(assets: Mapping[str, str], formats: Sequence[str]) -> list
         if selected:
             return selected
     return []
+
+
+@contextmanager
+def _rejected_as_invalid() -> Iterator[None]:
+    """
+    Turn a search MAAP rejects (HTTP 400, e.g. an unknown collection) into an
+    InvalidRequestError carrying the server's message; retrying cannot help.
+    """
+    try:
+        yield
+    except APIError as e:
+        if e.status_code != 400:
+            raise
+        try:
+            message = json.loads(str(e))["error"]["message"]
+        except (ValueError, KeyError, TypeError):
+            message = str(e)
+        raise InvalidRequestError(f"MAAP rejected the search: {message}") from e
 
 
 class LoggingRetry(Retry):
@@ -250,13 +271,14 @@ class MaapSearcher:
         """
         formats = self._formats(format)
         urls = []
-        for item in search.items():
-            assets = {key: asset.href for key, asset in item.assets.items()}
-            selected = select_asset_urls(assets, formats)
-            if selected:
-                urls.extend(selected)
-            else:
-                self.last_missing_format.append(item.id)
+        with _rejected_as_invalid():
+            for item in search.items():
+                assets = {key: asset.href for key, asset in item.assets.items()}
+                selected = select_asset_urls(assets, formats)
+                if selected:
+                    urls.extend(selected)
+                else:
+                    self.last_missing_format.append(item.id)
         return urls
 
     def _warn_missing_format(self) -> None:
@@ -359,7 +381,8 @@ class MaapSearcher:
             max_items=150,
         )
 
-        matched = search.matched()
+        with _rejected_as_invalid():
+            matched = search.matched()
         if matched is None or matched == 0:
             if verbose:
                 logger.info("  not found")
@@ -421,7 +444,8 @@ class MaapSearcher:
             method="GET",
             max_items=150,
         )
-        return search.matched() or 0
+        with _rejected_as_invalid():
+            return search.matched() or 0
 
     def search_baselines(
         self,
@@ -750,7 +774,7 @@ class MaapSearcher:
                 urls = self._clean_search_results(
                     search, day_start, day_end, format=format, baseline=baseline
                 )
-            except (AuthenticationError, CredentialsError):
+            except (AuthenticationError, CredentialsError, InvalidRequestError):
                 raise
             except Exception as e:
                 # Transport retries are exhausted: skip the day, keep the range.
@@ -801,7 +825,7 @@ class MaapSearcher:
                     urls = self._clean_search_results(
                         search, day_start, day_end, format=format, baseline=baseline
                     )
-                except (AuthenticationError, CredentialsError):
+                except (AuthenticationError, CredentialsError, InvalidRequestError):
                     raise
                 except Exception as e:
                     logger.warning(f"FAILED DAY (retry) {day_start.date().isoformat()}: {e}")
