@@ -4,7 +4,7 @@ Also validates the filter arguments.
 """
 
 import logging
-from datetime import datetime
+from datetime import date, datetime, timezone
 from typing import Optional, Union
 
 from maap_client.exceptions import InvalidRequestError
@@ -50,7 +50,9 @@ def filter_by_sensing_time(
     """
     Filter URLs/paths by sensing time within [start, end].
 
-    Items where sensing_time cannot be extracted are dropped.
+    Items where sensing_time cannot be extracted are dropped. Items whose
+    name gives only the sensing day (sensing_day_only) are kept when that
+    day lies within the UTC days of [start, end].
 
     Args:
         items: List of URLs or paths to filter
@@ -64,12 +66,25 @@ def filter_by_sensing_time(
         return items
     result = []
     for item in items:
-        sensing_time = _sensing_time(item)
-        if sensing_time is None:
+        parsed = parse_product(item)
+        if parsed is None or parsed.sensing_time is None:
             continue
-        if (start is None or start <= sensing_time) and (end is None or sensing_time <= end):
+        if parsed.sensing_day_only:
+            within = _within(parsed.sensing_time.date(), _utc_day(start), _utc_day(end))
+        else:
+            within = _within(parsed.sensing_time, start, end)
+        if within:
             result.append(item)
     return result
+
+
+def _utc_day(value: Optional[datetime]) -> Optional[date]:
+    return value.astimezone(timezone.utc).date() if value is not None else None
+
+
+def _within(value, start, end) -> bool:
+    """start <= value <= end, a None bound being open."""
+    return (start is None or start <= value) and (end is None or value <= end)
 
 
 def filter_by_orbit(items: list[str], orbit: Optional[int]) -> list[str]:

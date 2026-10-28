@@ -3,7 +3,7 @@
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Callable, Literal, Optional
 
 # Baseline of the products that have none (declared per mission in
@@ -15,7 +15,7 @@ NO_BASELINE = "NO_BASELINE"
 class ProductName:
     """Metadata read from a product filename or URL: the fields every mission can have."""
 
-    mission: str  # "ECA" | "AE" | "BIO" | "FLX"
+    mission: str  # "ECA" | "AE" | "BIO" | "FLX" | "CS"
     product: str  # product directory name (or file stem fallback)
     filename: str  # basename of the URL path
     product_type: Optional[str] = None
@@ -23,6 +23,9 @@ class ProductName:
     sensing_time: Optional[datetime] = None
     creation_time: Optional[datetime] = None
     orbit: Optional[int] = None  # absolute orbit, where the name carries it
+    # sensing_time holds only the day (midnight UTC): the mission read it from
+    # the archive day folder, not from the name; time filters compare it by day
+    sensing_day_only: bool = False
 
     @property
     def orbit_frame(self) -> Optional[str]:
@@ -95,6 +98,25 @@ def product_folder(path: str) -> Optional[str]:
     """Folder right after the YYYY/MM/DD day folders of a URL or local path, or None."""
     match = _DAY_FOLDER.search(path)
     return match.group(1) if match else None
+
+
+_DAY_TRIPLE = re.compile(r"/(\d{4})/(\d{2})/(\d{2})/")
+
+
+def day_folder(path: str) -> Optional[date]:
+    """
+    Day of the YYYY/MM/DD folders of a URL or local path, or None.
+
+    The last such triple counts: it is the day folder of both the archive
+    and the local layout, wherever the data directory itself lies.
+    """
+    triples = _DAY_TRIPLE.findall(path)
+    if not triples:
+        return None
+    try:
+        return date(*map(int, triples[-1]))
+    except ValueError:
+        return None
 
 
 def match_group(pattern: re.Pattern, text: str) -> Optional[str]:
