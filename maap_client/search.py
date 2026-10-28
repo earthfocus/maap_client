@@ -58,7 +58,7 @@ from maap_client.constants import (
     STAC_RETRY_TOTAL,
 )
 from maap_client.exceptions import AuthenticationError, CredentialsError, InvalidRequestError
-from maap_client.missions import NO_BASELINE, get_mission
+from maap_client.missions import NO_BASELINE, get_mission, parse_product
 from maap_client.filters import filter_by_sensing_time, sort_by_sensing_time
 from maap_client.paths import (
     extract_baseline,
@@ -106,6 +106,27 @@ def select_asset_urls(assets: Mapping[str, str], formats: Sequence[str]) -> list
         if selected:
             return selected
     return []
+
+
+def _product_key(url: str) -> str:
+    """The product a URL belongs to (the URL itself when its name cannot be parsed)."""
+    parsed = parse_product(url)
+    return parsed.product if parsed and parsed.product else url
+
+
+def _first_products(urls: list[str], max_items: int) -> list[str]:
+    """The URLs of the first max_items products, in order: max_items counts
+    products (STAC items), so the files of a product are never split."""
+    kept: set[str] = set()
+    result = []
+    for url in urls:
+        key = _product_key(url)
+        if key not in kept:
+            if len(kept) >= max_items:
+                continue
+            kept.add(key)
+        result.append(url)
+    return result
 
 
 @contextmanager
@@ -181,6 +202,8 @@ class MaapSearcher:
         self._client: Optional[Client] = None
         # Days skipped by the last day-by-day search, as (date, error) tuples.
         self.last_failed_days: list[tuple[date, str]] = []
+        # day ranges of the last search_urls_iter_day that await retry_failed_days
+        self.pending_retry: list[tuple[datetime, datetime]] = []
         # Ids of items skipped by the last search because no asset matched the format.
         self.last_missing_format: list[str] = []
 
@@ -652,11 +675,12 @@ class MaapSearcher:
             except (AuthenticationError, CredentialsError, InvalidRequestError):
                 raise
             except Exception as e:
-                logger.warning(f"Single search failed, searching day by day: {e}")
+                logger.warning(f"Single search (or its count) failed, searching day by day: {e}")
 
         if urls is None:
             urls = []
-            for day_urls in self.search_urls_iter_day(
+            products: set[str] = set()
+            days = self.search_urls_iter_day(
                 collection=collection,
                 product_type=product_type,
                 start=start,
@@ -667,19 +691,27 @@ class MaapSearcher:
                 format=format,
                 reverse=reverse,
                 extra=extra,
-            ):
-                room = max_items - len(urls)
-                if on_day and day_urls and room > 0:
-                    on_day(day_urls[:room])
+            )
+            for day_urls in days:
+                if on_day and day_urls and len(products) < max_items:
+                    on_day(day_urls)
                 urls.extend(day_urls)
-                # Stop at max_items unless failed days still await their retry pass
-                if len(urls) >= max_items and not self.last_failed_days:
+                products.update(map(_product_key, day_urls))
+                if len(products) >= max_items:
+                    # Enough products: skip the rest of the range, but still
+                    # retry the days that failed before them
+                    days.close()
+                    for recovered in self.retry_failed_days(
+                        collection, product_type, baseline, max_items, format, extra
+                    ):
+                        urls.extend(recovered)
+                    self._warn_missing_format()
                     break
             if verbose:
                 logger.info(f"Total: {len(urls)} URLs")
 
         # Sort before cutting: the server returns items in no particular order
-        return sort_by_sensing_time(urls, reverse=reverse)[:max_items]
+        return _first_products(sort_by_sensing_time(urls, reverse=reverse), max_items)
 
     def _search_range(
         self,
@@ -797,7 +829,8 @@ class MaapSearcher:
         start, end = self._resolve_time_range(start, end)
         self.last_failed_days = []
         self.last_missing_format = []
-        failed_ranges: list[tuple[datetime, datetime]] = []
+        # retried at the end, or by a caller that stops early (retry_failed_days)
+        self.pending_retry = failed_ranges = []
         total_days = (end.date() - start.date()).days + 1
 
         day_ranges = list(self._iter_day_ranges(start, end))
@@ -851,33 +884,50 @@ class MaapSearcher:
         # Second pass: retry each failed day once. By the time a long range
         # finishes, transient blips have usually passed; only days failing
         # both passes are reported.
-        if failed_ranges:
-            logger.info(f"Retrying {len(failed_ranges)} failed day(s)...")
-            self.last_failed_days = []
-            for day_start, day_end in failed_ranges:
-                datetime_arg = to_stac_datetime(day_start, day_end)
-                filter_str = self._build_filter(
-                    product_type, baseline=baseline, extra=extra
-                )
-                try:
-                    search = self.client.search(
-                        collections=[collection],
-                        filter=filter_str,
-                        filter_lang="cql2-text",
-                        datetime=datetime_arg,
-                        method="GET",
-                        max_items=max_items,
-                    )
-                    urls = self._clean_search_results(
-                        search, day_start, day_end, format=format, baseline=baseline
-                    )
-                except (AuthenticationError, CredentialsError, InvalidRequestError):
-                    raise
-                except Exception as e:
-                    logger.warning(f"FAILED DAY (retry) {day_start.date().isoformat()}: {e}")
-                    self.last_failed_days.append((day_start.date(), str(e)))
-                    continue
-                logger.info(f"Recovered day {day_start.date().isoformat()}")
-                yield urls
-
+        yield from self.retry_failed_days(
+            collection, product_type, baseline, max_items, format, extra
+        )
         self._warn_missing_format()
+
+    def retry_failed_days(
+        self,
+        collection: str,
+        product_type: str,
+        baseline: Optional[str] = None,
+        max_items: int = 50000,
+        format: Optional[str] = None,
+        extra: Optional[dict[str, list[str]]] = None,
+    ) -> Iterator[list[str]]:
+        """
+        Retry once each day of pending_retry (the days search_urls_iter_day
+        failed), yielding the URLs of each recovered day. last_failed_days
+        then holds only the days that failed again.
+        """
+        failed_ranges, self.pending_retry = self.pending_retry, []
+        if not failed_ranges:
+            return
+        logger.info(f"Retrying {len(failed_ranges)} failed day(s)...")
+        self.last_failed_days = []
+        for day_start, day_end in failed_ranges:
+            datetime_arg = to_stac_datetime(day_start, day_end)
+            filter_str = self._build_filter(product_type, baseline=baseline, extra=extra)
+            try:
+                search = self.client.search(
+                    collections=[collection],
+                    filter=filter_str,
+                    filter_lang="cql2-text",
+                    datetime=datetime_arg,
+                    method="GET",
+                    max_items=max_items,
+                )
+                urls = self._clean_search_results(
+                    search, day_start, day_end, format=format, baseline=baseline
+                )
+            except (AuthenticationError, CredentialsError, InvalidRequestError):
+                raise
+            except Exception as e:
+                logger.warning(f"FAILED DAY (retry) {day_start.date().isoformat()}: {e}")
+                self.last_failed_days.append((day_start.date(), str(e)))
+                continue
+            logger.info(f"Recovered day {day_start.date().isoformat()}")
+            yield urls

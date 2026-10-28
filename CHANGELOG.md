@@ -35,8 +35,9 @@
 - A download URL whose baseline cannot be read is an error of that URL (exit 4 at
   the end); the other URLs are still downloaded. `sync` and `search --registry-save`
   still stop before registering it.
-- `download --max-items` caps the new files downloaded (it was ignored); day-by-day
-  searches cap `--max-items` in total.
+- `download --max-items` caps the new files downloaded (it was ignored). For
+  `search`/`get`/`sync`, `--max-items` counts whole products over the range (never
+  splitting a product's files), taken after sorting by sensing time.
 - A long range of a sparse product is searched in one paged request instead of day
   by day; `sync` without a baseline walks only the baselines with data in the range.
 - `catalog build`, `list --verify` and `sync` skip the collection-wide catalogue
