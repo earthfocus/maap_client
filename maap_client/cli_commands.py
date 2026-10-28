@@ -237,8 +237,9 @@ def cmd_search(args: argparse.Namespace) -> int:
         return classify_exit_code(e)
 
     # Save to registry if requested. When on_day already saved incrementally
-    # (long ranges), this final call covers only leftovers from the ≤10-day
-    # and orbit paths where on_day never fires; combine both into one summary
+    # (day-by-day ranges), this final call covers only leftovers from the
+    # single-request (≤10 days or sparse) and orbit paths where on_day never
+    # fires; combine both into one summary
     # so the incremental saves aren't hidden behind a stale "no new URLs".
     if registry_save and urls:
         try:

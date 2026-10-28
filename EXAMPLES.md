@@ -381,8 +381,8 @@ maap list FLEXL1BEOProductsInternal
 ## Not supported yet
 
 - **Biomass L2b** (`FP_FH__L2B`, `FP_FD__L2B`, `FP_AGB_L2B`; collections `BiomassLevel2b`,
-  `BiomassLevel2bIOC`, empty today): the names carry no time, so they are rejected
-  ("no sensing time").
+  `BiomassLevel2bIOC`, empty today): the names carry no time, so time searches skip them
+  and downloads reject them ("no sensing time").
 - **FLEX downloads are not validated**: search, registry and name parsing are tested, but
   downloads return 403 until ESA grants access.
 - **`BiomassAuxRest`**: restricted download access (403 with standard accounts).

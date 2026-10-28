@@ -397,8 +397,8 @@ def check_download_layout(
     need product_dir (their names repeat across and within products),
     unless their product type is one of its single_file_products; a zip
     does not. In the structured layout, an individual file not named after
-    its product needs product_dir too (state mark and list --verify read the
-    product from the local path). As a defensive check, two different URLs
+    its product needs product_dir too (state mark reads the product from the
+    local path). As a defensive check, two different URLs
     mapping to one local path fail the run instead of one of them being
     skipped as already downloaded.
 

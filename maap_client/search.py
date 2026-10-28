@@ -24,11 +24,12 @@ Performance:
     1-10 days: ~2.6s/day
     30 days: ~3.1s/day
     180 days: ~5.7s/day
-- For large ranges, day-by-day searching is ~2x faster than a single API call.
+- For large ranges, day-by-day searching is ~2x faster than a single API call
+  for dense products; a sparse product (at most one item per day on average,
+  from a numberMatched count of ~0.5s) is fetched in one paged search instead.
 
-Product-specific:
-- AUX_MET_1D: Not searchable by orbit/frame (fields not indexed)
-- AUX_MET_1D: Has multiple versions per granule; deduplication is handled at download time
+Product-specific rules (types not indexed by orbit, deduplicated versions,
+types without baseline) are declared by each mission in maap_client.missions.
 
 Assumptions:
 - All MAAP STAC items have enclosure URLs, so matched() reflects downloadable count

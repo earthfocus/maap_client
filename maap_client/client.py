@@ -502,8 +502,9 @@ class MaapClient:
         Search for product URLs.
 
         Supports both time-based and orbit-based search (mutually exclusive).
-        For time ranges > 10 days, automatically uses day-by-day iteration
-        internally for reliability.
+        Time ranges over 10 days are searched day by day for reliability,
+        except for a product that is sparse in the range (see
+        MaapSearcher.search_urls).
 
         Args:
             collection: Collection name
