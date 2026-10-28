@@ -313,6 +313,7 @@ def cmd_download(args: argparse.Namespace) -> int:
                 verbose=getattr(args, 'verbose', 0) >= 1,
                 product_dir=getattr(args, 'product_dir', False),
                 reverse=getattr(args, 'newest_first', False),
+                max_items=args.max_items,
             )
 
         # Download from single URL
@@ -347,6 +348,7 @@ def cmd_download(args: argparse.Namespace) -> int:
                 verbose=getattr(args, 'verbose', 0) >= 1,
                 product_dir=getattr(args, 'product_dir', False),
                 reverse=getattr(args, 'newest_first', False),
+                max_items=args.max_items,
             )
 
         else:

@@ -643,6 +643,7 @@ class MaapClient:
         verbose: bool = False,
         product_dir: bool = False,
         reverse: bool = False,
+        max_items: Optional[int] = None,
     ) -> DownloadResult:
         """
         Download files from URLs.
@@ -659,6 +660,8 @@ class MaapClient:
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
             product_dir: If True, place each file inside a folder named after its product
+            max_items: Download at most this many files, in order, skipping
+                (and not counting) the files already on disk when skip_existing
 
         Raises:
             InvalidRequestError: On individual files that need product_dir (e.g.
@@ -684,6 +687,10 @@ class MaapClient:
 
         if reverse:
             urls = sort_by_sensing_time(urls, reverse=True)
+        if max_items is not None:
+            if skip_existing:
+                urls = [url for url in urls if not (local_paths[url] and local_paths[url].exists())]
+            urls = urls[:max_items]
 
         # Structured paths group by product/baseline (flat --out-dir needs
         # neither); done before the dry run so it lists what a real run downloads
@@ -777,6 +784,7 @@ class MaapClient:
         orbit: Optional[str] = None,
         frames: Optional[list[str]] = None,
         filters: Optional[dict[str, FilterValues]] = None,
+        max_items: Optional[int] = None,
     ) -> DownloadResult:
         """
         Download files from registry.
@@ -799,6 +807,7 @@ class MaapClient:
             frames: Optional frame letters to filter registry URLs by
             filters: Mission filters (option -> values) matched against the
                   product names of the registry URLs
+            max_items: Download at most this many files (see download)
 
         Raises:
             InvalidRequestError: If start > end, datetimes not timezone-aware, or
@@ -832,6 +841,7 @@ class MaapClient:
             verbose=verbose,
             product_dir=product_dir,
             reverse=reverse,
+            max_items=max_items,
         )
 
     def get(

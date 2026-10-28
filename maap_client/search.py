@@ -637,9 +637,12 @@ class MaapSearcher:
                 frames=frames,
                 extra=extra,
             ):
+                day_urls = day_urls[: max_items - len(urls)]
                 urls.extend(day_urls)
                 if on_day and day_urls:
                     on_day(day_urls)
+                if len(urls) >= max_items:
+                    break
             if verbose:
                 logger.info(f"Total: {len(urls)} URLs")
 
