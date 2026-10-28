@@ -31,18 +31,21 @@ The trailing ``<B><vvv>`` / ``<VNNN>`` is the baseline: it equals the item's
 
 Meaning of sensing_time:
 
-    name start on the URL's day folder ... the name's first timestamp (validity
+    names with a start ................... the name's first timestamp (validity
                                             start; equals the item's
                                             start_datetime within 1 s, up to
                                             16 min earlier for GDR and
                                             CryoTEMPO PO/SI, same day)
-    otherwise, with a day folder ......... that day at midnight UTC, with
-                                            sensing_day_only (EOLIS, SD
-                                            climatologies, and IW names
-                                            dated up to 12 days before the
-                                            item's start_datetime)
-    bare filename ........................ the name's first timestamp, or
-                                            None (EOLIS, SD)
+    IW names off their day folder ........ that day at midnight UTC, with
+                                            sensing_day_only (names dated up
+                                            to 12 days before the item's
+                                            start_datetime)
+    EOLIS, SD climatologies .............. the day folder at midnight UTC, with
+                                            sensing_day_only; None for a bare
+                                            filename
+
+Only these names defer to the day folder, so a correctly dated name never
+takes the day of a folder the user chose (e.g. ``--out-dir /x/2025/10/20``).
 
 The archive day folder is the day of the item's start_datetime for every
 fixture item. No creation time or absolute orbit is in the names.
@@ -86,9 +89,12 @@ _SENSING = re.compile(r"_(\d{8}T\d{6})_")
 _REGION = re.compile(
     r"^CS_.{4}_(?:SIR_TDP_.{2}_([A-Z]{6})|THEM_(?:POINT_|GRID__)([A-Z_]{9}))_", re.IGNORECASE
 )
+# Verified rule: the only type whose name start can fall days before the
+# item's start_datetime (and archive day folder)
+_SHIFTED_NAME_PRODUCTS = frozenset({"SIR_TDP_IW"})
 # Names whose day is not always the archive day folder (IW) or that have no
 # acquisition time (SD climatologies, EOLIS): their URL is not derivable
-_NO_DATA_URL_PRODUCTS = frozenset({"SIR_TDP_IW", "SIR_TDP_SD", "THEM_GRID_", "THEM_POINT_"})
+_NO_DATA_URL_PRODUCTS = _SHIFTED_NAME_PRODUCTS | {"SIR_TDP_SD", "THEM_GRID_", "THEM_POINT_"}
 
 
 @dataclass(frozen=True)
@@ -112,6 +118,8 @@ def _named_sensing_time(name_or_url: str) -> Optional[datetime]:
 def _sensing(name_or_url: str) -> tuple[Optional[datetime], bool]:
     """(sensing_time, sensing_day_only): the name's time, else the day folder's day."""
     named = _named_sensing_time(name_or_url)
+    if named is not None and extract_product_type(name_or_url) not in _SHIFTED_NAME_PRODUCTS:
+        return named, False
     day = day_folder(name_or_url)
     if day is not None and (named is None or named.date() != day):
         return datetime(day.year, day.month, day.day, tzinfo=timezone.utc), True
