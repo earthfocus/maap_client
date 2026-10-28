@@ -417,6 +417,19 @@ class MaapClient:
         # Return count and unique files
         return total_new_count, list(dict.fromkeys(all_files_written))
 
+    def _baseline(self, product_type: str, baseline: Optional[str]) -> Optional[str]:
+        """
+        The baseline argument, NO_BASELINE in any case normalised.
+
+        Raises:
+            InvalidRequestError: NO_BASELINE for a product type the mission
+                does not declare without baseline (it would match nothing)
+        """
+        baseline = normalize_baseline(baseline)
+        if baseline == NO_BASELINE and product_type not in self.mission.no_baseline_products:
+            raise InvalidRequestError(f"{product_type} has baselines: {NO_BASELINE} is only for products without one")
+        return baseline
+
     def load_from_registry(
         self,
         collection: str,
@@ -436,7 +449,7 @@ class MaapClient:
             end: Optional end datetime filter
 
         Raises:
-            InvalidRequestError: If start > end
+            InvalidRequestError: If start > end, or NO_BASELINE is given for a product type with baselines
 
         Returns:
             List of URLs
@@ -446,7 +459,7 @@ class MaapClient:
 
         # Discover baselines from registry if not specified
         if baseline:
-            baselines = [normalize_baseline(baseline)]
+            baselines = [self._baseline(product_type, baseline)]
         else:
             baselines = registry_baselines(
                 self._config.registry_dir, self._config.mission, collection, product_type
@@ -518,14 +531,15 @@ class MaapClient:
             InvalidRequestError: If orbit is used with start/end, or start > end,
                                 or datetimes are not timezone-aware, or orbit already
                                 includes a frame letter while frames is also given,
-                                or a filter is not one of the mission's
+                                or a filter is not one of the mission's, or
+                                NO_BASELINE is given for a product type with baselines
 
         Returns:
             SearchResult with urls and metadata
         """
         # Validate parameters
         validate_time_range(start, end, orbit)
-        baseline = normalize_baseline(baseline)
+        baseline = self._baseline(product_type, baseline)
         orbit_num, resolved_frames, filters = resolve_filter_args(self.mission, orbit, frames, filters)
         extra = filter_queryables(self.mission, filters)
 
@@ -814,7 +828,8 @@ class MaapClient:
                                 orbit already includes a frame letter while frames
                                 is also given, or orbit is given for a mission whose
                                 names carry no absolute orbit, or a filter is not one
-                                of the mission's or cannot be read from the names
+                                of the mission's or cannot be read from the names, or
+                                NO_BASELINE is given for a product type with baselines
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
@@ -890,7 +905,8 @@ class MaapClient:
                                 frames is also given, or a filter is not one of
                                 the mission's, or individual files that need
                                 product_dir (e.g. Biomass) are asked for
-                                without it (before any search)
+                                without it (before any search), or
+                                NO_BASELINE is given for a product type with baselines
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
@@ -974,14 +990,15 @@ class MaapClient:
                                 individual files that need product_dir (e.g.
                                 Biomass) are asked for without it (before any
                                 search), or the baseline of a URL found cannot
-                                be read (before it is registered)
+                                be read (before it is registered), or
+                                NO_BASELINE is given for a product type with baselines
 
         Returns:
             SyncResult with stats and tracker for post-sync operations
         """
         # Validate time range
         validate_time_range(start, end)
-        baseline = normalize_baseline(baseline)
+        baseline = self._baseline(product_type, baseline)
         self._check_product_dir_format(product_type, format, product_dir)
         _, frames, filters = resolve_filter_args(self.mission, None, frames, filters)
         extra = filter_queryables(self.mission, filters)
