@@ -63,16 +63,6 @@ def parse_filter_values(value: str) -> list[str]:
     return values
 
 
-def __getattr__(name: str):
-    # parse_frames moved to the EarthCARE module (the only mission with frame
-    # letters); still importable from here. Imported lazily: earthcare imports base.
-    if name == "parse_frames":
-        from maap_client.missions.earthcare import parse_frames
-
-        return parse_frames
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
 def split_product_url(url: str) -> tuple[str, str]:
     """
     Split a product URL into (product, relative path inside the product).

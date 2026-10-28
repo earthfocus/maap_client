@@ -4,9 +4,8 @@ import logging
 from datetime import datetime
 from typing import Optional, Union
 
-from maap_client.constants import DEFAULT_MISSION
 from maap_client.exceptions import InvalidRequestError
-from maap_client.missions import get_mission, parse_product
+from maap_client.missions import parse_product
 from maap_client.missions.base import FilterSpec, Mission
 from maap_client.utils import has_orbit_letter, parse_orbit, timezone_is_aware
 
@@ -218,54 +217,17 @@ def validate_time_range(
         )
 
 
-def normalize_frames(frames: Optional[list[str]], mission: Optional[Mission] = None) -> Optional[list[str]]:
-    """
-    Validate and canonicalize a list of frame letters with the frame FilterSpec
-    of the mission (default: DEFAULT_MISSION, EarthCARE).
-
-    Used for the frame letters of orbits (resolve_orbit_frames).
-
-    Returns:
-        None if frames is None/empty, otherwise the uppercased, validated list.
-
-    Raises:
-        InvalidRequestError: If the mission has no frame filter, or any entry
-            is not a frame letter of the mission (EarthCARE: A-H).
-    """
-    if not frames:
-        return None
-    mission = mission or get_mission(DEFAULT_MISSION)
-    spec = next((spec for spec in mission.filters if spec.option == "frame"), None)
-    if spec is None:
-        raise InvalidRequestError(_unknown_option_message(mission, "frame"))
-    try:
-        return spec.parse(",".join(frames))
-    except ValueError as e:
-        raise InvalidRequestError(str(e)) from e
-
-
-def resolve_orbit_frames(
-    orbit: Optional[str],
-    frames: Optional[list[str]],
-    mission: Optional[Mission] = None,
-) -> tuple[Optional[int], Optional[list[str]]]:
-    """
-    Parse a dual-form orbit spec and merge with a frames list.
-
-    '01525E' -> (1525, ['E']); '1525' -> (1525, frames).
-
-    Raises:
-        InvalidRequestError: If the orbit is malformed, a frame is invalid,
-                             or the orbit includes a frame letter while
-                             frames is also given.
-    """
-    return _merge_orbit_letter(orbit, normalize_frames(frames, mission))
-
-
 def _merge_orbit_letter(
     orbit: Optional[str], frames: Optional[list[str]]
 ) -> tuple[Optional[int], Optional[list[str]]]:
-    """resolve_orbit_frames for frames already in canonical form."""
+    """
+    Parse a dual-form orbit spec and merge it with canonical frame letters:
+    '01525E' -> (1525, ['E']); '1525' -> (1525, frames).
+
+    Raises:
+        InvalidRequestError: If the orbit is malformed, or includes a frame
+            letter while frames is also given
+    """
     if not orbit:
         return None, frames
     try:
