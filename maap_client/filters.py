@@ -106,6 +106,10 @@ def _unknown_option_message(mission: Mission, option: str) -> str:
     )
 
 
+def _search_only_message(option: str) -> str:
+    return f"{option_flag(option)} only works with search"
+
+
 def _canonical_attribute(spec: FilterSpec, value: object) -> Optional[str]:
     """A ProductName attribute in the canonical form of spec.parse.
 
@@ -139,7 +143,8 @@ def filter_by_fields(
         mission: Mission whose filters and parser apply
 
     Raises:
-        ValueError: If a filter is not one of the mission's, a value is invalid,
+        ValueError: If a filter is not one of the mission's or works with
+            search only, a value is invalid,
             or, on a mission whose names may simply not be documented, some
             items' product names carry none of its filter fields; the message
             names those product types.
@@ -150,6 +155,10 @@ def filter_by_fields(
     for option in filters:
         if option not in specs:
             raise ValueError(_unknown_option_message(mission, option))
+        if specs[option].attribute is None:
+            raise ValueError(_search_only_message(option))
+    # filters read from the names; search-only ones (no attribute) never get here
+    specs = {option: spec for option, spec in specs.items() if spec.attribute}
 
     accepted = {
         option: set(specs[option].parse(",".join(str(value) for value in values)))
@@ -254,7 +263,7 @@ def resolve_filters(
         orbit: Orbit spec ('1525' or '01525E'), or None
         filters: Filter option (e.g. "track") -> values
         registry: True for offline (registry) filtering, where the orbit
-            must be readable from the product names
+            and filters must be readable from the product names
 
     Returns:
         (orbit number or None, filter option -> canonical values) without
@@ -263,8 +272,9 @@ def resolve_filters(
     Raises:
         InvalidRequestError: On an option the mission does not have, a
             malformed value or orbit, an orbit frame letter on a mission
-            without them or together with a "frame" filter, or a registry orbit on a
-            mission whose names carry no absolute orbit.
+            without them or together with a "frame" filter, a registry orbit on a
+            mission whose names carry no absolute orbit, or a registry filter
+            that works with search only (e.g. --orbit-direction).
     """
     given = {option: _value_list(values) for option, values in (filters or {}).items()}
     given = {option: values for option, values in given.items() if values}
@@ -272,6 +282,8 @@ def resolve_filters(
     for option in given:
         if option not in specs:
             raise InvalidRequestError(_unknown_option_message(mission, option))
+        if registry and specs[option].attribute is None:
+            raise InvalidRequestError(_search_only_message(option))
     orbit_num, orbit_letter = _parse_orbit(orbit)
     if orbit_letter and not mission.orbit_frame_letter:
         raise InvalidRequestError(

@@ -24,6 +24,7 @@ from datetime import datetime
 from typing import Optional
 
 from maap_client.missions.base import (
+    ORBIT_DIRECTION,
     FilterSpec,
     Mission,
     ProductName,
@@ -154,7 +155,10 @@ class _EarthCARE(Mission):
     start = "2024-05-28T00:00:00Z"
     end = "2045-12-31T23:59:59Z"
     default_formats = ("h5", "eof", "dbl")
-    filters = (FilterSpec("frame", "frame letter(s) A-H", parse_frames, "frame", "frame"),)
+    filters = (
+        FilterSpec("frame", "frame letter(s) A-H", parse_frames, "frame", "frame"),
+        ORBIT_DIRECTION,
+    )
     orbit_frame_letter = True
     orbit_offline = "all"
     no_orbit_products = NO_ORBIT_PRODUCTS

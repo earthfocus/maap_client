@@ -42,6 +42,7 @@ from functools import lru_cache
 from typing import Optional
 
 from maap_client.missions.base import (
+    ORBIT_DIRECTION,
     FilterSpec,
     Mission,
     ProductName,
@@ -211,6 +212,7 @@ class _Biomass(Mission):
     end = "2045-12-31T23:59:59Z"
     default_formats = ("zip",)
     # MAAP queryables; offline values come from the T/F/C/M fields of the name
+    # (the orbit direction, in no name, works with search only)
     filters = (
         FilterSpec("track", "track number(s)", parse_filter_values, "track", "track"),
         FilterSpec("frame", "frame number(s)", parse_filter_values, "frame", "frame"),
@@ -218,6 +220,7 @@ class _Biomass(Mission):
                    "eofeos:repeat_cycle_id", "repeat_cycle"),
         FilterSpec("major_cycle", "major cycle number(s)", parse_filter_values,
                    "eofeos:major_cycle_id", "major_cycle"),
+        ORBIT_DIRECTION,
     )
     orbit_offline = "none"
     no_baseline_products = NO_BASELINE_PRODUCTS

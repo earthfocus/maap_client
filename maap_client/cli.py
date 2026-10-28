@@ -88,6 +88,14 @@ def add_filter_options(group) -> None:
         group.add_argument(option_flag(option), metavar=f"{metavar}[,{metavar}...]", help=help_text)
 
 
+class _NotAnOption(argparse.Action):
+    """An option a command does not have, declared so argparse does not take it as
+    an abbreviation of a longer one (--orbit of --orbit-direction)."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        parser.error(f"unrecognized arguments: {option_string}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build and return the argument parser."""
     parser = argparse.ArgumentParser(
@@ -477,6 +485,8 @@ Notes:
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
     )
     add_filter_options(sync_parser)
+    # sync walks days: no --orbit
+    sync_parser.add_argument("--orbit", action=_NotAnOption, help=argparse.SUPPRESS)
     sync_parser.add_argument(
         "--max-items",
         "-n",

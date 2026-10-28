@@ -55,6 +55,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from maap_client.missions.base import (
+    ORBIT_DIRECTION,
     Mission,
     ProductName,
     day_folder,
@@ -165,6 +166,7 @@ class _CryoSat(Mission):
     start = "2010-07-16T00:00:00Z"
     end = "2045-12-31T23:59:59Z"
     default_formats = ("nc",)
+    filters = (ORBIT_DIRECTION,)
     orbit_offline = "none"
 
     def parse(self, url: str) -> CryoSatName:

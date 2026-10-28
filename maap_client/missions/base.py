@@ -44,7 +44,9 @@ class FilterSpec:
     help: str  # this mission's values, e.g. "frame letter(s) A-H"
     parse: Callable[[str], list[str]]  # comma list -> canonical values; raises ValueError
     queryable: str  # e.g. "track", "eofeos:repeat_cycle_id"
-    attribute: str  # attribute of the mission's ProductName, for offline (registry) filtering
+    # attribute of the mission's ProductName, for offline (registry) filtering;
+    # None: not in product names, search only
+    attribute: Optional[str]
 
 
 def parse_filter_values(value: str) -> list[str]:
@@ -68,6 +70,35 @@ def parse_filter_values(value: str) -> list[str]:
             values.append(unpadded)
     return values
 
+
+_ORBIT_DIRECTIONS = ("ascending", "descending")
+
+
+def parse_orbit_directions(value: str) -> list[str]:
+    """
+    Parse comma-separated orbit directions into the lower-case STAC values.
+
+    Example: " Ascending, descending" -> ["ascending", "descending"].
+    Duplicates are removed, first-seen order is kept.
+
+    Raises:
+        ValueError: If any entry is not ascending or descending.
+    """
+    directions: list[str] = []
+    for part in value.split(","):
+        direction = part.strip().lower()
+        if direction not in _ORBIT_DIRECTIONS:
+            raise ValueError(f"invalid value '{part.strip()}': must be ascending or descending")
+        if direction not in directions:
+            directions.append(direction)
+    return directions
+
+
+# Shared by the missions whose catalogue fills sat:orbit_state; no product name
+# carries it, so it works with search only
+ORBIT_DIRECTION = FilterSpec(
+    "orbit_direction", "ascending/descending", parse_orbit_directions, "sat:orbit_state", None
+)
 
 def split_product_url(url: str) -> tuple[str, str]:
     """
