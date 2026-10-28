@@ -276,7 +276,6 @@ class MaapSearcher:
         product_type: str,
         baseline: Optional[str] = None,
         orbit: Optional[int] = None,
-        frames: Optional[list[str]] = None,
         extra: Optional[dict[str, list[str]]] = None,
     ) -> str:
         """
@@ -294,12 +293,6 @@ class MaapSearcher:
             parts.append(f"productVersion = '{baseline}'")
         if orbit is not None:
             parts.append(f"orbitNumber = {orbit}")
-        if frames:
-            if len(frames) == 1:
-                parts.append(f"frame = '{frames[0]}'")
-            else:
-                frame_list = ", ".join(f"'{f}'" for f in frames)
-                parts.append(f"frame IN ({frame_list})")
         for queryable, values in (extra or {}).items():
             if not values:
                 continue
@@ -579,7 +572,6 @@ class MaapSearcher:
         verbose: bool = False,
         format: Optional[str] = None,
         reverse: bool = False,
-        frames: Optional[list[str]] = None,
         on_day: Optional[Callable[[list[str]], None]] = None,
         extra: Optional[dict[str, list[str]]] = None,
     ) -> list[str]:
@@ -593,7 +585,6 @@ class MaapSearcher:
 
         Args:
             reverse: If True, return URLs sorted newest-first by sensing time.
-            frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
             on_day: Called with each day's URLs as found (day-by-day path only).
                 Durability hook for incremental persistence.
             extra: Mission queryables -> accepted values (see _build_filter).
@@ -606,7 +597,7 @@ class MaapSearcher:
         start, end = self._resolve_time_range(start, end)
 
         period_days = (end - start).days
-        filter_str = self._build_filter(product_type, baseline=baseline, frames=frames, extra=extra)
+        filter_str = self._build_filter(product_type, baseline=baseline, extra=extra)
 
         # Single API call for short ranges (≤10 days) and sparse products
         if period_days <= 10 or self._matched(collection, filter_str, start, end) <= period_days:
@@ -640,7 +631,6 @@ class MaapSearcher:
                 verbose=verbose,
                 format=format,
                 reverse=reverse,
-                frames=frames,
                 extra=extra,
             ):
                 day_urls = day_urls[: max_items - len(urls)]
@@ -661,7 +651,6 @@ class MaapSearcher:
         collection: str,
         product_type: str,
         orbit: int,
-        frames: Optional[list[str]] = None,
         baseline: Optional[str] = None,
         max_items: int = 100,
         verbose: bool = False,
@@ -669,16 +658,15 @@ class MaapSearcher:
         extra: Optional[dict[str, list[str]]] = None,
     ) -> list[str]:
         """
-        Search for product URLs by orbit number, optionally restricted to frames.
+        Search for product URLs by orbit number, optionally restricted by
+        mission queryables (e.g. EarthCARE frames).
 
         Args:
             orbit: Absolute orbit number (e.g. 1525)
-            frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
-                    None searches all frames of the orbit.
             extra: Mission queryables -> accepted values (see _build_filter).
 
         Returns:
-            List of product URLs matching the orbit (and frames, if given)
+            List of product URLs matching the orbit (and extra, if given)
         """
         # Check if product supports orbit/frame search
         if product_type in self._mission.no_orbit_products:
@@ -690,12 +678,14 @@ class MaapSearcher:
 
         if verbose:
             bl_str = f"/{baseline}" if baseline else ""
-            frames_str = f" frames {','.join(frames)}" if frames else ""
-            logger.info(f"Searching {collection} {product_type}{bl_str} orbit {orbit}{frames_str}...")
+            extra_str = "".join(
+                f" {name} {','.join(values)}" for name, values in (extra or {}).items()
+            )
+            logger.info(
+                f"Searching {collection} {product_type}{bl_str} orbit {orbit}{extra_str}..."
+            )
 
-        filter_str = self._build_filter(
-            product_type, baseline=baseline, orbit=orbit, frames=frames, extra=extra
-        )
+        filter_str = self._build_filter(product_type, baseline=baseline, orbit=orbit, extra=extra)
         logger.debug(f"Searching with filter: {filter_str}")
 
         search = self.client.search(
@@ -724,7 +714,6 @@ class MaapSearcher:
         verbose: bool = False,
         format: Optional[str] = None,
         reverse: bool = False,
-        frames: Optional[list[str]] = None,
         extra: Optional[dict[str, list[str]]] = None,
     ) -> Iterator[list[str]]:
         """
@@ -737,7 +726,6 @@ class MaapSearcher:
 
         Args:
             reverse: If True, iterate days from end to start (newest first).
-            frames: Optional frame letters to restrict to (e.g. ['C', 'D']).
             extra: Mission queryables -> accepted values (see _build_filter).
 
         Yields:
@@ -755,7 +743,7 @@ class MaapSearcher:
         for i, (day_start, day_end) in enumerate(day_ranges):
             datetime_arg = to_stac_datetime(day_start, day_end)
             filter_str = self._build_filter(
-                product_type, baseline=baseline, frames=frames, extra=extra
+                product_type, baseline=baseline, extra=extra
             )
             try:
                 search = self.client.search(
@@ -806,7 +794,7 @@ class MaapSearcher:
             for day_start, day_end in failed_ranges:
                 datetime_arg = to_stac_datetime(day_start, day_end)
                 filter_str = self._build_filter(
-                    product_type, baseline=baseline, frames=frames, extra=extra
+                    product_type, baseline=baseline, extra=extra
                 )
                 try:
                     search = self.client.search(

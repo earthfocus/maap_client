@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 from maap_client.exceptions import InvalidRequestError
 from maap_client.filters import (  # noqa: F401  (re-exported)
     filter_by_fields,
-    filter_by_orbit_frame,
+    filter_by_orbit,
     filter_by_sensing_time,
     sort_by_sensing_time,
 )

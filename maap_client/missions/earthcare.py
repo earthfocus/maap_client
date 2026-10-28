@@ -82,7 +82,7 @@ def parse_frames(value: str) -> list[str]:
     for part in value.split(","):
         frame = part.strip().upper()
         if len(frame) != 1 or not "A" <= frame <= "H":
-            raise ValueError(f"invalid frame '{part.strip()}': must be letters A-H")
+            raise ValueError(f"invalid value '{part.strip()}': must be letters A-H")
         if frame not in frames:
             frames.append(frame)
     return frames

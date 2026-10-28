@@ -133,28 +133,21 @@ def parse_orbit(value: str) -> tuple[int, Optional[str]]:
     """
     Parse an orbit spec in dual form.
 
-    '1525' or '01525' -> (1525, None); '01525E' -> (1525, 'E').
+    '1525' or '01525' -> (1525, None); '01525E' -> (1525, 'E'). Whether a
+    mission takes a frame letter, and which, is checked by
+    filters.resolve_filters against the mission's frame filter.
 
     Raises:
-        ValueError: If the value is not digits optionally followed by
-                    a frame letter A-H.
+        ValueError: If the value is not digits optionally followed by one letter.
     """
     orbit_str = value.strip().upper()
     frame: Optional[str] = None
     if orbit_str and orbit_str[-1].isalpha():
         frame = orbit_str[-1]
         orbit_str = orbit_str[:-1]
-        if not "A" <= frame <= "H":
-            raise ValueError(f"invalid frame letter '{frame}' in orbit '{value.strip()}': must be A-H")
     if not orbit_str.isdigit():
         raise ValueError(
             f"invalid orbit '{value.strip()}': expected digits with optional frame letter "
             f"(e.g. '1525' or '01525E')"
         )
     return int(orbit_str), frame
-
-
-def has_orbit_letter(value: str) -> bool:
-    """True for an orbit spec of digits followed by one letter ('01525E', '1525X')."""
-    orbit_str = value.strip()
-    return orbit_str[:-1].isdigit() and orbit_str[-1:].isalpha()

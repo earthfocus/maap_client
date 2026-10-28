@@ -10,7 +10,7 @@ from typing import Optional, Union
 from maap_client.exceptions import InvalidRequestError
 from maap_client.missions import parse_product
 from maap_client.missions.base import FilterSpec, Mission
-from maap_client.utils import has_orbit_letter, parse_orbit, timezone_is_aware
+from maap_client.utils import parse_orbit, timezone_is_aware
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +20,9 @@ def _sensing_time(item: str) -> Optional[datetime]:
     return parsed.sensing_time if parsed else None
 
 
-def _orbit_frame(item: str) -> Optional[str]:
+def _orbit(item: str) -> Optional[int]:
     parsed = parse_product(item)
-    return parsed.orbit_frame if parsed else None
+    return parsed.orbit if parsed else None
 
 
 def sort_by_sensing_time(items: list[str], reverse: bool = False) -> list[str]:
@@ -72,44 +72,16 @@ def filter_by_sensing_time(
     return result
 
 
-def filter_by_orbit_frame(
-    items: list[str],
-    orbit: Optional[int] = None,
-    frames: Optional[list[str]] = None,
-) -> list[str]:
+def filter_by_orbit(items: list[str], orbit: Optional[int]) -> list[str]:
     """
-    Filter URLs/paths by orbit number and/or frame letters (from filename).
+    Filter URLs/paths by the absolute orbit read from their names.
 
-    Items where orbit/frame cannot be extracted are dropped, mirroring
-    filter_by_sensing_time. Frame letters must be uppercase (canonical
-    form from the mission's frame FilterSpec).
-
-    Args:
-        items: List of URLs or paths to filter
-        orbit: Optional orbit number to match. None means no orbit constraint.
-        frames: Optional list of frame letters to match. None/empty means
-                no frame constraint.
-
-    Returns:
-        Filtered list of items
+    Items whose orbit cannot be read are dropped, mirroring
+    filter_by_sensing_time. None means no orbit constraint.
     """
-    if orbit is None and not frames:
+    if orbit is None:
         return items
-    result = []
-    for item in items:
-        orbit_frame = _orbit_frame(item)
-        if orbit_frame is None:
-            continue
-        if orbit_frame[-1].isalpha():
-            item_orbit, item_frame = int(orbit_frame[:-1]), orbit_frame[-1]
-        else:
-            item_orbit, item_frame = int(orbit_frame), None
-        if orbit is not None and item_orbit != orbit:
-            continue
-        if frames and item_frame not in frames:
-            continue
-        result.append(item)
-    return result
+    return [item for item in items if _orbit(item) == orbit]
 
 
 def _unknown_option_message(mission: Mission, option: str) -> str:
@@ -225,31 +197,6 @@ def validate_time_range(
         )
 
 
-def _merge_orbit_letter(
-    orbit: Optional[str], frames: Optional[list[str]]
-) -> tuple[Optional[int], Optional[list[str]]]:
-    """
-    Parse a dual-form orbit spec and merge it with canonical frame letters:
-    '01525E' -> (1525, ['E']); '1525' -> (1525, frames).
-
-    Raises:
-        InvalidRequestError: If the orbit is malformed, or includes a frame
-            letter while frames is also given
-    """
-    if not orbit:
-        return None, frames
-    try:
-        orbit_num, orbit_letter = parse_orbit(orbit)
-    except ValueError as e:
-        raise InvalidRequestError(str(e)) from e
-    if orbit_letter and frames:
-        raise InvalidRequestError(
-            f"--frame cannot be used when --orbit already includes a frame letter; "
-            f"use --orbit {orbit_num} --frame {','.join(frames)}"
-        )
-    return orbit_num, [orbit_letter] if orbit_letter else frames
-
-
 def option_flag(option: str) -> str:
     """CLI flag of a filter option: "repeat_cycle" -> "--repeat-cycle"."""
     return "--" + option.replace("_", "-")
@@ -288,7 +235,8 @@ def resolve_filters(
     The only validation of the filter options of the CLI and the API. Values
     may be str (a comma list) or int, alone or in a list, and are parsed by
     the mission's FilterSpec. The frame letter of an orbit ('01525E') is
-    merged into the "frame" filter on missions with orbit_frame_letter.
+    parsed by the "frame" FilterSpec and becomes the "frame" filter, on
+    missions with orbit_frame_letter.
 
     Args:
         mission: Mission the request is for
@@ -313,32 +261,46 @@ def resolve_filters(
     for option in given:
         if option not in specs:
             raise InvalidRequestError(_unknown_option_message(mission, option))
-    if orbit and not mission.orbit_frame_letter and has_orbit_letter(orbit):
+    orbit_num, orbit_letter = _parse_orbit(orbit)
+    if orbit_letter and not mission.orbit_frame_letter:
         raise InvalidRequestError(
             f"{mission.name} orbits take no frame letter: --orbit {orbit.strip()}"
         )
-    if orbit and registry and mission.orbit_offline == "none":
+    if orbit_num is not None and registry and mission.orbit_offline == "none":
         raise InvalidRequestError(
             f"{mission.name} product names carry no absolute orbit: --orbit only works with search"
         )
 
     resolved: dict[str, list[str]] = {}
     for option, values in given.items():
-        try:
-            resolved[option] = specs[option].parse(",".join(str(value) for value in values))
-        except ValueError as e:
-            # prefixed with the flag unless the parser's message already names
-            # the option (e.g. "invalid frame 'X': must be letters A-H")
-            message = str(e)
-            if not message.startswith(f"invalid {option} "):
-                message = f"{option_flag(option)}: {message}"
-            raise InvalidRequestError(message) from e
-    # the "frame" values are already canonical (parsed by the frame FilterSpec above)
-    letters = resolved.get("frame") if mission.orbit_frame_letter else None
-    orbit_num, letters = _merge_orbit_letter(orbit, letters)
-    if letters:
-        resolved["frame"] = letters
+        resolved[option] = _parse_values(specs[option], values, option_flag(option))
+    if orbit_letter:
+        if "frame" in resolved:
+            raise InvalidRequestError(
+                f"--frame cannot be used when --orbit already includes a frame letter; "
+                f"use --orbit {orbit_num} --frame {','.join(resolved['frame'])}"
+            )
+        flag = f"--orbit {orbit.strip()}"
+        resolved["frame"] = _parse_values(specs["frame"], [orbit_letter], flag)
     return orbit_num, resolved
+
+
+def _parse_orbit(orbit: Optional[str]) -> tuple[Optional[int], Optional[str]]:
+    """parse_orbit of an orbit spec, or (None, None) without one."""
+    if not orbit:
+        return None, None
+    try:
+        return parse_orbit(orbit)
+    except ValueError as e:
+        raise InvalidRequestError(str(e)) from e
+
+
+def _parse_values(spec: FilterSpec, values: list, flag: str) -> list[str]:
+    """spec.parse of the values; a malformed one is an InvalidRequestError naming flag."""
+    try:
+        return spec.parse(",".join(str(value) for value in values))
+    except ValueError as e:
+        raise InvalidRequestError(f"{flag}: {e}") from e
 
 
 def resolve_filter_args(
@@ -347,20 +309,17 @@ def resolve_filter_args(
     frames: Optional[list[str]],
     filters: Optional[dict[str, FilterValues]],
     registry: bool = False,
-) -> tuple[Optional[int], Optional[list[str]], Optional[dict[str, list[str]]]]:
+) -> tuple[Optional[int], Optional[dict[str, list[str]]]]:
     """
     resolve_filters for the client API, where ``frames`` is an alias of ``filters["frame"]``.
 
     Returns:
-        (orbit number, frame letters of orbits, other filters): on missions
-        with orbit_frame_letter the "frame" filter is returned apart, for
-        the searcher's frames and the offline orbit/frame filter.
+        (orbit number or None, filter option -> canonical values or None)
     """
     if not (orbit or frames or filters):
-        return None, None, None
+        return None, None
     orbit_num, resolved = resolve_filters(mission, orbit, merge_frames(frames, filters), registry)
-    letters = resolved.pop("frame", None) if mission.orbit_frame_letter else None
-    return orbit_num, letters, resolved or None
+    return orbit_num, resolved or None
 
 
 def filter_queryables(
@@ -378,12 +337,11 @@ def filter_registry_urls(
     urls: list[str],
     mission: Mission,
     orbit: Optional[int],
-    frames: Optional[list[str]],
     filters: Optional[dict[str, list[str]]],
 ) -> list[str]:
     """
-    Filter registry URLs offline by orbit, frame letters and mission filters
-    read from their product names (arguments as resolve_filter_args returns them).
+    Filter registry URLs offline by orbit and mission filters read from
+    their product names (arguments as resolve_filter_args returns them).
 
     Raises:
         InvalidRequestError: If orbit is given and some names of a mission
@@ -394,7 +352,7 @@ def filter_registry_urls(
         # Names that carry the orbit only sometimes (Aeolus L0/L1 ms
         # timestamps): reject the others instead of silently dropping them.
         # With "all" orbit-less names (EarthCARE AUX_CC*, AUX_ORBPRE,
-        # MPL_ORBSCT) are dropped by filter_by_orbit_frame.
+        # MPL_ORBSCT) are dropped by filter_by_orbit.
         orbitless = sorted({
             parsed.product_type or parsed.product
             for parsed in map(mission.parse, urls)
@@ -405,10 +363,10 @@ def filter_registry_urls(
                 f"Cannot filter by orbit offline: the product names of {', '.join(orbitless)} "
                 f"do not carry the orbit; use search instead"
             )
-    if orbit is not None or frames:
+    if orbit is not None:
         total = len(urls)
-        urls = filter_by_orbit_frame(urls, orbit=orbit, frames=frames)
-        logger.info(f"{len(urls)} of {total} registry URLs match the orbit/frame filter")
+        urls = filter_by_orbit(urls, orbit)
+        logger.info(f"{len(urls)} of {total} registry URLs match the orbit filter")
     if filters:
         total = len(urls)
         try:

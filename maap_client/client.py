@@ -547,9 +547,7 @@ class MaapClient:
         # Validate parameters
         validate_time_range(start, end, orbit)
         baseline = self._baseline(product_type, baseline)
-        orbit_num, resolved_frames, filters = resolve_filter_args(
-            self.mission, orbit, frames, filters
-        )
+        orbit_num, filters = resolve_filter_args(self.mission, orbit, frames, filters)
         extra = filter_queryables(self.mission, filters)
 
         # Orbit-based search
@@ -564,7 +562,6 @@ class MaapClient:
                 collection=collection,
                 product_type=product_type,
                 orbit=orbit_num,
-                frames=resolved_frames,
                 baseline=baseline,
                 max_items=max_items,
                 verbose=verbose,
@@ -599,7 +596,6 @@ class MaapClient:
             verbose=verbose,
             format=format,
             reverse=reverse,
-            frames=resolved_frames,
             on_day=on_day,
             extra=extra,
         )
@@ -837,7 +833,7 @@ class MaapClient:
             orbit: Optional orbit spec to filter registry URLs by ('1525' or
                   '01525E'); if it already includes a frame letter, frames must
                   be omitted
-            frames: Optional frame letters to filter registry URLs by
+            frames: Alias of filters['frame'] (see search())
             filters: Mission filters (option -> values) matched against the
                   product names of the registry URLs
             max_items: Download at most this many files (see download)
@@ -853,7 +849,7 @@ class MaapClient:
         Returns:
             DownloadResult with downloaded paths, skipped, errors
         """
-        orbit_num, resolved_frames, filters = resolve_filter_args(
+        orbit_num, filters = resolve_filter_args(
             self.mission, orbit, frames, filters, registry=True
         )
         # Validate time range (done inside load_from_registry)
@@ -864,7 +860,7 @@ class MaapClient:
             start=start,
             end=end,
         )
-        urls = filter_registry_urls(urls, self.mission, orbit_num, resolved_frames, filters)
+        urls = filter_registry_urls(urls, self.mission, orbit_num, filters)
         return self.download(
             urls=urls,
             collection=collection,
@@ -915,7 +911,7 @@ class MaapClient:
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
             format: 'zip', 'all' or a file extension (default: the mission's format priority list)
-            frames: Optional frame letters to restrict the search to
+            frames: Alias of filters['frame'] (see search())
             filters: Mission filters, option -> values (see search())
 
         Raises:
@@ -997,8 +993,7 @@ class MaapClient:
             max_items: Maximum items to sync
             verbose: Print progress messages
             format: 'zip', 'all' or a file extension (default: the mission's format priority list)
-            frames: Optional frame letters to restrict the sync to (state is
-                   per-URL, so filtered syncs are safe)
+            frames: Alias of filters['frame'] (see search())
             max_consecutive_failures: Forwarded to batch_download; abort a baseline's batch after this many consecutive failures (None = never).
             filters: Mission filters, option -> values (see search()); state is
                    per-URL, so filtered syncs are safe
@@ -1019,7 +1014,7 @@ class MaapClient:
         validate_time_range(start, end)
         baseline = self._baseline(product_type, baseline)
         self._check_product_dir_format(product_type, format, product_dir)
-        _, frames, filters = resolve_filter_args(self.mission, None, frames, filters)
+        _, filters = resolve_filter_args(self.mission, None, frames, filters)
         extra = filter_queryables(self.mission, filters)
 
         # Default time range: last 3 days
@@ -1064,7 +1059,6 @@ class MaapClient:
                     verbose=verbose,
                     format=format,
                     reverse=reverse,
-                    frames=frames,
                     extra=extra,
                 ):
                     if day_urls:
