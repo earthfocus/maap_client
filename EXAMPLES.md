@@ -674,9 +674,9 @@ result = client.search(
 )
 print(result.total_count, result.baselines_found)
 
-# Orbit, frames, format
+# Orbit, frames (a mission filter), format
 result = client.search("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", orbit="08962F")
-result = client.search("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", orbit="8962", frames=["C", "D"])
+result = client.search("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", orbit="8962", filters={"frame": ["C", "D"]})
 result = client.search("EarthCAREL2Validated_MAAP", "CPR_CLD_2A", start=datetime(2024, 12, 1, tzinfo=timezone.utc), format="hdr")
 
 # Download (returns DownloadResult)

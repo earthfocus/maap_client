@@ -1,8 +1,7 @@
 """Path generation utilities for MAAP data organization.
 
 This module holds the on-disk layout and the filename/URL dispatchers over
-the mission parsers. The filtering helpers live in maap_client.filters and
-are re-exported here.
+the mission parsers. The filtering helpers live in maap_client.filters.
 """
 
 import logging
@@ -13,12 +12,6 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 from maap_client.exceptions import InvalidRequestError
-from maap_client.filters import (  # noqa: F401  (re-exported)
-    filter_by_fields,
-    filter_by_orbit,
-    filter_by_sensing_time,
-    sort_by_sensing_time,
-)
 from maap_client.missions import (
     Mission,
     ProductName,

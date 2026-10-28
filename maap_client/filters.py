@@ -212,17 +212,6 @@ def _value_list(values: Optional[FilterValues]) -> list:
     return [values] if isinstance(values, (str, int)) else list(values)
 
 
-def merge_frames(
-    frames: Optional[list[str]], filters: Optional[dict[str, FilterValues]]
-) -> Optional[dict[str, FilterValues]]:
-    """filters with the API alias ``frames=[...]`` merged into ``filters["frame"]``."""
-    if not frames:
-        return filters
-    merged = dict(filters or {})
-    merged["frame"] = list(frames) + _value_list(merged.get("frame"))
-    return merged
-
-
 def resolve_filters(
     mission: Mission,
     orbit: Optional[str],
@@ -252,7 +241,7 @@ def resolve_filters(
     Raises:
         InvalidRequestError: On an option the mission does not have, a
             malformed value or orbit, an orbit frame letter on a mission
-            without them or together with frames, or a registry orbit on a
+            without them or together with a "frame" filter, or a registry orbit on a
             mission whose names carry no absolute orbit.
     """
     given = {option: _value_list(values) for option, values in (filters or {}).items()}
@@ -306,19 +295,18 @@ def _parse_values(spec: FilterSpec, values: list, flag: str) -> list[str]:
 def resolve_filter_args(
     mission: Mission,
     orbit: Optional[str],
-    frames: Optional[list[str]],
     filters: Optional[dict[str, FilterValues]],
     registry: bool = False,
 ) -> tuple[Optional[int], Optional[dict[str, list[str]]]]:
     """
-    resolve_filters for the client API, where ``frames`` is an alias of ``filters["frame"]``.
+    resolve_filters for the client API: no filters is None rather than {}.
 
     Returns:
         (orbit number or None, filter option -> canonical values or None)
     """
-    if not (orbit or frames or filters):
+    if not (orbit or filters):
         return None, None
-    orbit_num, resolved = resolve_filters(mission, orbit, merge_frames(frames, filters), registry)
+    orbit_num, resolved = resolve_filters(mission, orbit, filters, registry)
     return orbit_num, resolved or None
 
 

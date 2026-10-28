@@ -12,7 +12,6 @@ from maap_client.auth import load_credentials, TokenManager
 from maap_client.catalog_build import BaselineInfo, CatalogCollection, CatalogCollectionManager
 from maap_client.catalog_query import CatalogQueryablesManager
 from maap_client.config import MaapConfig
-from maap_client.constants import NO_BASELINE
 from maap_client.download import DownloadManager
 from maap_client.exceptions import (
     AuthenticationError,
@@ -30,7 +29,7 @@ from maap_client.filters import (
 )
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
-from maap_client.missions import Mission, ProductName, get_mission, parse_product
+from maap_client.missions import NO_BASELINE, Mission, ProductName, get_mission, parse_product
 from maap_client.paths import (
     baseline_error,
     check_download_layout,
@@ -535,7 +534,6 @@ class MaapClient:
         verbose: bool = False,
         format: Optional[str] = None,
         reverse: bool = False,
-        frames: Optional[list[str]] = None,
         on_day: Optional[Callable[[list[str]], None]] = None,
         filters: Optional[dict[str, FilterValues]] = None,
     ) -> SearchResult:
@@ -553,26 +551,24 @@ class MaapClient:
             baseline: Optional baseline filter (if omitted, searches all baselines)
             start: Start datetime (for time-based search)
             end: End datetime (for time-based search)
-            orbit: Orbit+frame string (for orbit-based search, mutually exclusive with start/end).
-                  Accepts either '1525' (orbit only, combine with frames) or '01525E'
-                  (orbit+frame combined; frames must not also be given).
+            orbit: Orbit spec (for orbit-based search, mutually exclusive with start/end):
+                  '1525', or '01525E' on a mission whose orbits take a frame letter
+                  (the letter becomes filters['frame'], which must not also be given).
             use_catalog: Use cached catalog bounds for optimization
             max_items: Maximum items to return
             verbose: Show progress during search
             format: 'zip', 'all' or a file extension (default: the mission's format priority list)
-            frames: Alias of filters['frame'] (e.g. EarthCARE frame letters; works
-                   for both time-based and orbit-based search); if orbit already
-                   includes a frame letter, frames must be omitted
             on_day: Called with each day's URLs as found (day-by-day path only).
                    Durability hook for incremental persistence.
             filters: Mission filters, option -> values, str or int, alone or in
-                   a list (e.g. Biomass {'track': [2], 'repeat_cycle': '1'});
-                   see Mission.filters and filters.resolve_filters
+                   a list (e.g. EarthCARE {'frame': ['C', 'D']}, Biomass
+                   {'track': [2], 'repeat_cycle': '1'}); see Mission.filters and
+                   filters.resolve_filters
 
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end,
                                 or datetimes are not timezone-aware, or orbit already
-                                includes a frame letter while frames is also given,
+                                includes a frame letter while filters['frame'] is also given,
                                 or a filter is not one of the mission's, or
                                 NO_BASELINE is given for a product type with baselines
 
@@ -582,7 +578,7 @@ class MaapClient:
         # Validate parameters
         validate_time_range(start, end, orbit)
         baseline = self._baseline(product_type, baseline)
-        orbit_num, filters = resolve_filter_args(self.mission, orbit, frames, filters)
+        orbit_num, filters = resolve_filter_args(self.mission, orbit, filters)
         extra = filter_queryables(self.mission, filters)
 
         # Orbit-based search
@@ -846,7 +842,6 @@ class MaapClient:
         product_dir: bool = False,
         reverse: bool = False,
         orbit: Optional[str] = None,
-        frames: Optional[list[str]] = None,
         filters: Optional[dict[str, FilterValues]] = None,
         max_items: Optional[int] = None,
     ) -> DownloadResult:
@@ -866,16 +861,14 @@ class MaapClient:
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
             orbit: Optional orbit spec to filter registry URLs by ('1525' or
-                  '01525E'); if it already includes a frame letter, frames must
-                  be omitted
-            frames: Alias of filters['frame'] (see search())
+                  '01525E', see search())
             filters: Mission filters (option -> values) matched against the
                   product names of the registry URLs
             max_items: Download at most this many files (see download)
 
         Raises:
             InvalidRequestError: If start > end, datetimes not timezone-aware, or
-                                orbit already includes a frame letter while frames
+                                orbit already includes a frame letter while filters['frame']
                                 is also given, or orbit is given for a mission whose
                                 names carry no absolute orbit, or a filter is not one
                                 of the mission's or cannot be read from the names, or
@@ -885,7 +878,7 @@ class MaapClient:
             DownloadResult with downloaded paths, skipped, errors
         """
         orbit_num, filters = resolve_filter_args(
-            self.mission, orbit, frames, filters, registry=True
+            self.mission, orbit, filters, registry=True
         )
         # Validate time range (done inside load_from_registry)
         urls = self.load_from_registry(
@@ -924,7 +917,6 @@ class MaapClient:
         format: Optional[str] = None,
         product_dir: bool = False,
         reverse: bool = False,
-        frames: Optional[list[str]] = None,
         filters: Optional[dict[str, FilterValues]] = None,
     ) -> DownloadResult:
         """
@@ -938,21 +930,18 @@ class MaapClient:
             baseline: Optional baseline filter
             start: Start datetime (for time-based search)
             end: End datetime (for time-based search)
-            orbit: Orbit+frame string (for orbit-based search). Accepts either
-                  '1525' (combine with frames) or '01525E' (frame included;
-                  frames must not also be given).
+            orbit: Orbit spec (for orbit-based search, see search())
             out_dir: If provided, download to flat directory; otherwise structured paths
             max_items: Maximum items to get
             dry_run: Only report what would be downloaded
             verbose: Print progress messages
             format: 'zip', 'all' or a file extension (default: the mission's format priority list)
-            frames: Alias of filters['frame'] (see search())
             filters: Mission filters, option -> values (see search())
 
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end,
                                 or orbit already includes a frame letter while
-                                frames is also given, or a filter is not one of
+                                filters['frame'] is also given, or a filter is not one of
                                 the mission's, or individual files that need
                                 product_dir (e.g. Biomass) are asked for
                                 without it (before any search), or
@@ -975,7 +964,6 @@ class MaapClient:
             verbose=verbose,
             format=format,
             reverse=reverse,
-            frames=frames,
             filters=filters,
         )
 
@@ -1004,7 +992,6 @@ class MaapClient:
         format: Optional[str] = None,
         product_dir: bool = False,
         reverse: bool = False,
-        frames: Optional[list[str]] = None,
         max_consecutive_failures: Optional[int] = None,
         filters: Optional[dict[str, FilterValues]] = None,
     ) -> SyncResult:
@@ -1028,7 +1015,6 @@ class MaapClient:
             max_items: Maximum items to sync
             verbose: Print progress messages
             format: 'zip', 'all' or a file extension (default: the mission's format priority list)
-            frames: Alias of filters['frame'] (see search())
             max_consecutive_failures: Forwarded to batch_download; abort a baseline's batch after this many consecutive failures (None = never).
             filters: Mission filters, option -> values (see search()); state is
                    per-URL, so filtered syncs are safe
@@ -1049,7 +1035,7 @@ class MaapClient:
         validate_time_range(start, end)
         baseline = self._baseline(product_type, baseline)
         self._check_product_dir_format(product_type, format, product_dir)
-        _, filters = resolve_filter_args(self.mission, None, frames, filters)
+        _, filters = resolve_filter_args(self.mission, None, filters)
         extra = filter_queryables(self.mission, filters)
 
         # Default time range: last 3 days

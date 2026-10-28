@@ -52,14 +52,13 @@ from maap_client.constants import (
     DEFAULT_MISSION,
     DEFAULT_MISSION_START,
     DEFAULT_MISSION_END,
-    NO_BASELINE,
     STAC_RETRY_ALLOWED_METHODS,
     STAC_RETRY_BACKOFF_FACTOR,
     STAC_RETRY_STATUS_FORCELIST,
     STAC_RETRY_TOTAL,
 )
 from maap_client.exceptions import AuthenticationError, CredentialsError, InvalidRequestError
-from maap_client.missions import get_mission
+from maap_client.missions import NO_BASELINE, get_mission
 from maap_client.filters import filter_by_sensing_time, sort_by_sensing_time
 from maap_client.paths import (
     extract_baseline,

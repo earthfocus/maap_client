@@ -4,7 +4,7 @@ import os
 from typing import Mapping, Optional, Sequence
 
 from maap_client.missions.aeolus import AEOLUS, AeolusName
-from maap_client.missions.base import Mission, ProductName, product_folder, split_product_url
+from maap_client.missions.base import NO_BASELINE, Mission, ProductName, product_folder, split_product_url
 from maap_client.missions.biomass import BIOMASS, BiomassName
 from maap_client.missions.earthcare import EARTHCARE, EarthCAREName
 from maap_client.missions.flex import FLEX, FlexName
@@ -12,7 +12,12 @@ from maap_client.missions.flex import FLEX, FlexName
 MISSIONS: dict[str, Mission] = {m.name: m for m in (EARTHCARE, AEOLUS, BIOMASS, FLEX)}
 
 __all__ = [
+    "AEOLUS",
+    "BIOMASS",
+    "EARTHCARE",
+    "FLEX",
     "MISSIONS",
+    "NO_BASELINE",
     "AeolusName",
     "BiomassName",
     "EarthCAREName",

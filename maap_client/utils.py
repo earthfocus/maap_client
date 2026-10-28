@@ -4,8 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from maap_client.exceptions import InvalidRequestError
-from maap_client.missions.base import NO_BASELINE
-from maap_client.missions.earthcare import parse_frames  # noqa: F401  (re-exported)
+from maap_client.missions import NO_BASELINE
 
 
 def normalize_format(value: str) -> str:

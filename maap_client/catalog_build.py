@@ -8,8 +8,9 @@ from typing import Any, Optional, cast
 import logging
 
 from maap_client.catalog import Catalog, CatalogManager
-from maap_client.constants import __version__, DEFAULT_BUILT_CATALOG_DIR, NO_BASELINE
+from maap_client.constants import __version__, DEFAULT_BUILT_CATALOG_DIR
 from maap_client.exceptions import InvalidRequestError
+from maap_client.missions import NO_BASELINE
 from maap_client.utils import parse_datetime, to_zulu
 
 
