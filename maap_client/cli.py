@@ -359,11 +359,7 @@ Notes:
     other_group = download_parser.add_argument_group("other options")
     other_group.add_argument(
         "--max-items", "-n", type=int,
-        help="Maximum items to download"
-    )
-    other_group.add_argument(
-        "--use-catalog", action="store_true",
-        help="Use built catalog for time bounds (faster, may be stale)"
+        help="Maximum new files to download (files already on disk are not counted)"
     )
     other_group.add_argument(
         "--newest-first", action="store_true",
