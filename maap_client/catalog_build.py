@@ -8,7 +8,7 @@ from typing import Any, Optional, cast
 import logging
 
 from maap_client.catalog import Catalog, CatalogManager
-from maap_client.constants import __version__, DEFAULT_BUILT_CATALOG_DIR
+from maap_client.constants import __version__, DEFAULT_BUILT_CATALOG_DIR, NO_BASELINE
 from maap_client.exceptions import InvalidRequestError
 from maap_client.utils import parse_datetime, to_zulu
 
@@ -16,6 +16,18 @@ from maap_client.utils import parse_datetime, to_zulu
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "1.0"
+
+
+def pick_latest_baseline(baselines: list[str]) -> Optional[str]:
+    """
+    The latest of sorted baselines: the last real one, NO_BASELINE only when
+    it is the only one (a declared type that gains real baselines would
+    otherwise keep NO_BASELINE, which sorts after them), None if empty.
+    """
+    real = [b for b in baselines if b != NO_BASELINE]
+    if real:
+        return real[-1]
+    return baselines[-1] if baselines else None
 
 
 class ProductInfo(Catalog):
@@ -264,16 +276,13 @@ class CatalogCollectionManager(CatalogManager):
                 existing_baselines = product_info.list_baselines()
                 if existing_baselines:
                     # Use existing catalog baselines, pick alphabetically latest
-                    baselines_to_update = [existing_baselines[-1]]
+                    baselines_to_update = [pick_latest_baseline(existing_baselines)]
                 else:
-                    # No existing catalog - get verified baselines and pick the last one (alphabetically latest)
+                    # No existing catalog - get verified baselines (already sorted)
+                    # and pick the alphabetically latest
                     verified_baselines = self._client.list_baselines(collection, product, from_built=False, verify=True)
-                    if verified_baselines:
-                        # Already sorted
-                        # baselines_to_update = [sorted(verified_baselines)[-1]]
-                        baselines_to_update = [verified_baselines[-1]]
-                    else:
-                        baselines_to_update = []
+                    latest = pick_latest_baseline(verified_baselines)
+                    baselines_to_update = [latest] if latest else []
             else:
                 baselines_to_update = all_baselines
 

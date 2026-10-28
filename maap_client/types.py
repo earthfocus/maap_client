@@ -10,9 +10,10 @@ if TYPE_CHECKING:
 
 
 class GranuleInfo(NamedTuple):
-    """Metadata extracted from an EarthCARE product filename.
+    """Metadata extracted from a product filename of any mission.
 
-    All fields except filename may be None if parsing fails.
+    All fields except filename may be None if parsing fails or the
+    mission's names do not carry them (e.g. agency is EarthCARE only).
     """
 
     filename: str

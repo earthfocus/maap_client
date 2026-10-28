@@ -63,24 +63,14 @@ def parse_filter_values(value: str) -> list[str]:
     return values
 
 
-def parse_frames(value: str) -> list[str]:
-    """
-    Parse comma-separated frame letters into canonical uppercase form.
+def __getattr__(name: str):
+    # parse_frames moved to the EarthCARE module (the only mission with frame
+    # letters); still importable from here. Imported lazily: earthcare imports base.
+    if name == "parse_frames":
+        from maap_client.missions.earthcare import parse_frames
 
-    Example: " c, d ,E" -> ["C", "D", "E"]. Duplicates are removed,
-    first-seen order is kept.
-
-    Raises:
-        ValueError: If any entry is not a single letter A-H.
-    """
-    frames: list[str] = []
-    for part in value.split(","):
-        frame = part.strip().upper()
-        if len(frame) != 1 or not "A" <= frame <= "H":
-            raise ValueError(f"invalid frame '{part.strip()}': must be letters A-H")
-        if frame not in frames:
-            frames.append(frame)
-    return frames
+        return parse_frames
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def split_product_url(url: str) -> tuple[str, str]:
@@ -159,7 +149,7 @@ class Mission:
     # names that carry an absolute orbit, for offline (registry) orbit filtering:
     # "all" (names without one are dropped), "some" (such names are rejected),
     # "none" (--orbit only works with search)
-    orbit_offline: Literal["all", "some", "none"]
+    orbit_offline: Literal["all", "some", "none"] = "none"
     no_orbit_products: frozenset[str] = frozenset()
     no_baseline_products: frozenset[str] = frozenset()
     # individual files need --product-dir (their names repeat across and within

@@ -28,7 +28,6 @@ from maap_client.missions.base import (
     Mission,
     ProductName,
     match_group,
-    parse_frames,
     parse_timestamp,
     split_product_url,
 )
@@ -67,6 +66,26 @@ _ORBIT_FRAME = re.compile(r"_(\d{5})([A-Z])(?:\.[a-zA-Z0-9]+)?$", re.IGNORECASE)
 _AGENCY = re.compile(r"^ECA_([A-Z]{2})[A-Z]{2}_")
 _BASELINE = re.compile(r"^ECA_[A-Z]{2}([A-Z]{2})_")
 _PRODUCT_TYPE = re.compile(r"^ECA_[A-Z]{4}_(.+?)_\d{8}T\d{6}Z_")
+
+
+def parse_frames(value: str) -> list[str]:
+    """
+    Parse comma-separated frame letters into canonical uppercase form.
+
+    Example: " c, d ,E" -> ["C", "D", "E"]. Duplicates are removed,
+    first-seen order is kept.
+
+    Raises:
+        ValueError: If any entry is not a single letter A-H.
+    """
+    frames: list[str] = []
+    for part in value.split(","):
+        frame = part.strip().upper()
+        if len(frame) != 1 or not "A" <= frame <= "H":
+            raise ValueError(f"invalid frame '{part.strip()}': must be letters A-H")
+        if frame not in frames:
+            frames.append(frame)
+    return frames
 
 
 @dataclass(frozen=True)

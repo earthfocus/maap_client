@@ -20,6 +20,7 @@ __all__ = [
     "Mission",
     "ProductName",
     "get_mission",
+    "mission_for_code",
     "mission_for_collection",
     "mission_for_filename",
     "parse_product",
@@ -33,6 +34,14 @@ def get_mission(name: str) -> Mission:
         if mission.name.lower() == name.lower():
             return mission
     raise ValueError(f"Unknown mission '{name}'. Known missions: {', '.join(MISSIONS)}")
+
+
+def mission_for_code(code: str) -> Optional[Mission]:
+    """Mission whose filename code (ProductName.mission, e.g. "BIO") is code, or None."""
+    for mission in MISSIONS.values():
+        if mission.code == code:
+            return mission
+    return None
 
 
 def mission_for_filename(name_or_url: str) -> Optional[Mission]:

@@ -4,10 +4,11 @@ import logging
 from datetime import datetime
 from typing import Optional, Union
 
+from maap_client.constants import DEFAULT_MISSION
 from maap_client.exceptions import InvalidRequestError
-from maap_client.missions import parse_product
-from maap_client.missions.base import Mission
-from maap_client.utils import has_orbit_letter, parse_frames, parse_orbit, timezone_is_aware
+from maap_client.missions import get_mission, parse_product
+from maap_client.missions.base import FilterSpec, Mission
+from maap_client.utils import has_orbit_letter, parse_orbit, timezone_is_aware
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ def filter_by_orbit_frame(
 
     Items where orbit/frame cannot be extracted are dropped, mirroring
     filter_by_sensing_time. Frame letters must be uppercase (canonical
-    form from parse_frames).
+    form from the mission's frame FilterSpec).
 
     Args:
         items: List of URLs or paths to filter
@@ -109,14 +110,32 @@ def filter_by_orbit_frame(
     return result
 
 
+def _unknown_option_message(mission: Mission, option: str) -> str:
+    return (
+        f"{mission.name} has no {option_flag(option)}; "
+        f"available filters: {', '.join(map(option_flag, mission.available_filters()))}"
+    )
+
+
+def _canonical_attribute(spec: FilterSpec, value: object) -> Optional[str]:
+    """A ProductName attribute in the canonical form of spec.parse, or None if blank or not parseable."""
+    if value is None:
+        return None
+    try:
+        return spec.parse(str(value))[0]
+    except ValueError:
+        return None
+
+
 def filter_by_fields(items: list[str], filters: dict[str, list[str]], mission: Mission) -> list[str]:
     """
     Filter URLs/paths by the mission filters read from their product names.
 
     An item is kept when, for every filter, its ProductName attribute is one
-    of the accepted values (decimal strings, as parse_filter_values gives
-    them, compared as integers). A blank field in the name (e.g. Biomass L2
-    ``C___``) matches nothing.
+    of the accepted values, both compared in the canonical form of the
+    filter's FilterSpec parser (e.g. "002" and 2 match track 2, "e" matches
+    frame E). A blank field in the name (e.g. Biomass L2 ``C___``) matches
+    nothing.
 
     Args:
         items: List of URLs or paths to filter
@@ -124,18 +143,21 @@ def filter_by_fields(items: list[str], filters: dict[str, list[str]], mission: M
         mission: Mission whose filters and parser apply
 
     Raises:
-        ValueError: If a filter is not one of the mission's, or some items'
-            product names carry none of the mission's filter fields
+        ValueError: If a filter is not one of the mission's, a value is invalid,
+            or some items' product names carry none of the mission's filter fields
             (undocumented grammar); the message names those product types.
     """
     if not filters:
         return items
     specs = {spec.option: spec for spec in mission.filters}
-    unknown = [option for option in filters if option not in specs]
-    if unknown:
-        raise ValueError(f"{mission.name} has no {', '.join(unknown)} filter")
+    for option in filters:
+        if option not in specs:
+            raise ValueError(_unknown_option_message(mission, option))
 
-    accepted = {option: {int(value) for value in values} for option, values in filters.items()}
+    accepted = {
+        option: set(specs[option].parse(",".join(str(value) for value in values)))
+        for option, values in filters.items()
+    }
     result = []
     undocumented: set[str] = set()
     for item in items:
@@ -143,7 +165,10 @@ def filter_by_fields(items: list[str], filters: dict[str, list[str]], mission: M
         if all(getattr(parsed, spec.attribute) is None for spec in specs.values()):
             undocumented.add(parsed.product_type or parsed.product)
             continue
-        if all(getattr(parsed, specs[option].attribute) in ints for option, ints in accepted.items()):
+        if all(
+            _canonical_attribute(specs[option], getattr(parsed, specs[option].attribute)) in values
+            for option, values in accepted.items()
+        ):
             result.append(item)
     if undocumented:
         raise ValueError(
@@ -193,9 +218,10 @@ def validate_time_range(
         )
 
 
-def normalize_frames(frames: Optional[list[str]]) -> Optional[list[str]]:
+def normalize_frames(frames: Optional[list[str]], mission: Optional[Mission] = None) -> Optional[list[str]]:
     """
-    Validate and canonicalize a list of frame letters.
+    Validate and canonicalize a list of frame letters with the frame FilterSpec
+    of the mission (default: DEFAULT_MISSION, EarthCARE).
 
     Used for the frame letters of orbits (resolve_orbit_frames).
 
@@ -203,12 +229,14 @@ def normalize_frames(frames: Optional[list[str]]) -> Optional[list[str]]:
         None if frames is None/empty, otherwise the uppercased, validated list.
 
     Raises:
-        InvalidRequestError: If any entry is not a single letter A-H.
+        InvalidRequestError: If any entry is not a frame letter of the mission (EarthCARE: A-H).
     """
     if not frames:
         return None
+    mission = mission or get_mission(DEFAULT_MISSION)
+    spec = next(spec for spec in mission.filters if spec.option == "frame")
     try:
-        return parse_frames(",".join(frames))
+        return spec.parse(",".join(frames))
     except ValueError as e:
         raise InvalidRequestError(str(e)) from e
 
@@ -216,6 +244,7 @@ def normalize_frames(frames: Optional[list[str]]) -> Optional[list[str]]:
 def resolve_orbit_frames(
     orbit: Optional[str],
     frames: Optional[list[str]],
+    mission: Optional[Mission] = None,
 ) -> tuple[Optional[int], Optional[list[str]]]:
     """
     Parse a dual-form orbit spec and merge with a frames list.
@@ -223,10 +252,17 @@ def resolve_orbit_frames(
     '01525E' -> (1525, ['E']); '1525' -> (1525, frames).
 
     Raises:
-        InvalidRequestError: If the orbit is malformed, or it includes a
-                             frame letter while frames is also given.
+        InvalidRequestError: If the orbit is malformed, a frame is invalid,
+                             or the orbit includes a frame letter while
+                             frames is also given.
     """
-    frames = normalize_frames(frames)
+    return _merge_orbit_letter(orbit, normalize_frames(frames, mission))
+
+
+def _merge_orbit_letter(
+    orbit: Optional[str], frames: Optional[list[str]]
+) -> tuple[Optional[int], Optional[list[str]]]:
+    """resolve_orbit_frames for frames already in canonical form."""
     if not orbit:
         return None, frames
     try:
@@ -303,10 +339,7 @@ def resolve_filters(
     specs = {spec.option: spec for spec in mission.filters}
     for option in given:
         if option not in specs:
-            raise InvalidRequestError(
-                f"{mission.name} has no {option_flag(option)}; "
-                f"available filters: {', '.join(map(option_flag, mission.available_filters()))}"
-            )
+            raise InvalidRequestError(_unknown_option_message(mission, option))
     if orbit and not mission.orbit_frame_letter and has_orbit_letter(orbit):
         raise InvalidRequestError(f"{mission.name} orbits take no frame letter: --orbit {orbit.strip()}")
     if orbit and registry and mission.orbit_offline == "none":
@@ -325,8 +358,9 @@ def resolve_filters(
             if not message.startswith(f"invalid {option} "):
                 message = f"{option_flag(option)}: {message}"
             raise InvalidRequestError(message) from e
+    # the "frame" values are already canonical (parsed by the frame FilterSpec above)
     letters = resolved.get("frame") if mission.orbit_frame_letter else None
-    orbit_num, letters = resolve_orbit_frames(orbit, letters)
+    orbit_num, letters = _merge_orbit_letter(orbit, letters)
     if letters:
         resolved["frame"] = letters
     return orbit_num, resolved

@@ -134,7 +134,7 @@ class MaapSearcher:
         catalog_url: Optional[str] = None,
         mission_start: Optional[str] = None,
         mission_end: Optional[str] = None,
-        default_formats: tuple[str, ...] = ("h5", "eof", "dbl"),
+        default_formats: Optional[tuple[str, ...]] = None,
         mission: str = DEFAULT_MISSION,
     ):
         """Initialize MAAP searcher.
@@ -146,10 +146,11 @@ class MaapSearcher:
             mission_start: Mission start datetime (ISO 8601). Defaults to DEFAULT_MISSION_START.
             mission_end: Mission end datetime (ISO 8601). Defaults to DEFAULT_MISSION_END.
             default_formats: Format priority list used when a search gives no explicit format.
+                Defaults to the mission's default_formats.
             mission: Name of the mission searched (its products without orbit metadata).
         """
-        self._default_formats = default_formats
         self._mission = get_mission(mission)
+        self._default_formats = default_formats or self._mission.default_formats
         self._catalog_url = (catalog_url or DEFAULT_CATALOG_URL).rstrip("/") + "/"
         self._mission_start = mission_start or DEFAULT_MISSION_START
         self._mission_end = mission_end or DEFAULT_MISSION_END

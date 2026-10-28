@@ -132,6 +132,7 @@ def extract_file_version(name_or_url: str) -> Optional[int]:
 
 
 class _Aeolus(Mission):
+    # no data_url: the baseline is only in the archive path, not in the filename
     name = "Aeolus"
     code = "AE"
     prefix = "AE_"
@@ -155,10 +156,6 @@ class _Aeolus(Mission):
             duration_ms=extract_duration_ms(url),
             file_version=extract_file_version(url),
         )
-
-    def data_url(self, filename: str) -> Optional[str]:
-        """Aeolus URLs hold the baseline only in the archive path: not derivable."""
-        return None
 
 
 AEOLUS = _Aeolus()

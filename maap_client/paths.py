@@ -19,7 +19,14 @@ from maap_client.filters import (  # noqa: F401  (re-exported)
     filter_by_sensing_time,
     sort_by_sensing_time,
 )
-from maap_client.missions import MISSIONS, Mission, ProductName, mission_for_filename, parse_product, split_product_url
+from maap_client.missions import (
+    Mission,
+    ProductName,
+    mission_for_code,
+    mission_for_filename,
+    parse_product,
+    split_product_url,
+)
 from maap_client.missions.base import product_folder
 
 
@@ -355,8 +362,8 @@ def _needs_product_dir(url: str, parsed: Optional[ProductName]) -> Optional[Miss
     """
     if parsed is None:
         return None
-    mission = next(m for m in MISSIONS.values() if m.code == parsed.mission)
-    if not mission.files_need_product_dir or is_zip_url(url):
+    mission = mission_for_code(parsed.mission)
+    if not mission or not mission.files_need_product_dir or is_zip_url(url):
         return None
     if parsed.product_type in mission.single_file_products:
         return None
@@ -364,10 +371,10 @@ def _needs_product_dir(url: str, parsed: Optional[ProductName]) -> Optional[Miss
 
 
 def check_download_layout(
-    parsed: dict[str, Optional[ProductName]],
+    parsed_urls: dict[str, Optional[ProductName]],
     product_dir: bool,
     data_dir: Path,
-    mission: str,
+    mission_name: str,
     collection: str,
     out_dir: Optional[Path] = None,
 ) -> dict[str, Optional[Path]]:
@@ -382,10 +389,10 @@ def check_download_layout(
     already downloaded.
 
     Args:
-        parsed: URL -> parse_product(URL), for every URL of the batch once
+        parsed_urls: URL -> parse_product(URL), for every URL of the batch once
         product_dir: If True, place each file inside a folder named after its product
         data_dir: Base data directory (structured paths)
-        mission: Mission name (structured paths)
+        mission_name: Mission name (structured paths)
         collection: Collection name (structured paths)
         out_dir: Flat output directory, instead of the structured paths
 
@@ -398,18 +405,18 @@ def check_download_layout(
             different URLs sharing a local path
     """
     if not product_dir:
-        for url, name in parsed.items():
+        for url, name in parsed_urls.items():
             if needs := _needs_product_dir(url, name):
                 raise product_dir_error(needs)
 
     paths: dict[str, Optional[Path]] = {}
     seen: dict[Path, str] = {}
-    for url, name in parsed.items():
+    for url, name in parsed_urls.items():
         try:
             relpath = _relpath(url, name, product_dir)
         except ValueError as e:
             raise InvalidRequestError(str(e)) from e
-        path = out_dir / relpath if out_dir else _data_path(name, relpath, data_dir, mission, collection)
+        path = out_dir / relpath if out_dir else _data_path(name, relpath, data_dir, mission_name, collection)
         paths[url] = path
         if path is None:
             continue

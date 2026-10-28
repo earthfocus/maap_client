@@ -200,6 +200,7 @@ def extract_frame(name_or_url: str) -> Optional[int]:
 
 
 class _Biomass(Mission):
+    # no data_url: the collection and date are only in the archive path, not in the filename
     name = "Biomass"
     code = "BIO"
     prefix = "BIO_"
@@ -240,10 +241,6 @@ class _Biomass(Mission):
             track=extract_track(url),
             frame=extract_frame(url),
         )
-
-    def data_url(self, filename: str) -> Optional[str]:
-        """Biomass URLs hold the collection and date in the archive path: not derivable."""
-        return None
 
 
 BIOMASS = _Biomass()

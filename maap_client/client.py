@@ -3,13 +3,13 @@
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Iterable, Optional
 
 from maap_client.auth import load_credentials, TokenManager
-from maap_client.catalog_build import BaselineInfo, CatalogCollectionManager
+from maap_client.catalog_build import BaselineInfo, CatalogCollection, CatalogCollectionManager
 from maap_client.catalog_query import CatalogQueryablesManager
 from maap_client.config import MaapConfig
 from maap_client.constants import NO_BASELINE
@@ -21,6 +21,7 @@ from maap_client.exceptions import (
     InvalidRequestError,
 )
 from maap_client.filters import (
+    FilterValues,
     filter_queryables,
     filter_registry_urls,
     resolve_filter_args,
@@ -151,7 +152,7 @@ class MaapClient:
             collections=self.list_collections(),
         )
 
-    def _built_catalog(self, collection: str):
+    def _built_catalog(self, collection: str) -> Optional[CatalogCollection]:
         """The built catalog of a collection, or None when it was not built."""
         manager = CatalogCollectionManager(client=self, catalog_dir=self.config.built_catalog_dir)
         return manager.load(collection)
@@ -482,7 +483,7 @@ class MaapClient:
         reverse: bool = False,
         frames: Optional[list[str]] = None,
         on_day: Optional[Callable[[list[str]], None]] = None,
-        filters: Optional[dict[str, list[str]]] = None,
+        filters: Optional[dict[str, FilterValues]] = None,
     ) -> SearchResult:
         """
         Search for product URLs.
@@ -584,7 +585,10 @@ class MaapClient:
 
     @staticmethod
     def _search_result(
-        urls: list[str], start: Optional[datetime], end: Optional[datetime], failed_days=()
+        urls: list[str],
+        start: Optional[datetime],
+        end: Optional[datetime],
+        failed_days: Iterable[tuple[date, str]] = (),
     ) -> SearchResult:
         """SearchResult of the URLs, with the sorted baselines read from them (unreadable ones left out)."""
         return SearchResult(
@@ -602,8 +606,13 @@ class MaapClient:
     ) -> dict[tuple[str, str], list[str]]:
         """
         Group URLs by their parsed (product type, baseline) for the structured
-        layout. A URL without product type or sensing time goes to
-        result.permanent_errors (batch_download would silently skip it).
+        layout.
+
+        Parsed from the URL, not the filename: Aeolus keeps the baseline in
+        the path, and Biomass inner files are not named after their product.
+        A URL without product type or sensing time goes to
+        result.permanent_errors (batch_download would silently skip it; a
+        retry cannot fix the name).
 
         Raises:
             InvalidRequestError: If the baseline of a URL cannot be read
@@ -767,7 +776,7 @@ class MaapClient:
         reverse: bool = False,
         orbit: Optional[str] = None,
         frames: Optional[list[str]] = None,
-        filters: Optional[dict[str, list[str]]] = None,
+        filters: Optional[dict[str, FilterValues]] = None,
     ) -> DownloadResult:
         """
         Download files from registry.
@@ -841,7 +850,7 @@ class MaapClient:
         product_dir: bool = False,
         reverse: bool = False,
         frames: Optional[list[str]] = None,
-        filters: Optional[dict[str, list[str]]] = None,
+        filters: Optional[dict[str, FilterValues]] = None,
     ) -> DownloadResult:
         """
         Search + download in one step.
@@ -921,7 +930,7 @@ class MaapClient:
         reverse: bool = False,
         frames: Optional[list[str]] = None,
         max_consecutive_failures: Optional[int] = None,
-        filters: Optional[dict[str, list[str]]] = None,
+        filters: Optional[dict[str, FilterValues]] = None,
     ) -> SyncResult:
         """
         Incremental sync: search + download + state tracking.
