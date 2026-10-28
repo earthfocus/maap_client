@@ -7,6 +7,7 @@ from pathlib import Path
 
 from maap_client import MaapClient, MaapConfig, InvalidRequestError
 from maap_client.cli_helpers import (
+    apply_cli_overrides,
     collect_filter_args,
     get_client,
     load_config,
@@ -638,6 +639,7 @@ def cmd_token(args: argparse.Namespace) -> int:
 def cmd_config(args: argparse.Namespace) -> int:
     """Handle 'config' command - show loaded configuration."""
     config, source = load_config(args)
+    apply_cli_overrides(args, config)
 
     print("Loaded configuration:")
     print(f"data_dir:          {config.data_dir}")
@@ -654,7 +656,7 @@ def cmd_config(args: argparse.Namespace) -> int:
     print(f"default_formats:   {', '.join(config.default_formats)}")
 
     # Show config file location
-    config_path = Path("~/.maap/config.toml").expanduser()
+    config_path = Path(getattr(args, "config", None) or "~/.maap/config.toml").expanduser()
     if config_path.exists():
         print(f"\nConfig file: {config_path}")
     else:

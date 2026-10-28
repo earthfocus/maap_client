@@ -53,11 +53,16 @@ def load_config(args: argparse.Namespace) -> tuple[MaapConfig, str]:
     return MaapConfig.load(config_path, mission=mission.name), source
 
 
-def _client(args: argparse.Namespace, config: MaapConfig) -> MaapClient:
-    """Create MaapClient from a config, with the CLI overrides applied."""
+def apply_cli_overrides(args: argparse.Namespace, config: MaapConfig) -> MaapConfig:
+    """The config with the global CLI overrides (-d/--data-dir) applied."""
     if getattr(args, "data_dir", None):
         config.data_dir = args.data_dir
-    return MaapClient(config)
+    return config
+
+
+def _client(args: argparse.Namespace, config: MaapConfig) -> MaapClient:
+    """Create MaapClient from a config, with the CLI overrides applied."""
+    return MaapClient(apply_cli_overrides(args, config))
 
 
 def get_client(args: argparse.Namespace) -> MaapClient:
