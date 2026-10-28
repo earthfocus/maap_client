@@ -284,6 +284,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     # --- download subcommand ---
     no_offline_orbit = [m.name for m in MISSIONS.values() if m.orbit_offline == "none"]
+    no_offline_orbit_note = (
+        f" (not for {' or '.join(no_offline_orbit)}, whose names carry no absolute orbit)"
+        if no_offline_orbit else ""
+    )
     download_parser = subparsers.add_parser(
         "download",
         help="Download products",
@@ -334,8 +338,8 @@ Notes:
     filter_group.add_argument(
         "--orbit",
         help="Filter registry entries by orbit (e.g., '1525' or '01525E'), matched "
-             "against filenames; works even for products MAAP does not index by orbit "
-             f"(not for {' or '.join(no_offline_orbit)}, whose names carry no absolute orbit)"
+             "against filenames; works even for products MAAP does not index by orbit"
+             + no_offline_orbit_note
     )
 
     # Output options group

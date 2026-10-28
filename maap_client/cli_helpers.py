@@ -168,19 +168,13 @@ def validate_time_args(args: argparse.Namespace, orbit_is_filter: bool = False) 
         if start > end:
             return f"--start ({args.start}) must be before --end ({args.end})"
 
-    # Validate --orbit format and --frame conflict
-    has_frame = bool(getattr(args, 'frame', None))
+    # Validate --orbit format (its frame letter is checked against the
+    # mission by filters.resolve_filters)
     if has_orbit:
         try:
-            orbit_num, orbit_letter = parse_orbit(args.orbit)
+            parse_orbit(args.orbit)
         except ValueError as e:
             return str(e)
-        if orbit_letter and has_frame:
-            frame_list = ",".join(part.strip().upper() for part in args.frame.split(","))
-            return (
-                f"--frame cannot be used when --orbit already includes a frame letter; "
-                f"use --orbit {orbit_num} --frame {frame_list}"
-            )
 
     return None
 

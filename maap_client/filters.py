@@ -232,8 +232,8 @@ def resolve_orbit_frames(
         raise InvalidRequestError(str(e)) from e
     if orbit_letter and frames:
         raise InvalidRequestError(
-            f"orbit '{orbit.strip()}' already includes a frame letter; "
-            f"use orbit '{orbit_num}' together with the frames list instead"
+            f"--frame cannot be used when --orbit already includes a frame letter; "
+            f"use --orbit {orbit_num} --frame {','.join(frames)}"
         )
     return orbit_num, [orbit_letter] if orbit_letter else frames
 
@@ -316,7 +316,12 @@ def resolve_filters(
         try:
             resolved[option] = specs[option].parse(",".join(str(value) for value in values))
         except ValueError as e:
-            raise InvalidRequestError(str(e)) from e
+            # prefixed with the flag unless the parser's message already names
+            # the option (e.g. "invalid frame 'X': must be letters A-H")
+            message = str(e)
+            if not message.startswith(f"invalid {option} "):
+                message = f"{option_flag(option)}: {message}"
+            raise InvalidRequestError(message) from e
     letters = resolved.get("frame") if mission.orbit_frame_letter else None
     orbit_num, letters = resolve_orbit_frames(orbit, letters)
     if letters:
