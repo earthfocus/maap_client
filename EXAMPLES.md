@@ -324,6 +324,11 @@ maap search EarthCAREXMETL1DProducts10_MAAP AUX_MET_1D --date 2024-09-03 --regis
 maap download EarthCAREXMETL1DProducts10_MAAP AUX_MET_1D --registry --orbit 01524E
 ```
 
+```bash
+maap get EarthCAREL1Validated_MAAP ATL_NOM_1B --orbit 01525E          # one orbit and frame
+maap sync EarthCAREL2Validated_MAAP CPR_CLD_2A --days-back 3 --frame C,D
+```
+
 ### Aeolus
 
 - Naming is not publicly documented; only type, sensing start, orbit (when present) and
@@ -332,9 +337,17 @@ maap download EarthCAREXMETL1DProducts10_MAAP AUX_MET_1D --registry --orbit 0152
   many URLs as the day already holds but different ones (e.g. another format); older
   versions skipped such a day.
 
+- The mission ended on 2023-07-28: a range after that (e.g. `--days-back 3`) is rejected
+  (exit 4).
+- `ALDUN1A_NC` needs `--product-dir` (or `--out-dir`): its data file `L1A_<start>__<stop>.nc`
+  is not named after the product.
+- Aux types without catalogue version (archive folder `NNAA`) use the baseline `NO_BASELINE`.
+
 ```bash
 maap get AeolusBaseline16Products10 ALD_U_N_1B --date 2023-04-30            # .DBL files
 maap get AeolusBaseline16Products10 ALD_U_N_1B --date 2023-04-30 --format all --product-dir
+maap get AeolusBaseline16Products10 ALDUN1A_NC --orbit 27146 --product-dir  # one orbit, netCDF
+maap get AeolusAdditionalProducts AUX_PAR_1B NO_BASELINE --date 2023-05-17
 ```
 
 ### Biomass
@@ -347,6 +360,7 @@ maap get AeolusBaseline16Products10 ALD_U_N_1B --date 2023-04-30 --format all --
 maap get BiomassLevel1b S1_DGM__1S 01 --date 2025-12-11 --track 38
 maap get BiomassLevel1b S1_DGM__1S 01 --date 2025-12-11 --track 38 --frame 249 --format tiff --product-dir
 maap sync BiomassLevel1b S1_DGM__1S --days-back 7 --repeat-cycle 7
+maap get BiomassAux MPL_ORBPRE NO_BASELINE --days-back 7 --format eof   # single file, no --product-dir
 ```
 
 ### FLEX
@@ -358,6 +372,8 @@ maap sync BiomassLevel1b S1_DGM__1S --days-back 7 --repeat-cycle 7
 
 ```bash
 maap search FLEXL1BEOProductsInternal L1B_OBS___ --date 2026-10-26 --registry-save
+maap search FLEXTestAuxProducts AUX_CCCRAD NO_BASELINE --date 2019-01-01
+maap list FLEXL1BEOProductsInternal
 ```
 
 ---
@@ -370,7 +386,6 @@ maap search FLEXL1BEOProductsInternal L1B_OBS___ --date 2026-10-26 --registry-sa
 - **FLEX downloads are not validated**: search, registry and name parsing are tested, but
   downloads return 403 until ESA grants access.
 - **`BiomassAuxRest`**: restricted download access (403 with standard accounts).
-- Aeolus `AUX_CHAR__` items whose names start with `AE1_` are not recognised.
 - For product types without public naming documentation (Aeolus; EarthCARE X-MET, AUX,
   orbit and L0; Biomass L0, CalVal, Simulated and other AUX; FLEX L0, L1B, RAW, ANC, RAC,
   AUX) only type, sensing start and baseline are read from the name.
