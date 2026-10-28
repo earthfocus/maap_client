@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 class MaapClient:
     """
     High-level client for ESA MAAP satellite data access (EarthCARE, Aeolus,
-    Biomass, FLEX); one instance serves the mission its config is set to.
+    Biomass, FLEX, CryoSat); one instance serves the mission its config is set to.
 
     Provides a unified interface for:
     - Listing collections, products, and baselines
