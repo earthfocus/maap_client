@@ -437,6 +437,11 @@ maap search CryoTEMPOEOLIS10 THEM_GRID_ V201 --date 2025-11-01
   Aeolus and FLEX AUX types. Search, registry, download and sync work.
 - **`L4_SIT_Open`** (SMOS-CryoSat L4): not part of the CryoSat mission (SMOS host, no
   MAAP token access).
+- **CryoTEMPO-EOLIS points with a positive tile coordinate** (a `+` in the name, e.g.
+  `CS_OFFL_THEM_POINT_ANTICESHF_2026_01_+1200000__-2000000__V201`): MAAP answers 403
+  "Product does not exist" for every file and the zip, however the `+` is encoded
+  (verified 2026-10-28). Search and the registry work; the download fails for that URL
+  (exit 3). Points with negative coordinates and the grids download.
 - For product types without public naming documentation (Aeolus; EarthCARE X-MET, AUX,
   orbit and L0; Biomass L0, CalVal, Simulated and other AUX; FLEX L0, L1B, RAW, ANC, RAC,
   AUX) only type, sensing start and baseline are read from the name. CryoSat Baseline F
