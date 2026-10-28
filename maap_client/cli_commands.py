@@ -19,7 +19,7 @@ from maap_client.cli_helpers import (
 from maap_client.exceptions import classify_exit_code, EXIT_NON_TRANSIENT, EXIT_TRANSIENT
 from maap_client.filters import option_flag
 from maap_client.mission_select import resolve_mission, write_active_mission
-from maap_client.missions import MISSIONS, get_mission, mission_for_collection
+from maap_client.missions import MISSIONS, get_mission, mission_for_collection, parse_product
 from maap_client.utils import to_zulu
 
 
@@ -240,11 +240,15 @@ def cmd_search(args: argparse.Namespace) -> int:
     # and orbit paths where on_day never fires; combine both into one summary
     # so the incremental saves aren't hidden behind a stale "no new URLs".
     if registry_save and urls:
-        new_count, files_written = client.save_to_registry(
-            urls=urls,
-            collection=args.collection,
-            product_type=args.product,
-        )
+        try:
+            new_count, files_written = client.save_to_registry(
+                urls=urls,
+                collection=args.collection,
+                product_type=args.product,
+            )
+        except InvalidRequestError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return EXIT_NON_TRANSIENT
         total_new_count = accumulated_new_count + new_count
         total_files = list(accumulated_files)
         total_files.extend(f for f in files_written if f not in total_files)
@@ -523,7 +527,7 @@ def cmd_state_pending(args: argparse.Namespace) -> int:
 def cmd_state_mark(args: argparse.Namespace) -> int:
     """Handle 'state mark' command."""
     from pathlib import Path
-    from maap_client.paths import extract_info
+    from maap_client.paths import baseline_error
 
     # The collection in each path decides its mission, whatever the active mission
     config = MaapConfig.load(getattr(args, "config", None))
@@ -549,9 +553,12 @@ def cmd_state_mark(args: argparse.Namespace) -> int:
     items_by_key: dict[tuple[str, str, str, str], list[str]] = {}
 
     for item in items:
-        info = extract_info(item)
-        if info["product_type"] is None or info["baseline"] is None:
+        parsed = parse_product(item)
+        if parsed is None or parsed.product_type is None:
             print(f"Error: cannot parse path: {item}", file=sys.stderr)
+            return EXIT_NON_TRANSIENT
+        if parsed.baseline is None:
+            print(f"Error: {baseline_error(item, parsed)}", file=sys.stderr)
             return EXIT_NON_TRANSIENT
 
         # Extract collection from path parts (a collection of any mission)
@@ -565,7 +572,7 @@ def cmd_state_mark(args: argparse.Namespace) -> int:
             return EXIT_NON_TRANSIENT
 
         mission, _ = resolve_mission(collection, [], getattr(args, "mission", None), config)
-        key = (mission.name, collection, info["product_type"], info["baseline"])
+        key = (mission.name, collection, parsed.product_type, parsed.baseline)
 
         if key not in items_by_key:
             items_by_key[key] = []

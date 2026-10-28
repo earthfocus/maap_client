@@ -12,6 +12,7 @@ from maap_client.auth import load_credentials, TokenManager
 from maap_client.catalog_build import BaselineInfo, CatalogCollectionManager
 from maap_client.catalog_query import CatalogQueryablesManager
 from maap_client.config import MaapConfig
+from maap_client.constants import NO_BASELINE
 from maap_client.download import DownloadManager
 from maap_client.exceptions import (
     AuthenticationError,
@@ -29,17 +30,18 @@ from maap_client.filters import (
 )
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
-from maap_client.missions import Mission, get_mission, mission_for_filename, parse_product
+from maap_client.missions import Mission, get_mission, mission_for_filename
 from maap_client.paths import (
     extract_baseline,
     is_zip_url,
     local_relpath,
+    parse_with_baseline,
     url_to_local_path,
 )
 from maap_client.registry import Registry
 from maap_client.types import DownloadResult, SearchResult, SyncResult
 from maap_client.utils import normalize_time_range as _normalize_time_range
-from maap_client.utils import normalize_format, parse_datetime, to_zulu
+from maap_client.utils import normalize_baseline, normalize_format, parse_datetime, to_zulu
 
 logger = logging.getLogger(__name__)
 
@@ -330,6 +332,9 @@ class MaapClient:
     ) -> list[str]:
         """
         List available baselines.
+
+        From the queryables (the default), a product the mission declares
+        without baseline (its items have no version) also lists NO_BASELINE.
         """
         if (verify or from_built) and not product_type:
             raise ValueError(
@@ -363,8 +368,10 @@ class MaapClient:
 
         # Catalog Queryables (only if already exist, read-only)
         queryables = self.catalog.load(collection, refresh=False)
-
-        return queryables.list_baselines()
+        baselines = queryables.list_baselines()
+        if product_type in self.mission.no_baseline_products:
+            baselines.append(NO_BASELINE)
+        return baselines
 
     def get_baseline_info(
         self,
@@ -459,7 +466,7 @@ class MaapClient:
             StateTracker instance
         """
         self._config.ensure_directories()
-        return self.state.get_tracker(collection, product_type, baseline)
+        return self.state.get_tracker(collection, product_type, normalize_baseline(baseline))
 
     # === UTILITY METHODS ===
 
@@ -498,11 +505,15 @@ class MaapClient:
 
         Automatically extracts baseline from each URL and routes it to the
         correct registry path. Handles mixed baselines in the same URL list.
+        Every baseline is read before anything is written.
 
         Args:
             urls: List of URLs to save (can contain mixed baselines)
             collection: Collection name
             product_type: Product type
+
+        Raises:
+            InvalidRequestError: If the baseline of a URL cannot be read
 
         Returns:
             Tuple of (new_urls_count, files_written)
@@ -510,13 +521,11 @@ class MaapClient:
         if not urls:
             return 0, []
 
-        # Group URLs by baseline
+        # Group URLs by baseline, parsed from the URL: Aeolus keeps it in the
+        # path, and declared products without baseline get NO_BASELINE
         urls_by_baseline: dict[str, list[str]] = {}
         for url in urls:
-            # parsed from the URL: Aeolus, Biomass and FLEX file names do not
-            # all carry the baseline
-            bl = extract_baseline(url) or "UNKNOWN"
-            urls_by_baseline.setdefault(bl, []).append(url)
+            urls_by_baseline.setdefault(parse_with_baseline(url).baseline, []).append(url)
 
         total_new_count = 0
         all_files_written: list[Path] = []
@@ -566,7 +575,7 @@ class MaapClient:
 
         # Discover baselines from registry if not specified
         if baseline:
-            baselines = [baseline]
+            baselines = [normalize_baseline(baseline)]
         else:
             base_path = registry_dir / "urls" / self._config.mission / collection / product_type
             if not base_path.exists():
@@ -656,6 +665,7 @@ class MaapClient:
         """
         # Validate parameters
         validate_time_range(start, end, orbit)
+        baseline = normalize_baseline(baseline)
         orbit_num, resolved_frames, filters = self._resolve_filters(orbit, frames, filters)
         extra = self._queryables(filters)
 
@@ -680,14 +690,9 @@ class MaapClient:
             )
             if reverse:
                 urls = sort_by_sensing_time(urls, reverse=True)
-            # Extract baselines from results
-            baselines_found = list(set(
-                extract_baseline(url) or "UNKNOWN"
-                for url in urls
-            ))
             return SearchResult(
                 urls=urls,
-                baselines_found=sorted(baselines_found),
+                baselines_found=self._baselines_found(urls),
                 start=None,
                 end=None,
                 total_count=len(urls),
@@ -722,20 +727,47 @@ class MaapClient:
             extra=extra,
         )
 
-        # Extract baselines from results
-        baselines_found = list(set(
-            extract_baseline(url) or "UNKNOWN"
-            for url in urls
-        ))
-
         return SearchResult(
             urls=urls,
-            baselines_found=sorted(baselines_found),
+            baselines_found=self._baselines_found(urls),
             start=search_start,
             end=search_end,
             total_count=len(urls),
             failed_days=list(self.searcher.last_failed_days),
         )
+
+    @staticmethod
+    def _baselines_found(urls: list[str]) -> list[str]:
+        """Sorted baselines read from the URLs (unreadable ones left out)."""
+        return sorted({bl for bl in map(extract_baseline, urls) if bl})
+
+    @staticmethod
+    def _group_by_product_baseline(
+        urls: list[str], result: DownloadResult
+    ) -> dict[tuple[str, str], list[str]]:
+        """
+        Group URLs by (product type, baseline) for the structured layout.
+
+        Parsed from the URL: Aeolus keeps the baseline in the path, and
+        Biomass internal files are not named after their product. A URL
+        without product type or sensing time goes to result.permanent_errors
+        (batch_download would silently skip it; a retry cannot fix the name).
+
+        Raises:
+            InvalidRequestError: If the baseline of a URL cannot be read
+        """
+        urls_by_key: dict[tuple[str, str], list[str]] = {}
+        for url in urls:
+            filename = os.path.basename(url)
+            parsed = parse_with_baseline(url)
+            if not parsed.product_type:
+                result.permanent_errors.append(f"cannot parse product type from {filename}")
+                continue
+            if parsed.sensing_time is None:
+                result.permanent_errors.append(f"cannot parse filename (no sensing time): {filename}")
+                continue
+            urls_by_key.setdefault((parsed.product_type, parsed.baseline), []).append(url)
+        return urls_by_key
 
     def download(
         self,
@@ -767,8 +799,10 @@ class MaapClient:
 
         Raises:
             InvalidRequestError: On individual files that need product_dir (e.g.
-                                Biomass) without it, or two different URLs
-                                sharing a local path
+                                Biomass) without it, two different URLs
+                                sharing a local path, or (structured paths,
+                                also on a dry run) a URL whose baseline cannot
+                                be read
 
         Returns:
             DownloadResult with downloaded paths, skipped, errors
@@ -784,6 +818,14 @@ class MaapClient:
 
         if reverse:
             urls = sort_by_sensing_time(urls, reverse=True)
+
+        # Structured paths group by product/baseline (flat --out-dir needs
+        # neither); done before the dry run so it lists what a real run downloads
+        urls_by_key: dict[tuple[str, str], list[str]] = {}
+        if not out_dir:
+            urls_by_key = self._group_by_product_baseline(urls, result)
+            grouped = {url for group in urls_by_key.values() for url in group}
+            urls = [url for url in urls if url in grouped]
 
         # Dry run
         if dry_run:
@@ -829,23 +871,6 @@ class MaapClient:
             return result
 
         # Download to structured paths (grouped by product/baseline)
-        urls_by_key: dict[tuple[str, str], list[str]] = {}
-        for url in urls:
-            filename = os.path.basename(url)
-            # parsed from the URL: Aeolus keeps the baseline in the path, and
-            # Biomass internal files are not named after their product
-            parsed = parse_product(url)
-            product = parsed.product_type if parsed else None
-            baseline = parsed.baseline if parsed else None
-            if not product or not baseline:
-                result.permanent_errors.append(f"cannot parse product/baseline from {filename}")
-                continue
-            if parsed.sensing_time is None:
-                # batch_download would silently skip it; a retry cannot fix the name.
-                result.permanent_errors.append(f"cannot parse filename (no sensing time): {filename}")
-                continue
-            urls_by_key.setdefault((product, baseline), []).append(url)
-
         downloader = self._get_downloader(product_dir=product_dir)
         for (product, baseline), group_urls in urls_by_key.items():
             try:
@@ -1086,7 +1111,9 @@ class MaapClient:
         Args:
             collection: Collection name
             product_type: Product type
-            baseline: Optional baseline filter (syncs all baselines if None)
+            baseline: Optional baseline filter (syncs all baselines if None:
+                     the catalogue versions, plus NO_BASELINE for a product the
+                     mission declares without baseline)
             start: Optional start datetime
             end: Optional end datetime (defaults to now)
             max_items: Maximum items to sync
@@ -1103,13 +1130,15 @@ class MaapClient:
                                 or a filter is not one of the mission's, or
                                 individual files that need product_dir (e.g.
                                 Biomass) are asked for without it (before any
-                                search)
+                                search), or the baseline of a URL found cannot
+                                be read (before it is registered)
 
         Returns:
             SyncResult with stats and tracker for post-sync operations
         """
         # Validate time range
         validate_time_range(start, end)
+        baseline = normalize_baseline(baseline)
         self._check_product_dir_format(product_type, format, product_dir)
         _, frames, filters = self._resolve_filters(None, frames, filters)
         extra = self._queryables(filters)
@@ -1167,6 +1196,9 @@ class MaapClient:
                     extra=extra,
                 ):
                     if day_urls:
+                        # An unreadable baseline fails before the day is registered
+                        for url in day_urls:
+                            parse_with_baseline(url)
                         tracker.add_urls(day_urls)
                         urls.extend(day_urls)
 
@@ -1302,6 +1334,8 @@ class MaapClient:
                         (coll, prod, bl, err) for prod, bl, err in manager.last_failures
                     )
 
+            except InvalidRequestError:
+                raise
             except Exception as e:
                 logger.error(f"Error building {coll}: {e}")
                 if failures_out is not None:

@@ -244,6 +244,16 @@ data/Biomass/.../01/2025/12/11/BIO_S1_DGM__1S_..._F249_01_DO9ZT3/
   their names repeat across and within products. The command is rejected before any request.
 - Aeolus `.QR.EEF` files go in `<PRODUCT>/` with `--product-dir`.
 - `--out-dir DIR` downloads to `DIR` instead of the structured layout.
+- **Products without baseline** go in a `NO_BASELINE` baseline folder (data and registry):
+  Biomass `MPL_ORBPRE`, and the FLEX aux types `AUX_CCCRAD`, `AUX_DVAERR`, `AUX_MACV2_`,
+  `AUX_OLISRF`, `AUX_REFCEN`, `AUX_SIFCOV`, `AUX_SLISRF`, `AUX_UTMTIL`, `AUX_V_TEMP`. Give
+  `NO_BASELINE` (any case) as the baseline to search them alone; `sync` without a baseline
+  includes them. Any other product whose baseline cannot be read is an error (exit 4,
+  "cannot read the baseline of ...") before anything is written.
+
+```bash
+maap search BiomassAux MPL_ORBPRE NO_BASELINE --days-back 3
+```
 
 ### Registry
 
@@ -310,8 +320,6 @@ maap download EarthCAREXMETL1DProducts10_MAAP AUX_MET_1D --registry --orbit 0152
 
 - Naming is not publicly documented; only type, sensing start, orbit (when present) and
   baseline are read.
-- Registries saved by older versions under baseline `UNKNOWN` stay next to the new
-  real-baseline folders; `download --registry` reads both.
 - Unlike older versions, `--registry-save` now registers a day whose search returns as
   many URLs as the day already holds but different ones (e.g. another format); older
   versions skipped such a day.
@@ -351,9 +359,6 @@ maap search FLEXL1BEOProductsInternal L1B_OBS___ --date 2026-10-26 --registry-sa
 - **Biomass L2b** (`FP_FH__L2B`, `FP_FD__L2B`, `FP_AGB_L2B`; collections `BiomassLevel2b`,
   `BiomassLevel2bIOC`, empty today): the names carry no time, so they are rejected
   ("no sensing time").
-- **`FLEXL2AuxProductsInternal`**: no baseline in the URL, the name or the catalogue, so
-  items are rejected ("cannot parse product/baseline"). The same applies to `MPL_ORBPRE`
-  items in Biomass collections.
 - **FLEX downloads are not validated**: search, registry and name parsing are tested, but
   downloads return 403 until ESA grants access.
 - **`BiomassAuxRest`**: restricted download access (403 with standard accounts).

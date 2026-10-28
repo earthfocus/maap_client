@@ -9,6 +9,7 @@ import logging
 
 from maap_client.catalog import Catalog, CatalogManager
 from maap_client.constants import __version__, DEFAULT_BUILT_CATALOG_DIR
+from maap_client.exceptions import InvalidRequestError
 from maap_client.utils import parse_datetime, to_zulu
 
 
@@ -365,6 +366,9 @@ class CatalogCollectionManager(CatalogManager):
                         recount = self._client.searcher.search_product_count(
                             collection, product, baseline
                         )
+                except InvalidRequestError:
+                    # An unreadable baseline is not transient: stop the build
+                    raise
                 except Exception as e:
                     # Transport retries are exhausted by now: record and move on
                     # so one bad baseline doesn't discard the rest of the pass.

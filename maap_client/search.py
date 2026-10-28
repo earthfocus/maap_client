@@ -48,6 +48,7 @@ from maap_client.constants import (
     DEFAULT_MISSION,
     DEFAULT_MISSION_START,
     DEFAULT_MISSION_END,
+    NO_BASELINE,
     STAC_RETRY_ALLOWED_METHODS,
     STAC_RETRY_BACKOFF_FACTOR,
     STAC_RETRY_STATUS_FORCELIST,
@@ -60,10 +61,12 @@ from maap_client.paths import (
     extract_sensing_time,
     extract_baseline,
     extract_info,
+    parse_with_baseline,
 )
 from maap_client.types import GranuleInfo
 from maap_client.utils import (
     format_time_range,
+    normalize_baseline,
     normalize_format,
     normalize_time_range,
     parse_datetime,
@@ -279,10 +282,11 @@ class MaapSearcher:
         Build a CQL2-text filter string for MAAP STAC searches.
 
         extra maps mission queryables to accepted values; names with a
-        namespace (``eofeos:repeat_cycle_id``) are double-quoted.
+        namespace (``eofeos:repeat_cycle_id``) are double-quoted. NO_BASELINE
+        adds no productVersion clause (those items have no version).
         """
         parts = [f"productType = '{product_type}'"]
-        if baseline:
+        if baseline and normalize_baseline(baseline) != NO_BASELINE:
             parts.append(f"productVersion = '{baseline}'")
         if orbit is not None:
             parts.append(f"orbitNumber = {orbit}")
@@ -309,14 +313,20 @@ class MaapSearcher:
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         format: Optional[str] = None,
+        baseline: Optional[str] = None,
     ) -> list[str]:
         """Process STAC search results into sorted URLs.
+
+        With baseline NO_BASELINE only URLs whose parsed baseline is
+        NO_BASELINE are kept (the query has no productVersion clause).
 
         Returns:
             List of sorted product URLs
         """
         # Extract enclosure URLs
         urls = self._extract_enclosures(search, format=format)
+        if normalize_baseline(baseline) == NO_BASELINE:
+            urls = [url for url in urls if extract_baseline(url) == NO_BASELINE]
         # Filter by sensing_time
         urls = filter_by_sensing_time(urls, start, end)
         # Sort by sensing_time
@@ -346,7 +356,7 @@ class MaapSearcher:
 
         search = self.client.search(
             collections=[collection],
-            filter=f"productType = '{product_type}' AND productVersion = '{baseline}'",
+            filter=self._build_filter(product_type, baseline=baseline),
             datetime=datetime_arg,
             method="GET",
             max_items=150,
@@ -363,7 +373,7 @@ class MaapSearcher:
             return True
 
         self.last_missing_format = []
-        urls = self._clean_search_results(search, start, end)
+        urls = self._clean_search_results(search, start, end, baseline=baseline)
         result = len(urls) >= 1
         if verbose:
             logger.info("  EXISTS" if result else "  not found")
@@ -399,7 +409,7 @@ class MaapSearcher:
 
         search = self.client.search(
             collections=[collection],
-            filter=f"productType = '{product_type}' AND productVersion = '{baseline}'",
+            filter=self._build_filter(product_type, baseline=baseline),
             datetime=datetime_arg,
             method="GET",
             max_items=150,
@@ -542,6 +552,9 @@ class MaapSearcher:
         if not first_day_urls or not last_day_urls:
             return None
 
+        # The catalog groups items by baseline: an unreadable one is an error.
+        for url in (first_day_urls[0], last_day_urls[-1]):
+            parse_with_baseline(url)
         first_granule = GranuleInfo(**extract_info(first_day_urls[0]))
         last_granule = GranuleInfo(**extract_info(last_day_urls[-1]))
 
@@ -599,7 +612,7 @@ class MaapSearcher:
                 method="GET",
                 max_items=max_items,
             )
-            urls = self._clean_search_results(search, start, end, format=format)
+            urls = self._clean_search_results(search, start, end, format=format, baseline=baseline)
             if verbose:
                 logger.info(f"  found {len(urls)}")
             self._warn_missing_format()
@@ -679,7 +692,7 @@ class MaapSearcher:
         )
 
         self.last_missing_format = []
-        urls = self._clean_search_results(search, format=format)
+        urls = self._clean_search_results(search, format=format, baseline=baseline)
         self._warn_missing_format()
         if verbose:
             logger.info(f"  found {len(urls)}")
@@ -736,7 +749,7 @@ class MaapSearcher:
                     method="GET",
                     max_items=max_items,
                 )
-                urls = self._clean_search_results(search, day_start, day_end, format=format)
+                urls = self._clean_search_results(search, day_start, day_end, format=format, baseline=baseline)
             except (AuthenticationError, CredentialsError):
                 raise
             except Exception as e:
@@ -783,7 +796,7 @@ class MaapSearcher:
                         method="GET",
                         max_items=max_items,
                     )
-                    urls = self._clean_search_results(search, day_start, day_end, format=format)
+                    urls = self._clean_search_results(search, day_start, day_end, format=format, baseline=baseline)
                 except (AuthenticationError, CredentialsError):
                     raise
                 except Exception as e:

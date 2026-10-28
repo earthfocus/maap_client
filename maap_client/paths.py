@@ -12,13 +12,14 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
 
+from maap_client.exceptions import InvalidRequestError
 from maap_client.filters import (  # noqa: F401  (re-exported)
     filter_by_fields,
     filter_by_orbit_frame,
     filter_by_sensing_time,
     sort_by_sensing_time,
 )
-from maap_client.missions import mission_for_filename, parse_product, split_product_url
+from maap_client.missions import ProductName, mission_for_filename, parse_product, split_product_url
 from maap_client.missions.base import product_folder
 
 
@@ -135,6 +136,26 @@ def extract_baseline(uri: str) -> Optional[str]:
     """Baseline from the name or URL path (e.g. "BC", "1B16", "NO_BASELINE"), or None."""
     parsed = parse_product(uri)
     return parsed.baseline if parsed else None
+
+
+def parse_with_baseline(uri: str) -> ProductName:
+    """
+    parse_product for the data and registry layout, which needs the baseline.
+
+    Raises:
+        InvalidRequestError: If the baseline cannot be read (the parser failed:
+            not a declared product without baseline either)
+    """
+    parsed = parse_product(uri)
+    if parsed is None or parsed.baseline is None:
+        raise baseline_error(uri, parsed)
+    return parsed
+
+
+def baseline_error(uri: str, parsed: Optional[ProductName]) -> InvalidRequestError:
+    """The error for a URL or path whose baseline cannot be read."""
+    name = (parsed.product_type or parsed.product) if parsed else os.path.basename(uri)
+    return InvalidRequestError(f"cannot read the baseline of {name} from {uri}")
 
 
 def extract_product(filename: str) -> Optional[str]:

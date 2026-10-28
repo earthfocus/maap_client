@@ -3,12 +3,19 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from maap_client.missions.base import parse_frames  # noqa: F401  (re-exported)
+from maap_client.missions.base import NO_BASELINE, parse_frames  # noqa: F401  (re-exported)
 
 
 def normalize_format(value: str) -> str:
     """Canonical format token, as --format and default_format take it: " .H5 " -> "h5"."""
     return value.strip().lower().lstrip(".")
+
+
+def normalize_baseline(baseline: Optional[str]) -> Optional[str]:
+    """The baseline as given, except NO_BASELINE in any case -> NO_BASELINE."""
+    if baseline and baseline.upper() == NO_BASELINE:
+        return NO_BASELINE
+    return baseline
 
 
 def to_zulu(dt: datetime) -> str:
