@@ -22,16 +22,14 @@ from maap_client.exceptions import (
 from maap_client.filters import (
     filter_by_fields,
     filter_by_orbit_frame,
-    normalize_frames,
-    resolve_orbit_frames,
+    merge_frames,
+    resolve_filters,
     sort_by_sensing_time,
     validate_time_range,
 )
 from maap_client.search import MaapSearcher
 from maap_client.tracker import GlobalStateTracker, StateTracker
 from maap_client.missions import BIOMASS, Mission, get_mission, mission_for_filename, parse_product
-from maap_client.missions.earthcare import EARTHCARE
-from maap_client.missions.base import parse_filter_values
 from maap_client.paths import (
     extract_baseline,
     is_zip_url,
@@ -41,7 +39,7 @@ from maap_client.paths import (
 from maap_client.registry import Registry
 from maap_client.types import DownloadResult, SearchResult, SyncResult
 from maap_client.utils import normalize_time_range as _normalize_time_range
-from maap_client.utils import has_orbit_letter, parse_datetime, to_zulu
+from maap_client.utils import parse_datetime, to_zulu
 
 logger = logging.getLogger(__name__)
 
@@ -209,46 +207,22 @@ class MaapClient:
         orbit: Optional[str],
         frames: Optional[list[str]],
         filters: Optional[dict[str, list]],
-    ) -> Optional[dict[str, list[str]]]:
+        registry: bool = False,
+    ) -> tuple[Optional[int], Optional[list[str]], Optional[dict[str, list[str]]]]:
         """
-        Check orbit, frames and filters against the mission's closed filter list.
-
-        Frame letters (as a list or an orbit suffix) exist only where orbits
-        carry them (EarthCARE); other missions take their own filters.
+        Validate orbit and filters with filters.resolve_filters; ``frames`` is
+        an alias of ``filters["frame"]``.
 
         Returns:
-            None when no filter is given, else filter option -> unpadded values.
-
-        Raises:
-            InvalidRequestError: On a filter the mission does not have, a
-                malformed value, frame letters or an orbit letter on a mission
-                without them.
+            (orbit number, frame letters of orbits, other filters): on missions
+            with orbit_frame_letter the "frame" filter is returned apart, for
+            the searcher's frames and the offline orbit/frame filter.
         """
         if not (orbit or frames or filters):
-            return None
-        mission = self.mission
-        available = ", ".join(mission.available_filters())
-        if not mission.orbit_frame_suffix:
-            if frames:
-                raise InvalidRequestError(f"{mission.name} has no frame letters; available filters: {available}")
-            if orbit and has_orbit_letter(orbit):
-                raise InvalidRequestError(f"{mission.name} orbits take no frame letter: '{orbit.strip()}'")
-        if not filters:
-            return None
-        options = {spec.option for spec in mission.filters}
-        resolved: dict[str, list[str]] = {}
-        for option, values in filters.items():
-            if option not in options:
-                raise InvalidRequestError(f"{mission.name} has no {option}; available filters: {available}")
-            if isinstance(values, (str, int)):
-                values = [values]
-            if not values:
-                continue
-            try:
-                resolved[option] = parse_filter_values(",".join(str(v) for v in values))
-            except ValueError as e:
-                raise InvalidRequestError(f"{option}: {e}") from e
-        return resolved or None
+            return None, None, None
+        orbit_num, resolved = resolve_filters(self.mission, orbit, merge_frames(frames, filters), registry)
+        letters = resolved.pop("frame", None) if self.mission.orbit_frame_letter else None
+        return orbit_num, letters, resolved or None
 
     def _queryables(self, filters: Optional[dict[str, list[str]]]) -> Optional[dict[str, list[str]]]:
         """Map resolved filters (option -> values) to STAC queryables -> values."""
@@ -635,13 +609,14 @@ class MaapClient:
             max_items: Maximum items to return
             verbose: Show progress during search
             format: 'zip', 'all' or a file extension (default: the mission's format priority list)
-            frames: Optional frame letters to restrict results to (works for both
-                   time-based and orbit-based search); if orbit already includes
-                   a frame letter, frames must be omitted
+            frames: Alias of filters['frame'] (e.g. EarthCARE frame letters; works
+                   for both time-based and orbit-based search); if orbit already
+                   includes a frame letter, frames must be omitted
             on_day: Called with each day's URLs as found (day-by-day path only).
                    Durability hook for incremental persistence.
-            filters: Mission filters, option -> values (e.g. Biomass
-                   {'track': ['2'], 'repeat_cycle': ['1']}); see Mission.filters
+            filters: Mission filters, option -> values, str or int, alone or in
+                   a list (e.g. Biomass {'track': [2], 'repeat_cycle': '1'});
+                   see Mission.filters and filters.resolve_filters
 
         Raises:
             InvalidRequestError: If orbit is used with start/end, or start > end,
@@ -654,10 +629,10 @@ class MaapClient:
         """
         # Validate parameters
         validate_time_range(start, end, orbit)
-        extra = self._queryables(self._resolve_filters(orbit, frames, filters))
+        orbit_num, resolved_frames, filters = self._resolve_filters(orbit, frames, filters)
+        extra = self._queryables(filters)
 
         # Orbit-based search
-        orbit_num, resolved_frames = resolve_orbit_frames(orbit, frames)
         if orbit_num is not None:
             queryables = self.catalog.load(collection)
             if queryables and not queryables.supports_orbit():
@@ -926,12 +901,7 @@ class MaapClient:
         Returns:
             DownloadResult with downloaded paths, skipped, errors
         """
-        filters = self._resolve_filters(orbit, frames, filters)
-        if orbit and not self.mission.orbit_offline:
-            raise InvalidRequestError(
-                f"{self.mission.name} product names carry no absolute orbit: "
-                f"orbit filtering only works with search"
-            )
+        orbit_num, resolved_frames, filters = self._resolve_filters(orbit, frames, filters, registry=True)
         # Validate time range (done inside load_from_registry)
         urls = self.load_from_registry(
             collection=collection,
@@ -940,11 +910,11 @@ class MaapClient:
             start=start,
             end=end,
         )
-        orbit_num, resolved_frames = resolve_orbit_frames(orbit, frames)
-        if orbit_num is not None and self.mission is not EARTHCARE:
-            # Aeolus carries the orbit only in some names (L0/L1 ms timestamps):
-            # reject the others instead of silently dropping them. EarthCARE
-            # keeps dropping orbit-less names (AUX_CC*, AUX_ORBPRE, MPL_ORBSCT).
+        if orbit_num is not None and self.mission.orbit_offline == "some":
+            # Names that carry the orbit only sometimes (Aeolus L0/L1 ms
+            # timestamps): reject the others instead of silently dropping them.
+            # With "all" orbit-less names (EarthCARE AUX_CC*, AUX_ORBPRE,
+            # MPL_ORBSCT) are dropped by filter_by_orbit_frame.
             orbitless = sorted({
                 parsed.product_type or parsed.product
                 for parsed in map(self.mission.parse, urls)
@@ -1111,8 +1081,8 @@ class MaapClient:
         # Validate time range
         validate_time_range(start, end)
         self._check_biomass_format(format, product_dir)
-        extra = self._queryables(self._resolve_filters(None, frames, filters))
-        frames = normalize_frames(frames)
+        _, frames, filters = self._resolve_filters(None, frames, filters)
+        extra = self._queryables(filters)
 
         # Default time range: last 3 days
         now = datetime.now(timezone.utc).replace(microsecond=0)

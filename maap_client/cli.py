@@ -5,9 +5,11 @@ import logging
 import sys
 from pathlib import Path
 
-from maap_client.constants import TOKEN_RENEW_URL, __version__
-from maap_client.cli_helpers import filter_values_arg, frames_arg
+from maap_client.constants import DEFAULT_MISSION, TOKEN_RENEW_URL, __version__
+from maap_client.cli_helpers import filter_options
 from maap_client.exceptions import classify_exit_code
+from maap_client.filters import option_flag
+from maap_client.missions import MISSIONS
 from maap_client.cli_commands import (
     cmd_catalog_update,
     cmd_catalog_build,
@@ -72,13 +74,15 @@ def add_mission_option(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def add_biomass_filter_options(group, what: str) -> None:
-    """--track, --repeat-cycle and --major-cycle (Biomass): comma lists of numbers."""
-    for flag, name in (("--track", "track"), ("--repeat-cycle", "repeat cycle"), ("--major-cycle", "major cycle")):
-        group.add_argument(
-            flag, type=filter_values_arg, metavar="N[,N...]",
-            help=f"Biomass: {name} number(s), comma-separated; {what}",
-        )
+def add_filter_options(group) -> None:
+    """
+    One option per filter declared by any mission (e.g. --frame, --track),
+    with the help of each mission that has it. Values stay plain strings,
+    parsed once the command's mission is known.
+    """
+    for option, help_text in filter_options().items():
+        metavar = option.upper()
+        group.add_argument(option_flag(option), metavar=f"{metavar}[,{metavar}...]", help=help_text)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -106,8 +110,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mission",
-        help="Mission (EarthCARE, Aeolus, Biomass, FLEX) when the collection or URLs "
-             "do not decide it (default: MAAP_MISSION, 'maap mission use', config, EarthCARE)",
+        help=f"Mission ({', '.join(MISSIONS)}) when the collection or URLs "
+             f"do not decide it (default: MAAP_MISSION, 'maap mission use', config, {DEFAULT_MISSION})",
     )
     parser.add_argument(
         "-v",
@@ -244,13 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
     filter_group.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
     )
-    filter_group.add_argument(
-        "--frame", type=frames_arg,
-        help="Frame letter(s) A-H, comma-separated (e.g., 'A' or 'C,D,E'); "
-             "combines with time options or a frame-less --orbit. "
-             "Biomass: frame number(s) (e.g., '12')"
-    )
-    add_biomass_filter_options(filter_group, "combines with any other filter")
+    add_filter_options(filter_group)
 
     # Output options group
     output_group = search_parser.add_argument_group("output options")
@@ -285,6 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.set_defaults(func=cmd_search)
 
     # --- download subcommand ---
+    no_offline_orbit = [m.name for m in MISSIONS.values() if m.orbit_offline == "none"]
     download_parser = subparsers.add_parser(
         "download",
         help="Download products",
@@ -293,8 +292,9 @@ def build_parser() -> argparse.ArgumentParser:
 Notes:
   --url, --url-file, and --registry are mutually exclusive download source modes;
   one of them is required.
-  --date, --start/--end, --frame, --orbit and the Biomass filters filter registry
-  entries and only apply with --registry. They match against filenames (no MAAP query).
+  --date, --start/--end, --orbit and the mission filters (--frame, --track, ...)
+  filter registry entries and only apply with --registry. They match against
+  filenames (no MAAP query).
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -330,17 +330,12 @@ Notes:
     filter_group.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
     )
-    filter_group.add_argument(
-        "--frame", type=frames_arg,
-        help="Filter registry entries by frame letter(s), matched against filenames "
-             "(Biomass: frame numbers)"
-    )
-    add_biomass_filter_options(filter_group, "matched against filenames")
+    add_filter_options(filter_group)
     filter_group.add_argument(
         "--orbit",
         help="Filter registry entries by orbit (e.g., '1525' or '01525E'), matched "
              "against filenames; works even for products MAAP does not index by orbit "
-             "(not for Biomass or FLEX, whose names carry no absolute orbit)"
+             f"(not for {' or '.join(no_offline_orbit)}, whose names carry no absolute orbit)"
     )
 
     # Output options group
@@ -415,13 +410,7 @@ Notes:
     filter_group.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
     )
-    filter_group.add_argument(
-        "--frame", type=frames_arg,
-        help="Frame letter(s) A-H, comma-separated (e.g., 'A' or 'C,D,E'); "
-             "combines with time options or a frame-less --orbit. "
-             "Biomass: frame number(s) (e.g., '12')"
-    )
-    add_biomass_filter_options(filter_group, "combines with any other filter")
+    add_filter_options(filter_group)
 
     # Output options group
     output_group = get_parser.add_argument_group("output options")
@@ -477,12 +466,7 @@ Notes:
     sync_parser.add_argument(
         "--end", "-e", help="End datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
     )
-    sync_parser.add_argument(
-        "--frame", type=frames_arg,
-        help="Frame letter(s) A-H, comma-separated; sync only these frames "
-             "(Biomass: frame numbers)"
-    )
-    add_biomass_filter_options(sync_parser, "sync only these")
+    add_filter_options(sync_parser)
     sync_parser.add_argument(
         "--max-items",
         "-n",

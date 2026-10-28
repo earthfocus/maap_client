@@ -139,8 +139,7 @@ class _Aeolus(Mission):
     start = "2018-08-22T00:00:00Z"
     end = "2023-07-28T23:59:59Z"
     default_formats = ("dbl", "nc", "bufr", "eef")
-    orbit_offline = True
-    orbit_frame_suffix = False
+    orbit_offline = "some"
 
     def parse(self, url: str) -> AeolusName:
         return AeolusName(

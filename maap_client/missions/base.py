@@ -4,7 +4,7 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Literal, Optional
 
 # Baseline of the products that have none (declared per mission in
 # Mission.no_baseline_products); distinct from None, a baseline not read.
@@ -32,11 +32,13 @@ class ProductName:
 
 @dataclass(frozen=True)
 class FilterSpec:
-    """A mission filter: CLI/API option, STAC queryable and ProductName attribute."""
+    """A mission filter: CLI/API option, help, value parser, STAC queryable and ProductName attribute."""
 
-    option: str  # "track" | "frame" | "repeat_cycle" | "major_cycle"
+    option: str  # e.g. "frame", "repeat_cycle" (CLI flag --repeat-cycle)
+    help: str  # this mission's values, e.g. "frame letter(s) A-H"
+    parse: Callable[[str], list[str]]  # comma list -> canonical values; raises ValueError
     queryable: str  # e.g. "track", "eofeos:repeat_cycle_id"
-    attribute: str  # int attribute of the mission's ProductName, for offline (registry) filtering
+    attribute: str  # attribute of the mission's ProductName, for offline (registry) filtering
 
 
 def parse_filter_values(value: str) -> list[str]:
@@ -59,6 +61,26 @@ def parse_filter_values(value: str) -> list[str]:
         if unpadded not in values:
             values.append(unpadded)
     return values
+
+
+def parse_frames(value: str) -> list[str]:
+    """
+    Parse comma-separated frame letters into canonical uppercase form.
+
+    Example: " c, d ,E" -> ["C", "D", "E"]. Duplicates are removed,
+    first-seen order is kept.
+
+    Raises:
+        ValueError: If any entry is not a single letter A-H.
+    """
+    frames: list[str] = []
+    for part in value.split(","):
+        frame = part.strip().upper()
+        if len(frame) != 1 or not "A" <= frame <= "H":
+            raise ValueError(f"invalid frame '{part.strip()}': must be letters A-H")
+        if frame not in frames:
+            frames.append(frame)
+    return frames
 
 
 def split_product_url(url: str) -> tuple[str, str]:
@@ -132,16 +154,19 @@ class Mission:
     end: str
     default_formats: tuple[str, ...]
     filters: tuple[FilterSpec, ...] = ()
-    orbit_offline: bool
-    orbit_frame_suffix: bool
+    # orbits may end with a frame letter ('01525E'), merged into the "frame" filter
+    orbit_frame_letter: bool = False
+    # names that carry an absolute orbit, for offline (registry) orbit filtering:
+    # "all" (names without one are dropped), "some" (such names are rejected),
+    # "none" (--orbit only works with search)
+    orbit_offline: Literal["all", "some", "none"]
     dedup_products: frozenset[str] = frozenset()
     no_orbit_products: frozenset[str] = frozenset()
     no_baseline_products: frozenset[str] = frozenset()
 
     def available_filters(self) -> tuple[str, ...]:
-        """Filter options of the mission: orbit, frame letters where orbits carry them, then its filters."""
-        letters = ("frame",) if self.orbit_frame_suffix else ()
-        return ("orbit",) + letters + tuple(spec.option for spec in self.filters)
+        """Filter options of the mission: orbit, then its declared filters."""
+        return ("orbit",) + tuple(spec.option for spec in self.filters)
 
     def parse(self, url: str) -> ProductName:
         """Parse a product filename or URL."""

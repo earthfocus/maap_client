@@ -46,6 +46,7 @@ from maap_client.missions.base import (
     ProductName,
     declared_baseline,
     match_group,
+    parse_filter_values,
     parse_timestamp,
     product_folder,
     split_product_url,
@@ -196,13 +197,14 @@ class _Biomass(Mission):
     default_formats = ("zip",)
     # MAAP queryables; offline values come from the T/F/C/M fields of the name
     filters = (
-        FilterSpec("track", "track", "track"),
-        FilterSpec("frame", "frame", "frame"),
-        FilterSpec("repeat_cycle", "eofeos:repeat_cycle_id", "repeat_cycle"),
-        FilterSpec("major_cycle", "eofeos:major_cycle_id", "major_cycle"),
+        FilterSpec("track", "track number(s)", parse_filter_values, "track", "track"),
+        FilterSpec("frame", "frame number(s)", parse_filter_values, "frame", "frame"),
+        FilterSpec("repeat_cycle", "repeat cycle number(s)", parse_filter_values,
+                   "eofeos:repeat_cycle_id", "repeat_cycle"),
+        FilterSpec("major_cycle", "major cycle number(s)", parse_filter_values,
+                   "eofeos:major_cycle_id", "major_cycle"),
     )
-    orbit_offline = False
-    orbit_frame_suffix = False
+    orbit_offline = "none"
     no_baseline_products = NO_BASELINE_PRODUCTS
 
     def parse(self, url: str) -> BiomassName:

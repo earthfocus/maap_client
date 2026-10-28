@@ -202,8 +202,7 @@ class _Flex(Mission):
     start = "2016-08-01T00:00:00Z"
     end = "2045-12-31T23:59:59Z"
     default_formats = ("zip",)
-    orbit_offline = False
-    orbit_frame_suffix = False
+    orbit_offline = "none"
     no_baseline_products = NO_BASELINE_PRODUCTS
 
     def parse(self, url: str) -> FlexName:

@@ -7,17 +7,17 @@ from pathlib import Path
 
 from maap_client import MaapClient, MaapConfig, InvalidRequestError
 from maap_client.cli_helpers import (
+    collect_filter_args,
     get_client,
     load_config,
     mission_client,
-    option_flag,
     report_failed_days,
     resolve_date_args,
-    resolve_filter_args,
     validate_download_filter_args,
     validate_time_args,
 )
 from maap_client.exceptions import classify_exit_code, EXIT_NON_TRANSIENT, EXIT_TRANSIENT
+from maap_client.filters import option_flag
 from maap_client.mission_select import resolve_mission, write_active_mission
 from maap_client.missions import MISSIONS, get_mission, mission_for_collection
 from maap_client.utils import to_zulu
@@ -180,11 +180,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 def cmd_search(args: argparse.Namespace) -> int:
     """Handle 'search' command (unified: time-based or orbit-based)."""
     client = get_client(args)
-    try:
-        frames, filters = resolve_filter_args(args, client)
-    except InvalidRequestError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return EXIT_NON_TRANSIENT
+    filters = collect_filter_args(args)
 
     # Validate arguments
     validation_error = validate_time_args(args)
@@ -222,7 +218,6 @@ def cmd_search(args: argparse.Namespace) -> int:
             start=start,
             end=end,
             orbit=orbit,
-            frames=frames,
             filters=filters,
             use_catalog=use_catalog,
             max_items=args.max_items,
@@ -285,11 +280,7 @@ def cmd_download(args: argparse.Namespace) -> int:
     if filter_error:
         print(f"Error: {filter_error}", file=sys.stderr)
         return EXIT_NON_TRANSIENT
-    try:
-        frames, filters = resolve_filter_args(args, client)
-    except InvalidRequestError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return EXIT_NON_TRANSIENT
+    filters = collect_filter_args(args)
 
     # Validate time arguments (only when using --registry with time filters)
     if args.registry:
@@ -312,7 +303,6 @@ def cmd_download(args: argparse.Namespace) -> int:
                 start=start,
                 end=end,
                 orbit=getattr(args, 'orbit', None),
-                frames=frames,
                 filters=filters,
                 out_dir=args.out_dir,
                 dry_run=args.dry_run,
@@ -382,11 +372,7 @@ def cmd_download(args: argparse.Namespace) -> int:
 def cmd_get(args: argparse.Namespace) -> int:
     """Handle 'get' command (search + download in one step)."""
     client = get_client(args)
-    try:
-        frames, filters = resolve_filter_args(args, client)
-    except InvalidRequestError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return EXIT_NON_TRANSIENT
+    filters = collect_filter_args(args)
 
     # Validate arguments
     validation_error = validate_time_args(args)
@@ -405,7 +391,6 @@ def cmd_get(args: argparse.Namespace) -> int:
             start=start,
             end=end,
             orbit=orbit,
-            frames=frames,
             filters=filters,
             out_dir=getattr(args, 'out_dir', None),
             max_items=args.max_items,
@@ -445,11 +430,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
         return EXIT_NON_TRANSIENT
 
     client = get_client(args)
-    try:
-        frames, filters = resolve_filter_args(args, client)
-    except InvalidRequestError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return EXIT_NON_TRANSIENT
+    filters = collect_filter_args(args)
     # --out-dir overrides the data directory (and -d/--data-dir)
     if args.out_dir:
         client.config.data_dir = args.out_dir
@@ -465,7 +446,6 @@ def cmd_sync(args: argparse.Namespace) -> int:
             baseline=args.baseline,
             start=start,
             end=end,
-            frames=frames,
             filters=filters,
             max_items=args.max_items,
             verbose=getattr(args, 'verbose', 0) >= 1,

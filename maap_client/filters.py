@@ -1,12 +1,12 @@
 """Filtering of product URLs/paths by sensing time, orbit, frame and mission fields, and validation of the filter arguments."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 from maap_client.exceptions import InvalidRequestError
 from maap_client.missions import parse_product
 from maap_client.missions.base import Mission
-from maap_client.utils import parse_frames, parse_orbit, timezone_is_aware
+from maap_client.utils import has_orbit_letter, parse_frames, parse_orbit, timezone_is_aware
 
 
 def _sensing_time(item: str) -> Optional[datetime]:
@@ -189,12 +189,12 @@ def validate_time_range(
             f"'start' must be before 'end' (got {start} > {end})."
         )
 
+
 def normalize_frames(frames: Optional[list[str]]) -> Optional[list[str]]:
     """
-    Validate and canonicalize a frames list (Python API entry point).
+    Validate and canonicalize a list of frame letters.
 
-    CLI callers already get canonical uppercase letters from `frames_arg`;
-    this normalizes frames passed directly via the Python API.
+    Used for the frame letters of orbits (resolve_orbit_frames).
 
     Returns:
         None if frames is None/empty, otherwise the uppercased, validated list.
@@ -208,6 +208,7 @@ def normalize_frames(frames: Optional[list[str]]) -> Optional[list[str]]:
         return parse_frames(",".join(frames))
     except ValueError as e:
         raise InvalidRequestError(str(e)) from e
+
 
 def resolve_orbit_frames(
     orbit: Optional[str],
@@ -235,3 +236,89 @@ def resolve_orbit_frames(
             f"use orbit '{orbit_num}' together with the frames list instead"
         )
     return orbit_num, [orbit_letter] if orbit_letter else frames
+
+
+def option_flag(option: str) -> str:
+    """CLI flag of a filter option: "repeat_cycle" -> "--repeat-cycle"."""
+    return "--" + option.replace("_", "-")
+
+
+FilterValues = Union[str, int, list]
+
+
+def _value_list(values: Optional[FilterValues]) -> list:
+    """Filter values as a list: one str/int (a str may be a comma list) or a list of them."""
+    if values is None:
+        return []
+    return [values] if isinstance(values, (str, int)) else list(values)
+
+
+def merge_frames(
+    frames: Optional[list[str]], filters: Optional[dict[str, FilterValues]]
+) -> Optional[dict[str, FilterValues]]:
+    """filters with the API alias ``frames=[...]`` merged into ``filters["frame"]``."""
+    if not frames:
+        return filters
+    merged = dict(filters or {})
+    merged["frame"] = list(frames) + _value_list(merged.get("frame"))
+    return merged
+
+
+def resolve_filters(
+    mission: Mission,
+    orbit: Optional[str],
+    filters: Optional[dict[str, FilterValues]],
+    registry: bool = False,
+) -> tuple[Optional[int], dict[str, list[str]]]:
+    """
+    Validate an orbit spec and filters against the mission's declarations.
+
+    The only validation of the filter options of the CLI and the API. Values
+    may be str (a comma list) or int, alone or in a list, and are parsed by
+    the mission's FilterSpec. The frame letter of an orbit ('01525E') is
+    merged into the "frame" filter on missions with orbit_frame_letter.
+
+    Args:
+        mission: Mission the request is for
+        orbit: Orbit spec ('1525' or '01525E'), or None
+        filters: Filter option (e.g. "track") -> values
+        registry: True for offline (registry) filtering, where the orbit
+            must be readable from the product names
+
+    Returns:
+        (orbit number or None, filter option -> canonical values) without
+        empty filters.
+
+    Raises:
+        InvalidRequestError: On an option the mission does not have, a
+            malformed value or orbit, an orbit frame letter on a mission
+            without them or together with frames, or a registry orbit on a
+            mission whose names carry no absolute orbit.
+    """
+    given = {option: _value_list(values) for option, values in (filters or {}).items()}
+    given = {option: values for option, values in given.items() if values}
+    specs = {spec.option: spec for spec in mission.filters}
+    for option in given:
+        if option not in specs:
+            raise InvalidRequestError(
+                f"{mission.name} has no {option_flag(option)}; "
+                f"available filters: {', '.join(map(option_flag, mission.available_filters()))}"
+            )
+    if orbit and not mission.orbit_frame_letter and has_orbit_letter(orbit):
+        raise InvalidRequestError(f"{mission.name} orbits take no frame letter: --orbit {orbit.strip()}")
+    if orbit and registry and mission.orbit_offline == "none":
+        raise InvalidRequestError(
+            f"{mission.name} product names carry no absolute orbit: --orbit only works with search"
+        )
+
+    resolved: dict[str, list[str]] = {}
+    for option, values in given.items():
+        try:
+            resolved[option] = specs[option].parse(",".join(str(value) for value in values))
+        except ValueError as e:
+            raise InvalidRequestError(str(e)) from e
+    letters = resolved.get("frame") if mission.orbit_frame_letter else None
+    orbit_num, letters = resolve_orbit_frames(orbit, letters)
+    if letters:
+        resolved["frame"] = letters
+    return orbit_num, resolved

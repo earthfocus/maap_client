@@ -3,6 +3,8 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+from maap_client.missions.base import parse_frames  # noqa: F401  (re-exported)
+
 
 def to_zulu(dt: datetime) -> str:
     """Convert datetime to ISO 8601 Zulu format (UTC with Z suffix)."""
@@ -102,26 +104,6 @@ def normalize_time_range(
     t1 = min(end if end else end_cap, end_cap)
 
     return t0, t1
-
-
-def parse_frames(value: str) -> list[str]:
-    """
-    Parse comma-separated frame letters into canonical uppercase form.
-
-    Example: " c, d ,E" -> ["C", "D", "E"]. Duplicates are removed,
-    first-seen order is kept.
-
-    Raises:
-        ValueError: If any entry is not a single letter A-H.
-    """
-    frames: list[str] = []
-    for part in value.split(","):
-        frame = part.strip().upper()
-        if len(frame) != 1 or not "A" <= frame <= "H":
-            raise ValueError(f"invalid frame '{part.strip()}': must be letters A-H")
-        if frame not in frames:
-            frames.append(frame)
-    return frames
 
 
 def parse_orbit(value: str) -> tuple[int, Optional[str]]:

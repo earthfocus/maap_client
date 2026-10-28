@@ -9,11 +9,12 @@ import sys
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from maap_client import InvalidRequestError, MaapClient, MaapConfig
+from maap_client import MaapClient, MaapConfig
+from maap_client.filters import option_flag
 from maap_client.mission_select import resolve_mission
-from maap_client.missions.base import parse_filter_values
+from maap_client.missions import MISSIONS
 from maap_client.registry import read_pairs_file
-from maap_client.utils import has_orbit_letter, parse_datetime, parse_frames, parse_orbit
+from maap_client.utils import parse_datetime, parse_orbit
 
 
 def input_urls(args: argparse.Namespace) -> list[str]:
@@ -175,100 +176,42 @@ def validate_time_args(args: argparse.Namespace, orbit_is_filter: bool = False) 
         except ValueError as e:
             return str(e)
         if orbit_letter and has_frame:
+            frame_list = ",".join(part.strip().upper() for part in args.frame.split(","))
             return (
                 f"--frame cannot be used when --orbit already includes a frame letter; "
-                f"use --orbit {orbit_num} --frame {','.join(args.frame)}"
+                f"use --orbit {orbit_num} --frame {frame_list}"
             )
 
     return None
 
 
-def frames_arg(value: str) -> list[str]:
+def filter_options() -> dict[str, str]:
     """
-    Argparse type for --frame: comma-separated letters A-H or numbers.
-
-    Only the syntax is checked here (uppercased tokens); which form applies
-    depends on the mission and is decided by resolve_filter_args.
+    Filter options of all missions (argparse dests, first-seen order) -> help,
+    e.g. "frame" -> "EarthCARE: frame letter(s) A-H; Biomass: frame number(s)".
     """
-    tokens = [part.strip().upper() for part in value.split(",")]
-    for token in tokens:
-        if not (token.isdecimal() or (len(token) == 1 and "A" <= token <= "H")):
-            raise argparse.ArgumentTypeError(
-                f"invalid frame '{token}': must be letters A-H (EarthCARE) or numbers (Biomass)"
-            )
-    return list(dict.fromkeys(tokens))
+    helps: dict[str, list[str]] = {}
+    for mission in MISSIONS.values():
+        for spec in mission.filters:
+            helps.setdefault(spec.option, []).append(f"{mission.name}: {spec.help}")
+    return {option: "; ".join(parts) for option, parts in helps.items()}
 
 
-def filter_values_arg(value: str) -> list[str]:
-    """Argparse type for numeric mission filters: comma list, unpadded ('002' -> '2')."""
-    try:
-        return parse_filter_values(value)
-    except ValueError as e:
-        raise argparse.ArgumentTypeError(str(e))
-
-
-# Filter options besides --orbit, as argparse dests (also the client's filter keys)
-FILTER_OPTIONS = ("frame", "track", "repeat_cycle", "major_cycle")
-
-
-def option_flag(option: str) -> str:
-    """CLI flag of a filter option: "repeat_cycle" -> "--repeat-cycle"."""
-    return "--" + option.replace("_", "-")
-
-
-def resolve_filter_args(
-    args: argparse.Namespace, client: MaapClient
-) -> tuple[Optional[list[str]], Optional[dict[str, list[str]]]]:
+def collect_filter_args(args: argparse.Namespace) -> Optional[dict[str, str]]:
     """
-    Check the filter options against the command's mission and map them.
+    The filter options given (option -> raw value), or None.
 
-    EarthCARE --frame stays frame letters (the client's ``frames``); the
-    numeric filters of other missions (Biomass --frame/--track/...) become
-    the client's ``filters``. The mission is looked up only when a filter
-    or --orbit is given.
-
-    Returns:
-        (frames, filters)
-
-    Raises:
-        InvalidRequestError: On an option the mission does not have, a
-            malformed value, an orbit frame letter on a mission without
-            them, or --orbit with download --registry on a mission whose
-            product names carry no absolute orbit.
+    Values are validated by the client (filters.resolve_filters) once the
+    mission is known; InvalidRequestError there means exit code 4.
     """
-    given = {option: getattr(args, option) for option in FILTER_OPTIONS if getattr(args, option, None)}
-    orbit = getattr(args, "orbit", None)
-    if not given and not orbit:
-        return None, None
-    mission = client.mission
-    available = mission.available_filters()
-    for option in given:
-        if option not in available:
-            raise InvalidRequestError(
-                f"{mission.name} has no {option_flag(option)}; "
-                f"available filters: {', '.join(map(option_flag, available))}"
-            )
-    if orbit and not mission.orbit_frame_suffix and has_orbit_letter(orbit):
-        raise InvalidRequestError(f"{mission.name} orbits take no frame letter: --orbit {orbit.strip()}")
-    if orbit and getattr(args, "registry", False) and not mission.orbit_offline:
-        raise InvalidRequestError(
-            f"{mission.name} product names carry no absolute orbit: --orbit only works with search"
-        )
-
-    try:
-        frames = None
-        if mission.orbit_frame_suffix and "frame" in given:
-            frames = parse_frames(",".join(given.pop("frame")))
-        filters = {option: parse_filter_values(",".join(values)) for option, values in given.items()}
-    except ValueError as e:
-        raise InvalidRequestError(str(e)) from e
-    return frames, filters or None
+    given = {option: getattr(args, option) for option in filter_options() if getattr(args, option, None)}
+    return given or None
 
 
 def validate_download_filter_args(args: argparse.Namespace) -> Optional[str]:
     """Registry-only filters (--frame/--orbit/...) must not be used with --url/--url-file."""
     if not getattr(args, 'registry', False):
-        for option in FILTER_OPTIONS + ("orbit",):
+        for option in (*filter_options(), "orbit"):
             if getattr(args, option, None):
                 return f"{option_flag(option)} requires --registry"
     return None
