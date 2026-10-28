@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from maap_client import MaapClient, MaapConfig
+from maap_client.exceptions import InvalidRequestError
 from maap_client.filters import option_flag
 from maap_client.mission_select import resolve_mission
 from maap_client.missions import MISSIONS
@@ -81,7 +82,18 @@ def resolve_date_args(args: argparse.Namespace) -> tuple[Optional[datetime], Opt
 
     Returns:
         Tuple of (start, end) datetimes or (None, None)
+
+    Raises:
+        InvalidRequestError: If a date or time cannot be parsed
     """
+    try:
+        return _resolve_date_args(args)
+    except ValueError as e:
+        raise InvalidRequestError(f"invalid date or time: {e}") from e
+
+
+def _resolve_date_args(args: argparse.Namespace) -> tuple[Optional[datetime], Optional[datetime]]:
+    """resolve_date_args; ValueError on a date or time that cannot be parsed."""
     # --date mode
     if hasattr(args, 'date') and args.date:
         if 'T' in args.date:
