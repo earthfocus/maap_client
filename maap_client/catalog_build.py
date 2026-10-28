@@ -191,6 +191,9 @@ class CatalogCollectionManager(CatalogManager):
         Returns:
             The built/updated CatalogCollection
 
+        Raises:
+            InvalidRequestError: If products_filter names a type the collection does not have
+
         Note:
             The catalog always represents the full mission time range. A
             baseline already in the catalog is first re-counted against the
@@ -248,6 +251,12 @@ class CatalogCollectionManager(CatalogManager):
 
         # Apply products filter if specified
         if products_filter:
+            unknown = [p for p in products_filter if p not in products]
+            if unknown:
+                raise InvalidRequestError(
+                    f"Unknown product type(s) in {collection}: {', '.join(unknown)}; "
+                    f"available: {', '.join(products) or 'none'}"
+                )
             products = [p for p in products if p in products_filter]
 
         for product in products:
