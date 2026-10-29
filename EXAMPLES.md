@@ -161,7 +161,7 @@ format it has from its mission's priority list:
 | Aeolus | `dbl` → `nc` → `bufr` → `eef` |
 | Biomass | `zip` |
 | FLEX | `zip` |
-| CryoSat | `nc` (every product has one; `--format hdr` for the XML header, `zip` for both) |
+| CryoSat | `nc` (every product has one; `--format hdr` for the XML header of L1/L2, `zip` for the whole product) |
 
 `default_format` in `[missions.<Name>]` replaces the list with one format.
 
@@ -307,8 +307,8 @@ ECA_JXDA_CPR_NOM_1B_20241201T123456Z_20241201T135958Z_07282E.h5
 ```
 
 Some CryoSat names give no usable sensing time (see [CryoSat](#cryosat)); those products
-are dated by the day folder of their URL or local path, and a range given with hours
-keeps every such product of the days it touches.
+are dated by the day folder of their URL or local path and compared by day, so a
+range given with hours keeps those MAAP returns for it on the days it touches.
 
 ### Catalogs
 
@@ -432,9 +432,6 @@ maap search CryoTEMPOEOLIS10 THEM_GRID_ V201 --date 2025-11-01
 - **FLEX downloads are not validated**: search, registry and name parsing are tested, but
   downloads return 403 until ESA grants access.
 - **`BiomassAuxRest`**: restricted download access (403 with standard accounts).
-- **`catalog build` of long-span products** finds no data: CryoSat `SIR_TDP_SD`
-  (multi-year climatologies) and `THEM_GRID_` (3-month grids), like the long-validity
-  Aeolus and FLEX AUX types. Search, registry, download and sync work.
 - **`L4_SIT_Open`** (SMOS-CryoSat L4): not part of the CryoSat mission (SMOS host, no
   MAAP token access).
 - **CryoTEMPO-EOLIS points with a positive tile coordinate** (a `+` in the name, e.g.
