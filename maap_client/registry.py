@@ -12,6 +12,7 @@ from maap_client.paths import (
     extract_sensing_time,
     url_to_local_path,
 )
+from maap_client.utils import utc_date
 
 logger = logging.getLogger(__name__)
 
@@ -396,8 +397,7 @@ class Registry:
         Returns:
             List of URLs (deduplicated, from URL|PATH format)
         """
-        start_date = start.date() if start else None
-        end_date = end.date() if end else None
+        start_date, end_date = utc_date(start), utc_date(end)
 
         urls: list[str] = []
         seen: set[str] = set()

@@ -9,6 +9,7 @@ import os
 from maap_client.filters import filter_by_sensing_time
 from maap_client.paths import extract_sensing_time, url_to_local_path
 from maap_client.registry import Registry
+from maap_client.utils import utc_date
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ def _to_date_range(
     start: Optional[datetime], end: Optional[datetime]
 ) -> tuple[Optional[date], Optional[date]]:
     """Extract date parts from optional datetimes."""
-    return (start.date() if start else None, end.date() if end else None)
+    return utc_date(start), utc_date(end)
 
 
 class StateTracker:

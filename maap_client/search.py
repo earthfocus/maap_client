@@ -73,6 +73,7 @@ from maap_client.utils import (
     normalize_time_range,
     parse_datetime,
     to_stac_datetime,
+    utc_date,
 )
 
 logger = logging.getLogger(__name__)
@@ -237,8 +238,8 @@ class MaapSearcher:
 
         Only yields valid windows where start < end.
         """
-        current = start.date()
-        end_date = end.date()
+        current = utc_date(start)
+        end_date = utc_date(end)
         is_first = True
 
         while current <= end_date:
@@ -832,7 +833,7 @@ class MaapSearcher:
         self.last_missing_format = []
         # retried at the end, or by a caller that stops early (retry_failed_days)
         self.pending_retry = failed_ranges = []
-        total_days = (end.date() - start.date()).days + 1
+        total_days = (utc_date(end) - utc_date(start)).days + 1
 
         day_ranges = list(self._iter_day_ranges(start, end))
         if reverse:

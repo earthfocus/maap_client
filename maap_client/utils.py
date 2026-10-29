@@ -1,6 +1,6 @@
 """Utility functions for MAAP client."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from maap_client.exceptions import InvalidRequestError
@@ -25,6 +25,15 @@ def to_zulu(dt: datetime) -> str:
         dt = dt.replace(tzinfo=timezone.utc)
     dt = dt.astimezone(timezone.utc).replace(microsecond=0)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def utc_date(dt: Optional[datetime]) -> Optional[date]:
+    """UTC calendar day of a datetime (naive means UTC), or None."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).date()
 
 
 def to_stac_datetime(start: datetime, end: datetime) -> list[str]:

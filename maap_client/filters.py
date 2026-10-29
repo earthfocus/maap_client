@@ -4,13 +4,13 @@ Also validates the filter arguments.
 """
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import datetime
 from typing import Optional, Union
 
 from maap_client.exceptions import InvalidRequestError
 from maap_client.missions import parse_product
 from maap_client.missions.base import FilterSpec, Mission
-from maap_client.utils import parse_orbit, timezone_is_aware
+from maap_client.utils import parse_orbit, timezone_is_aware, utc_date
 
 logger = logging.getLogger(__name__)
 
@@ -70,16 +70,12 @@ def filter_by_sensing_time(
         if parsed is None or parsed.sensing_time is None:
             continue
         if parsed.sensing_day_only:
-            within = _within(parsed.sensing_time.date(), _utc_day(start), _utc_day(end))
+            within = _within(parsed.sensing_time.date(), utc_date(start), utc_date(end))
         else:
             within = _within(parsed.sensing_time, start, end)
         if within:
             result.append(item)
     return result
-
-
-def _utc_day(value: Optional[datetime]) -> Optional[date]:
-    return value.astimezone(timezone.utc).date() if value is not None else None
 
 
 def _within(value, start, end) -> bool:
