@@ -15,6 +15,9 @@ data/*
 registry/*
 !registry/README.md
 
+# Original mission patches (only logos/readme/ is tracked)
+logos/ESA_*/
+
 # Build artifacts
 *.egg-info/
 
