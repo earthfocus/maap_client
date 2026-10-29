@@ -562,8 +562,8 @@ class MaapSearcher:
         lo, hi = t0, t1
         first_day = None
 
-        while lo.date() <= hi.date():
-            mid_day = (lo + (hi - lo) / 2).date()
+        while utc_date(lo) <= utc_date(hi):
+            mid_day = utc_date(lo + (hi - lo) / 2)
             mid_end = datetime(
                 mid_day.year, mid_day.month, mid_day.day, 23, 59, 59, tzinfo=timezone.utc
             )
@@ -581,8 +581,8 @@ class MaapSearcher:
         lo, hi = t0, t1
         last_day = None
 
-        while lo.date() <= hi.date():
-            mid_day = (lo + (hi - lo) / 2).date()
+        while utc_date(lo) <= utc_date(hi):
+            mid_day = utc_date(lo + (hi - lo) / 2)
             mid_start = datetime(mid_day.year, mid_day.month, mid_day.day, tzinfo=timezone.utc)
             if self.search_has_any_product(collection, product_type, baseline, mid_start, t1):
                 last_day = mid_day
@@ -859,9 +859,9 @@ class MaapSearcher:
                 raise
             except Exception as e:
                 # Transport retries are exhausted: skip the day, keep the range.
-                logger.warning(f"FAILED DAY {day_start.date().isoformat()}: {e}")
+                logger.warning(f"FAILED DAY {utc_date(day_start).isoformat()}: {e}")
                 failed_ranges.append((day_start, day_end))
-                self.last_failed_days.append((day_start.date(), str(e)))
+                self.last_failed_days.append((utc_date(day_start), str(e)))
                 continue
 
             if verbose:
@@ -914,7 +914,7 @@ class MaapSearcher:
         logger.info(f"Retrying {len(self.pending_retry)} failed day(s)...")
         while self.pending_retry:
             day_start, day_end = self.pending_retry.pop(0)
-            day = day_start.date()
+            day = utc_date(day_start)
             datetime_arg = to_stac_datetime(day_start, day_end)
             filter_str = self._build_filter(product_type, baseline=baseline, extra=extra)
             try:
