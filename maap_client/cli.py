@@ -486,7 +486,7 @@ Notes:
     )
     add_filter_options(sync_parser)
     # sync walks days: no --orbit
-    sync_parser.add_argument("--orbit", action=_NotAnOption, help=argparse.SUPPRESS)
+    sync_parser.add_argument("--orbit", nargs="?", action=_NotAnOption, help=argparse.SUPPRESS)
     sync_parser.add_argument(
         "--max-items",
         "-n",
