@@ -9,11 +9,11 @@ EXAMPLES_ME.md
 LESSONS_LEARNED.md
 SETUP.md
 
-# Data and registry files (keep structure, ignore contents)
-data/EarthCARE/
-registry/urls/EarthCARE/
-registry/downloads/EarthCARE/
-registry/marked/EarthCARE/
+# Data and registry files (keep the folder README, ignore contents)
+data/*
+!data/README.md
+registry/*
+!registry/README.md
 
 # Build artifacts
 *.egg-info/
