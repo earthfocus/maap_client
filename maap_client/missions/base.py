@@ -100,6 +100,7 @@ ORBIT_DIRECTION = FilterSpec(
     "orbit_direction", "ascending/descending", parse_orbit_directions, "sat:orbit_state", None
 )
 
+
 def split_product_url(url: str) -> tuple[str, str]:
     """
     Split a product URL into (product, relative path inside the product).
