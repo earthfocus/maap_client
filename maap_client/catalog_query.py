@@ -47,9 +47,9 @@ class CatalogQueryables(Catalog):
         baselines = prop.get("enum", []) if isinstance(prop, dict) else prop
         return sorted([b.upper() for b in baselines])
 
-    def supports_orbit(self) -> bool:
-        """Check if collection supports orbit-based search."""
-        return "sat:absolute_orbit" in self.properties
+    def supports(self, queryable: str) -> bool:
+        """Check if the collection declares a queryable, e.g. ``sat:orbit_state``."""
+        return queryable in self.properties
 
 
 class CatalogQueryablesManager(CatalogManager):

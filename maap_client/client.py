@@ -16,6 +16,7 @@ from maap_client.download import DownloadManager
 from maap_client.exceptions import (
     AuthenticationError,
     BatchDownloadAborted,
+    CatalogError,
     CredentialsError,
     InvalidRequestError,
 )
@@ -23,6 +24,7 @@ from maap_client.filters import (
     FilterValues,
     filter_queryables,
     filter_registry_urls,
+    option_flag,
     resolve_filter_args,
     sort_by_sensing_time,
     validate_time_range,
@@ -584,15 +586,10 @@ class MaapClient:
         baseline = self._baseline(product_type, baseline)
         orbit_num, filters = resolve_filter_args(self.mission, orbit, filters)
         extra = filter_queryables(self.mission, filters)
+        self._check_queryables(collection, orbit_num, extra)
 
         # Orbit-based search
         if orbit_num is not None:
-            queryables = self.catalog.load(collection)
-            if queryables and not queryables.supports_orbit():
-                raise InvalidRequestError(
-                    f"Collection '{collection}' does not support orbit search. "
-                    f"Use --date or --start/--end instead."
-                )
             urls = self.searcher.search_urls_by_orbit(
                 collection=collection,
                 product_type=product_type,
@@ -636,6 +633,36 @@ class MaapClient:
         )
 
         return self._search_result(urls, search_start, search_end, self.searcher.last_failed_days)
+
+    def _check_queryables(
+        self, collection: str, orbit: Optional[int], extra: Optional[dict[str, list[str]]]
+    ) -> None:
+        """
+        Reject --orbit or a filter whose queryable the collection does not
+        declare, before MAAP is asked. Queryables not saved, unreachable or
+        empty check nothing: MAAP decides.
+
+        Raises:
+            InvalidRequestError: If the collection's queryables lack one
+        """
+        wanted = {spec.queryable: option_flag(spec.option)
+                  for spec in self.mission.filters if spec.queryable in (extra or {})}
+        if orbit is not None:
+            wanted["sat:absolute_orbit"] = "--orbit"
+        if not wanted:
+            return
+        try:
+            queryables = self.catalog.load(collection)
+        except CatalogError:
+            return
+        if not (queryables and queryables.properties):
+            return
+        for queryable, flag in wanted.items():
+            if not queryables.supports(queryable):
+                raise InvalidRequestError(
+                    f"{collection} does not support {flag} "
+                    f"(per its saved queryables; refresh them with: maap catalog update)"
+                )
 
     @staticmethod
     def _search_result(
@@ -1039,6 +1066,7 @@ class MaapClient:
         self._check_product_dir_format(product_type, format, product_dir)
         _, filters = resolve_filter_args(self.mission, None, filters)
         extra = filter_queryables(self.mission, filters)
+        self._check_queryables(collection, None, extra)
 
         # Default time range: last 3 days
         now = datetime.now(timezone.utc).replace(microsecond=0)

@@ -17,6 +17,8 @@
   `--major-cycle`. An option a mission lacks is a clear error.
 - `--orbit-direction ascending|descending` on EarthCARE, Biomass and CryoSat (search
   only; MAAP `sat:orbit_state`).
+- `--orbit` and the mission filters are checked against the collection's queryables
+  before searching: one it does not declare is a clear error (exit 4).
 - `NO_BASELINE`: products without a baseline (Biomass `MPL_ORBPRE`, Aeolus aux types
   without catalogue version, FLEX aux types) are searched, downloaded, registered and
   tracked under the baseline folder `NO_BASELINE`.

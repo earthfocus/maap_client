@@ -189,6 +189,11 @@ e.g. `--frame FRAME[,FRAME...]  EarthCARE: frame letter(s) A-H; Biomass: frame n
 EarthCARE, Biomass and CryoSat also take `--orbit-direction ascending|descending` (comma
 list, any case), sent to MAAP as `sat:orbit_state`; search only.
 
+Before searching, `--orbit` and every filter are checked against the collection's saved
+queryables: a collection that does not declare one is an error (exit 4) without asking
+MAAP, e.g. `CryoTEMPO10 does not support --orbit-direction`. If MAAP adds a queryable,
+refresh them with `maap catalog update`.
+
 `search`, `get` and `sync` send the filters to MAAP. `download --registry` applies them
 offline to the registered file names:
 
@@ -407,8 +412,8 @@ maap list FLEXL1BEOProductsInternal
   Inland Water names dated days before the catalogue (`SIR_TDP_IW`) take the day of the
   archive folder, which is the catalogue start day. Their download URL cannot be rebuilt
   from a bare file name: use search or the registry.
-- `--orbit` and `--orbit-direction` work with search only. MAAP rejects `--orbit-direction`
-  on `CryoTEMPO10` and both on `CryoTEMPOEOLIS10` (exit 4 with the server message); the
+- `--orbit` and `--orbit-direction` work with search only. `CryoTEMPO10` does not support
+  `--orbit-direction` and `CryoTEMPOEOLIS10` neither of them (exit 4); the
   whole-orbit `SIR_GDR_2_` items rarely have an orbit direction.
 - `L4_SIT_Open` (SMOS-CryoSat sea-ice thickness) is not supported: it is served by the
   SMOS dissemination service, which does not accept the MAAP token.
