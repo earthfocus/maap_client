@@ -1,21 +1,25 @@
 # MAAP Client
 
-<p>
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/earthcare.png" alt="EarthCARE" height="120">
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/aeolus.png" alt="Aeolus" height="120">
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/biomass.png" alt="Biomass" height="120">
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/flex.png" alt="FLEX" height="120">
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/cryosat.png" alt="CryoSat" height="120">
-</p>
-
-Mission patches © ESA
-
 [![PyPI](https://img.shields.io/pypi/v/maap-client?label=PyPI)](https://pypi.org/project/maap-client/)
 
 A Python client for ESA MAAP satellite data, with a CLI (`maap`) and a Python library.
 It browses the MAAP catalogue, searches products by date, orbit or mission-specific
 filters, and downloads them with your MAAP credentials into a predictable dated layout,
-with text-file tracking for unattended pipelines. It supports EarthCARE, Aeolus, Biomass, FLEX and CryoSat.
+with text-file tracking for unattended pipelines.
+
+## Supported missions
+
+It supports EarthCARE, Aeolus, Biomass, FLEX and CryoSat.
+
+<p>
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/earthcare.png" alt="EarthCARE" height="60">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/aeolus.png" alt="Aeolus" height="60">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/biomass.png" alt="Biomass" height="60">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/flex.png" alt="FLEX" height="60">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/cryosat.png" alt="CryoSat" height="60">
+  <br>
+  <sub>Mission patches © ESA</sub>
+</p>
 
 | Mission | Default format | Access |
 |---------|----------------|--------|
