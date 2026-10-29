@@ -11,7 +11,7 @@ from typing import Optional
 
 from maap_client import MaapClient, MaapConfig
 from maap_client.exceptions import InvalidRequestError
-from maap_client.filters import option_flag
+from maap_client.filters import option_flag, search_only_message
 from maap_client.mission_select import resolve_mission
 from maap_client.missions import MISSIONS
 from maap_client.registry import read_pairs_file
@@ -211,6 +211,13 @@ def filter_options() -> dict[str, str]:
     return {option: "; ".join(parts) for option, parts in helps.items()}
 
 
+def search_only_options() -> set[str]:
+    """Filter options that no mission reads from product names (search only)."""
+    specs = [spec for mission in MISSIONS.values() for spec in mission.filters]
+    offline = {spec.option for spec in specs if spec.attribute is not None}
+    return {spec.option for spec in specs} - offline
+
+
 def collect_filter_args(args: argparse.Namespace) -> Optional[dict[str, str]]:
     """
     The filter options given (option -> raw value), or None.
@@ -227,11 +234,16 @@ def collect_filter_args(args: argparse.Namespace) -> Optional[dict[str, str]]:
 def validate_download_filter_args(args: argparse.Namespace) -> Optional[str]:
     """Registry-only filters and time options must not be used with --url/--url-file.
 
-    The registry-only options are --frame, --orbit, --date and the like.
+    The registry-only options are --frame, --orbit, --date and the like. A
+    filter no mission reads from product names (--orbit-direction) does not
+    point to --registry, which rejects it too (see resolve_filters).
     """
     if not getattr(args, 'registry', False):
+        search_only = search_only_options()
         for option in (*filter_options(), "orbit", "date", "start", "end", "days_back"):
             if getattr(args, option, None) is not None:
+                if option in search_only:
+                    return search_only_message(option)
                 return f"{option_flag(option)} requires --registry"
     return None
 

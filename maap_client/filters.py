@@ -102,7 +102,7 @@ def _unknown_option_message(mission: Mission, option: str) -> str:
     )
 
 
-def _search_only_message(option: str) -> str:
+def search_only_message(option: str) -> str:
     return f"{option_flag(option)} only works with search"
 
 
@@ -152,7 +152,7 @@ def filter_by_fields(
         if option not in specs:
             raise ValueError(_unknown_option_message(mission, option))
         if specs[option].attribute is None:
-            raise ValueError(_search_only_message(option))
+            raise ValueError(search_only_message(option))
     # filters read from the names; search-only ones (no attribute) never get here
     specs = {option: spec for option, spec in specs.items() if spec.attribute}
 
@@ -279,7 +279,7 @@ def resolve_filters(
         if option not in specs:
             raise InvalidRequestError(_unknown_option_message(mission, option))
         if registry and specs[option].attribute is None:
-            raise InvalidRequestError(_search_only_message(option))
+            raise InvalidRequestError(search_only_message(option))
     orbit_num, orbit_letter = _parse_orbit(orbit)
     if orbit_letter and not mission.orbit_frame_letter:
         raise InvalidRequestError(
