@@ -12,11 +12,11 @@ with text-file tracking for unattended pipelines.
 It supports EarthCARE, Aeolus, Biomass, FLEX and CryoSat.
 
 <p>
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/earthcare.png" alt="EarthCARE" height="60">
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/aeolus.png" alt="Aeolus" height="60">
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/biomass.png" alt="Biomass" height="60">
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/flex.png" alt="FLEX" height="60">
-  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/cryosat.png" alt="CryoSat" height="60">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/earthcare.png" alt="EarthCARE" height="100">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/aeolus.png" alt="Aeolus" height="100">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/biomass.png" alt="Biomass" height="100">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/flex.png" alt="FLEX" height="100">
+  <img src="https://raw.githubusercontent.com/earthfocus/maap_client/master/logos/readme/cryosat.png" alt="CryoSat" height="100">
   <br>
   <sub>Mission patches © ESA</sub>
 </p>
