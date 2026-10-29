@@ -205,8 +205,8 @@ class StateTracker:
         """
         Mark a file as processed.
 
-        Writes the path to the marked file of its download day, else of the
-        sensing day read from the path itself.
+        Writes the path to a date-specific marked file based on sensing time,
+        or on its download day for a path that cannot date itself.
 
         Args:
             path: Local file path
@@ -215,7 +215,7 @@ class StateTracker:
             True if marked successfully, False if date cannot be extracted
         """
         dt = extract_sensing_time(path)  # Extracts basename internally
-        sensing_date = self._download_date(path, dt.date() if dt else None)
+        sensing_date = dt.date() if dt else self._download_date(path)
         if sensing_date is None:
             logger.warning(f"Could not extract date from path: {path}")
             return False
@@ -224,22 +224,16 @@ class StateTracker:
         self._registry.append_line(mrk_file, path)
         return True
 
-    def _download_date(self, path: str, guess: Optional[date]) -> Optional[date]:
+    def _download_date(self, path: str) -> Optional[date]:
         """
-        Day of the download record of path, else guess. The record's URL dates
-        products whose local path cannot (a flat --out-dir loses the day folder
-        that dates CryoSat EOLIS, SD and shifted Inland Water names); the guess
-        day's file is read first, as it holds the record of a path dated alike.
+        Day of the download record of path, or None. Its URL dates products
+        whose path cannot (a flat --out-dir loses the day folder that dates
+        CryoSat EOLIS and SD names).
         """
-        files = self._registry.list_dwl_files()
-        if guess is not None:
-            first = self._dwl_file_for_date(guess)
-            if first in files:
-                files = [first] + [f for f in files if f != first]
-        for f in files:
+        for f in self._registry.list_dwl_files():
             if any(p == path for _, p in self._registry.read_pairs(f)):
                 return self._registry.extract_file_date(f.name, "dwl_")
-        return guess
+        return None
 
     def mark_error(self, url: str, error: str) -> None:
         """
@@ -298,11 +292,15 @@ class StateTracker:
             self._registry.list_mrk_files(), "mrk_", start_date, end_date
         )
         paths = [path for path, _, _ in pairs]
+        marked = set(filter_by_sensing_time(paths, start, end))
         if start is None and end is None:
-            return set(paths)
-        # a downloaded path is in range when its download is (see mark)
-        downloaded = {path for _, path in self.load_downloads_with_paths(start, end)}
-        return {p for p in paths if p in downloaded} | set(filter_by_sensing_time(paths, start, end))
+            return marked
+        # a path that cannot date itself is in range when its download is (see mark)
+        undated = [p for p in paths if extract_sensing_time(p) is None]
+        if undated:
+            downloaded = {path for _, path in self.load_downloads_with_paths(start, end)}
+            marked.update(p for p in undated if p in downloaded)
+        return marked
 
     def get_pending_downloads(
         self, start: Optional[datetime] = None, end: Optional[datetime] = None
