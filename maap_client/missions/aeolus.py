@@ -53,7 +53,7 @@ _PRODUCT_TYPE = re.compile(r"^AE1?_[A-Z]{4}_([A-Z0-9_]{10})_\d{8}T\d{6}")
 # equals the item's `version` where the catalogue has one. Items without
 # version use the literal `NNAA` ("no baseline"), which is never a baseline.
 _BASELINE_PATH = re.compile(
-    r"/(?P<type>[A-Z0-9_]{10})/(?P<baseline>[A-Za-z0-9]{2,4})"
+    r"/(?P<type>[A-Z0-9_]{10})/(?P<baseline>[A-Z0-9]{2,4})"
     r"/\d{4}/\d{2}/\d{2}/",
     re.IGNORECASE,
 )
@@ -62,6 +62,16 @@ _ORBIT = re.compile(r"_(\d{6})_\d{4}(?:\.[A-Z]{3})?$", re.IGNORECASE)
 _NO_VERSION = "NNAA"
 _DURATION = re.compile(r"_\d{8}T\d{9}_(\d{9})_\d{6}_\d{4}\.[A-Z]{3}$", re.IGNORECASE)
 _VERSION = re.compile(r"_(\d{4})\.[A-Z]{3}$", re.IGNORECASE)
+
+# Verified rule: every item of these AeolusAdditionalProducts types, and no
+# item of any other type, has no catalogue `version` (path folder `NNAA`),
+# checked against the whole catalogue on 2026-10-28.
+NO_BASELINE_PRODUCTS = frozenset({
+    "AUX_CHAR__", "AUX_CLM_L2", "AUX_LUT_BL", "AUX_MET_12", "AUX_PAR_0_",
+    "AUX_PAR_1A", "AUX_PAR_1B", "AUX_PAR_2A", "AUX_PAR_2B", "AUX_PAR_CL",
+    "AUX_PAR_CS", "AUX_PAR_HB", "AUX_PAR_QC", "AUX_PAR_RB", "AUX_TEL_12",
+    "GRND_TRACK", "MPL_ORBPRE", "MPL_ORBRES", "MPL_ORBSCT", "TLMX__VC1_",
+})
 
 
 @dataclass(frozen=True)
@@ -80,17 +90,6 @@ class AeolusName(ProductName):
 
 def _name(name_or_url: str) -> str:
     return AEOLUS.product_name(name_or_url)
-
-
-# Verified rule: every item of these AeolusAdditionalProducts types, and no
-# item of any other type, has no catalogue `version` (path folder `NNAA`),
-# checked against the whole catalogue on 2026-10-28.
-NO_BASELINE_PRODUCTS = frozenset({
-    "AUX_CHAR__", "AUX_CLM_L2", "AUX_LUT_BL", "AUX_MET_12", "AUX_PAR_0_",
-    "AUX_PAR_1A", "AUX_PAR_1B", "AUX_PAR_2A", "AUX_PAR_2B", "AUX_PAR_CL",
-    "AUX_PAR_CS", "AUX_PAR_HB", "AUX_PAR_QC", "AUX_PAR_RB", "AUX_TEL_12",
-    "GRND_TRACK", "MPL_ORBPRE", "MPL_ORBRES", "MPL_ORBSCT", "TLMX__VC1_",
-})
 
 
 def extract_product_type(name_or_url: str) -> Optional[str]:

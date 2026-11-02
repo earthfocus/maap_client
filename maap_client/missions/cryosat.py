@@ -209,7 +209,7 @@ class _CryoSat(Mission):
         stem = os.path.splitext(info.filename)[0]
         return (
             f"{DATA_URL}/{info.product_type}/{info.baseline}"
-            f"/{dt.year:04d}/{dt.month:02d}/{dt.day:02d}/{stem}/{stem}/{info.filename}"
+            f"/{dt:%Y/%m/%d}/{stem}/{stem}/{info.filename}"
         )
 
 

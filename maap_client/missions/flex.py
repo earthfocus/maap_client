@@ -61,18 +61,20 @@ COLLECTIONS = (
     "FLEXTestRAWL0Products",
 )
 
+DATA_URL = "https://catalog.maap.eo.esa.int/data/flex-pdgs-01/FLEX"
+
 # Verified rule: the 10 characters after FLX_ equal `product:type` on every
 # fixture item. The documented L2 example writes `l2_` plus a 6-character
 # type, which is normalised to MAAP's `L2__`.
 _PRODUCT_TYPE = re.compile(r"^FLX_(.{10})_\d{8}T", re.IGNORECASE)
 _L2_SHORT_TYPE = re.compile(r"^FLX_(L2)_([A-Z0-9]{6})_\d{8}T", re.IGNORECASE)
-_SENSING = re.compile(r"_(\d{8}T\d{6})_")
+_SENSING = re.compile(r"_(\d{8}T\d{6})_", re.IGNORECASE)
 # Verified rule: the archive layout `/FLEX/<type>/<baseline>/YYYY/MM/DD/`
 # carries the baseline of every fixture item that has a `version`, including
 # the CCDB `C0` baselines that the product name does not hold. The local data
 # layout `.../<collection>/<type>/<baseline>/YYYY/MM/DD/` has the same tail, so
 # the baseline is the folder after the one named after the product type.
-_PATH_BASELINE = r"/{type}/([^/]+)/\d{{4}}/\d{{2}}/\d{{2}}/"
+_BASELINE_PATH = r"/{type}/([^/]+)/\d{{4}}/\d{{2}}/\d{{2}}/"
 
 _TIME = r"\d{8}T\d{6}"
 # Optional suffix and extension of the internal files (section 4.1.1)
@@ -100,8 +102,6 @@ NO_BASELINE_PRODUCTS = frozenset({
     "AUX_REFCEN", "AUX_SIFCOV", "AUX_SLISRF", "AUX_SNCONV", "AUX_SOCONV",
     "AUX_UTMTIL", "AUX_V_TEMP",
 })
-
-DATA_URL = "https://catalog.maap.eo.esa.int/data/flex-pdgs-01/FLEX"
 
 
 def _documented(name: str) -> Optional[re.Match]:
@@ -167,7 +167,7 @@ def extract_baseline(name_or_url: str) -> Optional[str]:
     product_type = extract_product_type(name_or_url)
     baseline = None
     if product_type:
-        pattern = re.compile(_PATH_BASELINE.format(type=re.escape(product_type)), re.IGNORECASE)
+        pattern = re.compile(_BASELINE_PATH.format(type=re.escape(product_type)), re.IGNORECASE)
         baseline = match_group(pattern, name_or_url)
     baseline = baseline or _documented_field(name_or_url, "baseline")
     return declared_baseline(baseline, product_type, NO_BASELINE_PRODUCTS)

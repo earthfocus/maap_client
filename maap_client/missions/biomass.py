@@ -119,7 +119,7 @@ def _documented_match(name_or_url: str) -> Optional[re.Match]:
     return _DOCUMENTED.match(_product(name_or_url))
 
 
-def _documented(name_or_url: str, key: str) -> Optional[str]:
+def _documented_field(name_or_url: str, key: str) -> Optional[str]:
     """A field of the documented grammar, or None for other types and blank (``__``) fields."""
     match = _documented_match(name_or_url)
     value = match.group(key) if match else None
@@ -127,7 +127,7 @@ def _documented(name_or_url: str, key: str) -> Optional[str]:
 
 
 def _identifier(name_or_url: str, key: str) -> Optional[int]:
-    value = _documented(name_or_url, key)
+    value = _documented_field(name_or_url, key)
     return int(value) if value is not None else None
 
 
@@ -171,7 +171,7 @@ def extract_orbit(name_or_url: str) -> None:
 
 def extract_phase(name_or_url: str) -> Optional[str]:
     """Mission phase letter, upper-case."""
-    phase = _documented(name_or_url, "phase")
+    phase = _documented_field(name_or_url, "phase")
     return phase.upper() if phase else None
 
 

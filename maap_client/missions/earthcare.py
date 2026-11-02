@@ -33,10 +33,6 @@ from maap_client.missions.base import (
     split_product_url,
 )
 
-# Root of the MAAP archive serving EarthCARE products over HTTPS. The layout
-# below it is keyed entirely by the filename (see EarthCARE.data_url).
-DATA_URL = "https://catalog.maap.eo.esa.int/data/earthcare-pdgs-01/EarthCARE"
-
 COLLECTIONS = (
     "EarthCAREL0L1Products_MAAP",
     "EarthCAREL1InstChecked_MAAP",
@@ -52,8 +48,12 @@ COLLECTIONS = (
     "JAXAL2Validated_MAAP",
 )
 
+# Root of the MAAP archive serving EarthCARE products over HTTPS. The layout
+# below it is keyed entirely by the filename (see EARTHCARE.data_url).
+DATA_URL = "https://catalog.maap.eo.esa.int/data/earthcare-pdgs-01/EarthCARE"
+
 # Products that are deduplicated by (sensing_time, orbit_frame) at download time
-# (see EarthCARE.dedup_pattern). AUX_MET_1D has multiple versions per granule
+# (see EARTHCARE.dedup_pattern). AUX_MET_1D has multiple versions per granule
 # (different creation_time) in the STAC API.
 DEDUP_PRODUCTS = frozenset({"AUX_MET_1D"})
 
@@ -63,7 +63,7 @@ NO_ORBIT_PRODUCTS = frozenset({"AUX_MET_1D"})
 _SENSING = re.compile(r"_(\d{8}T\d{6})Z?_")
 _CREATION = re.compile(r"_\d{8}T\d{6}Z_(\d{8}T\d{6}Z)_")
 # The extension is optional: zip (product) URLs end in the bare product name
-_ORBIT_FRAME = re.compile(r"_(\d{5})([A-Z])(?:\.[a-zA-Z0-9]+)?$", re.IGNORECASE)
+_ORBIT_FRAME = re.compile(r"_(\d{5})([A-Z])(?:\.[A-Z0-9]+)?$", re.IGNORECASE)
 _AGENCY = re.compile(r"^ECA_([A-Z]{2})[A-Z]{2}_")
 _BASELINE = re.compile(r"^ECA_[A-Z]{2}([A-Z]{2})_")
 _PRODUCT_TYPE = re.compile(r"^ECA_[A-Z]{4}_(.+?)_\d{8}T\d{6}Z_")
@@ -194,7 +194,7 @@ class _EarthCARE(Mission):
         stem = os.path.splitext(name)[0]
         return (
             f"{DATA_URL}/{info.product_type}/{info.baseline}"
-            f"/{dt.year:04d}/{dt.month:02d}/{dt.day:02d}/{stem}/{stem}/{name}"
+            f"/{dt:%Y/%m/%d}/{stem}/{stem}/{name}"
         )
 
     def dedup_pattern(self, filename: str) -> Optional[str]:
