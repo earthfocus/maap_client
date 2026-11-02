@@ -101,7 +101,7 @@ NO_BASELINE_PRODUCTS = frozenset({
     "AUX_UTMTIL", "AUX_V_TEMP",
 })
 
-_DATA_ROOT = "https://catalog.maap.eo.esa.int/data/flex-pdgs-01/FLEX"
+DATA_URL = "https://catalog.maap.eo.esa.int/data/flex-pdgs-01/FLEX"
 
 
 def _documented(name: str) -> Optional[re.Match]:
@@ -259,7 +259,7 @@ class _Flex(Mission):
             f"FLX_{product_type}_{basename[match.end('start') - 15:match.end('baseline')]}"
         ).upper()
         return (
-            f"{_DATA_ROOT}/{product_type}/{match.group('baseline')}/{sensing:%Y/%m/%d}"
+            f"{DATA_URL}/{product_type}/{match.group('baseline')}/{sensing:%Y/%m/%d}"
             f"/{product}/{product}/{basename}"
         )
 
